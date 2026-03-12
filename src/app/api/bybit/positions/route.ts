@@ -1,0 +1,43 @@
+import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { getPositions } from "@/lib/bybit/client";
+
+export async function GET() {
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const result = await getPositions();
+
+    // Filter out zero-size positions
+    const openPositions = result.list.filter(
+      (p) => parseFloat(p.size) > 0
+    );
+
+    return NextResponse.json({
+      positions: openPositions.map((p) => ({
+        symbol: p.symbol,
+        side: p.side,
+        size: p.size,
+        entryPrice: p.avgPrice,
+        markPrice: p.markPrice,
+        leverage: p.leverage,
+        unrealisedPnl: p.unrealisedPnl,
+        cumRealisedPnl: p.cumRealisedPnl,
+        liqPrice: p.liqPrice,
+        createdTime: p.createdTime,
+        updatedTime: p.updatedTime,
+      })),
+      count: openPositions.length,
+    });
+  } catch (error) {
+    console.error("Bybit positions error:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch positions" },
+      { status: 500 }
+    );
+  }
+}

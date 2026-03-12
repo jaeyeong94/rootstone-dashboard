@@ -1,0 +1,188 @@
+@import "tailwindcss";
+
+/* ROOTSTONE Hybrid Design System */
+/* Base: rootstone.io (black + bronze) + PDF accent (gold for data) */
+
+@theme {
+  /* Background */
+  --color-bg-primary: #0F0F0F;
+  --color-bg-card: #161616;
+  --color-bg-elevated: #1C1C1C;
+  --color-bg-hover: #222222;
+
+  /* Brand Accent */
+  --color-bronze: #997B66;
+  --color-bronze-light: #B09580;
+  --color-bronze-dark: #7A6252;
+  --color-gold: #C5A049;
+  --color-gold-light: #D4B86A;
+
+  /* Semantic */
+  --color-pnl-positive: #C5A049;
+  --color-pnl-negative: #EF4444;
+  --color-status-live: #10B981;
+  --color-status-warn: #F59E0B;
+  --color-status-error: #EF4444;
+
+  /* Text */
+  --color-text-primary: #FFFFFF;
+  --color-text-secondary: #888888;
+  --color-text-muted: #555555;
+  --color-text-dim: #333333;
+
+  /* Border */
+  --color-border: #333333;
+  --color-border-subtle: #222222;
+
+  /* Font families */
+  --font-heading: "Manrope", sans-serif;
+  --font-body: "Inter", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+/* Base styles */
+body {
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* Corner bracket button style */
+.btn-bracket {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 24px;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  font-size: 13px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.btn-bracket::before,
+.btn-bracket::after {
+  content: "";
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  transition: all 0.2s ease;
+}
+
+.btn-bracket::before {
+  top: 0;
+  left: 0;
+  border-top: 1px solid var(--color-text-secondary);
+  border-left: 1px solid var(--color-text-secondary);
+}
+
+.btn-bracket::after {
+  bottom: 0;
+  right: 0;
+  border-bottom: 1px solid var(--color-text-secondary);
+  border-right: 1px solid var(--color-text-secondary);
+}
+
+.btn-bracket:hover {
+  color: var(--color-bronze-light);
+}
+
+.btn-bracket:hover::before,
+.btn-bracket:hover::after {
+  border-color: var(--color-bronze);
+  width: 16px;
+  height: 16px;
+}
+
+/* Pulse animation for live indicator */
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-live-pulse {
+  animation: live-pulse 2s ease-in-out infinite;
+}
+
+/* Number transition */
+.num-transition {
+  transition: color 0.3s ease;
+}
+
+/* Tick flash animation - price change highlight */
+@keyframes tick-flash-up {
+  0% { color: var(--color-pnl-positive); }
+  100% { color: inherit; }
+}
+
+@keyframes tick-flash-down {
+  0% { color: var(--color-pnl-negative); }
+  100% { color: inherit; }
+}
+
+.tick-up {
+  animation: tick-flash-up 0.3s ease-out;
+}
+
+.tick-down {
+  animation: tick-flash-down 0.3s ease-out;
+}
+
+/* Slide-in animation for new trades */
+@keyframes slide-in-top {
+  0% {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in-top 0.4s ease-out;
+}
+
+/* Count-up number transition */
+.count-up {
+  transition: all 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Glow effect for hero number */
+.glow-gold {
+  text-shadow: 0 0 20px rgba(197, 160, 73, 0.3);
+}
+
+/* Heatmap cell hover */
+.heatmap-cell {
+  transition: opacity 0.15s ease;
+}
+
+.heatmap-cell:hover {
+  opacity: 0.8;
+}
