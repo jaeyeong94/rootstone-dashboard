@@ -22,8 +22,8 @@
     "test:run": "vitest run"
   },
   "dependencies": {
+    "@neondatabase/serverless": "~0.10.4",
     "bcryptjs": "^2.4.3",
-    "better-sqlite3": "^11.0.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "drizzle-orm": "^0.39.0",
@@ -44,7 +44,6 @@
     "@testing-library/jest-dom": "^6.0.0",
     "@testing-library/react": "^16.0.0",
     "@types/bcryptjs": "^2.4.6",
-    "@types/better-sqlite3": "^7.6.0",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

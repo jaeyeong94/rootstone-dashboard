@@ -14,11 +14,10 @@ export async function GET() {
 
   try {
     // Get balance snapshots from DB
-    const snapshots = getDb()
+    const snapshots = await getDb()
       .select()
       .from(balanceSnapshots)
-      .orderBy(asc(balanceSnapshots.snapshotAt))
-      .all();
+      .orderBy(asc(balanceSnapshots.snapshotAt));
 
     if (snapshots.length === 0) {
       return NextResponse.json({ curve: [] });

@@ -29,11 +29,10 @@ export async function GET(request: Request) {
   const window = parseInt(searchParams.get("window") || "30");
 
   try {
-    const snapshots = getDb()
+    const snapshots = await getDb()
       .select()
       .from(balanceSnapshots)
-      .orderBy(asc(balanceSnapshots.snapshotAt))
-      .all();
+      .orderBy(asc(balanceSnapshots.snapshotAt));
 
     // Deduplicate: keep last snapshot per day
     const byDay = new Map<string, number>();

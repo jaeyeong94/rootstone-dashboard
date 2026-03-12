@@ -18,11 +18,12 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        const user = getDb()
+        const rows = await getDb()
           .select()
           .from(users)
           .where(eq(users.username, credentials.username))
-          .get();
+          .limit(1);
+        const user = rows[0];
 
         if (!user) {
           return null;

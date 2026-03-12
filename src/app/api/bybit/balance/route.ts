@@ -31,22 +31,21 @@ export async function GET(request: Request) {
 
     // Auto-snapshot: insert if last snapshot is > 1 hour old
     const db = getDb();
-    const lastSnapshot = db
+    const lastRows = await db
       .select()
       .from(balanceSnapshots)
       .orderBy(desc(balanceSnapshots.snapshotAt))
-      .limit(1)
-      .get();
+      .limit(1);
+    const lastSnapshot = lastRows[0];
 
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
     if (!lastSnapshot || lastSnapshot.snapshotAt < oneHourAgo) {
-      db.insert(balanceSnapshots)
+      await db.insert(balanceSnapshots)
         .values({
           totalEquity: currentEquity,
           totalWalletBalance: parseFloat(account.totalWalletBalance),
           totalUnrealisedPnl: unrealisedPnl,
-        })
-        .run();
+        });
     }
 
     // Calculate change % from snapshots
@@ -57,13 +56,13 @@ export async function GET(request: Request) {
     };
 
     const cutoff = new Date(Date.now() - (periodMs[period] || periodMs["24h"]));
-    const oldSnapshot = db
+    const oldRows = await db
       .select()
       .from(balanceSnapshots)
       .where(gte(balanceSnapshots.snapshotAt, cutoff))
       .orderBy(balanceSnapshots.snapshotAt)
-      .limit(1)
-      .get();
+      .limit(1);
+    const oldSnapshot = oldRows[0];
 
     let changePercent = 0;
     if (oldSnapshot && oldSnapshot.totalEquity > 0) {
