@@ -3,6 +3,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import type { BenchmarkPoint } from "@/types";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 const BYBIT_PUBLIC = "https://api.bybit.com";
 
 export async function GET(request: Request) {

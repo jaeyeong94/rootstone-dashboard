@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import useSWR from "swr";
 import { cn, formatPnlPercent, getPnlColor } from "@/lib/utils";
 import { useCountUp } from "@/hooks/useCountUp";
@@ -24,16 +25,20 @@ const COMPOSITE = {
 
 export function HeroZone() {
   const { data: balanceData } = useSWR<{ changePercent: number }>(
-    "/api/bybit/balance?period=24h",
+    "/api/bybit/balance?period=30d",
     fetcher,
-    { refreshInterval: 30000 }
+    { refreshInterval: 60000 }
   );
 
   // Use static cumulative returns for the sparkline and headline number
-  const curve = (staticCurve as { time: string; value: number }[]).map((p) => ({
-    time: p.time,
-    value: p.value,
-  }));
+  const curve = useMemo(
+    () =>
+      (staticCurve as { time: string; value: number }[]).map((p) => ({
+        time: p.time,
+        value: p.value,
+      })),
+    []
+  );
   const lastValue = curve.length > 0 ? curve[curve.length - 1].value / 100 : 0;
   const animatedReturn = useCountUp(lastValue, 2000);
 
@@ -51,7 +56,7 @@ export function HeroZone() {
       value: COMPOSITE.maxDrawdown,
     },
     {
-      label: "Today",
+      label: "30D Return",
       value:
         balanceData?.changePercent != null
           ? formatPnlPercent(balanceData.changePercent)
@@ -127,10 +132,8 @@ export function HeroZone() {
       </div>
 
       {/* 하단: 스파크라인 */}
-      <div className="relative z-10 mt-auto">
-        <div className="px-0 opacity-60">
-          <AnimatedSparkline data={curve} />
-        </div>
+      <div className="relative z-10 mt-auto opacity-60">
+        <AnimatedSparkline data={curve} />
       </div>
     </div>
   );

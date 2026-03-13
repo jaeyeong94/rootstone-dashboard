@@ -110,7 +110,7 @@ export function DrawdownChart() {
   }, [data, chartReady]);
 
   return (
-    <div className="rounded-sm border border-border-subtle bg-bg-card p-5">
+    <div className="min-w-0 rounded-sm border border-border-subtle bg-bg-card p-5">
       <span className="text-[11px] uppercase tracking-[1px] text-text-secondary">
         Drawdown
       </span>

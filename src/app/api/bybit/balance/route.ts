@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getWalletBalance } from "@/lib/bybit/client";
+import { getWalletBalance, getExecutions } from "@/lib/bybit/client";
 import { db as getDb } from "@/lib/db";
 import { balanceSnapshots } from "@/lib/db/schema";
 import { desc, gte } from "drizzle-orm";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
@@ -70,10 +73,30 @@ export async function GET(request: Request) {
         (currentEquity - oldSnapshot.totalEquity) / oldSnapshot.totalEquity;
     }
 
+    // Compute daily turnover: today's volume / equity
+    let dailyTurnover = 0;
+    try {
+      const execs = await getExecutions({ limit: "200" });
+      const now = new Date();
+      const todayStartMs = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+      let todayVolume = 0;
+      for (const e of execs.list ?? []) {
+        if (Number(e.execTime) >= todayStartMs) {
+          todayVolume += parseFloat(e.execPrice) * parseFloat(e.execQty);
+        }
+      }
+      if (currentEquity > 0) {
+        dailyTurnover = todayVolume / currentEquity;
+      }
+    } catch {
+      // non-critical, leave as 0
+    }
+
     // Return ONLY percentages — no absolute amounts
     return NextResponse.json({
       changePercent,
       unrealisedPnlPercent: currentEquity > 0 ? unrealisedPnl / currentEquity : 0,
+      dailyTurnover,
       period,
       hasHistory: !!oldSnapshot,
     });

@@ -6,6 +6,9 @@ import { db as getDb } from "@/lib/db";
 import { balanceSnapshots } from "@/lib/db/schema";
 import { desc } from "drizzle-orm";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) {

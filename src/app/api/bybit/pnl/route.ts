@@ -3,6 +3,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getClosedPnl } from "@/lib/bybit/client";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**

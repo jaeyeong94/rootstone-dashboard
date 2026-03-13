@@ -46,16 +46,16 @@ describe("getPnlColor", () => {
 describe("formatRelativeTime", () => {
   it("formats seconds ago", () => {
     const date = new Date(Date.now() - 30 * 1000);
-    expect(formatRelativeTime(date)).toBe("30초 전");
+    expect(formatRelativeTime(date)).toBe("30s ago");
   });
 
   it("formats minutes ago", () => {
     const date = new Date(Date.now() - 5 * 60 * 1000);
-    expect(formatRelativeTime(date)).toBe("5분 전");
+    expect(formatRelativeTime(date)).toBe("5m ago");
   });
 
   it("formats hours ago", () => {
     const date = new Date(Date.now() - 3 * 60 * 60 * 1000);
-    expect(formatRelativeTime(date)).toBe("3시간 전");
+    expect(formatRelativeTime(date)).toBe("3h ago");
   });
 });

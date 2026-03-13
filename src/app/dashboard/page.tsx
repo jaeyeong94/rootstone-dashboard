@@ -14,7 +14,7 @@ import { AlphaBetaCards } from "@/components/dashboard/AlphaBetaCards";
 
 export default function OverviewPage() {
   return (
-    <div className="min-h-screen pr-[280px]">
+    <div className="min-h-screen lg:pr-[280px]">
       <RightFixedPanel />
       {/* ─── Zone 1: Hero ─── */}
       <HeroZone />

@@ -3,6 +3,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getAuthHeadersWithQuery } from "@/lib/bybit/signing";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 const BASE = "https://api.bybit.com";
 
 export async function GET() {

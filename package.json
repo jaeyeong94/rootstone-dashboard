@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "~0.10.4",
+    "agentation": "^2.3.2",
     "bcryptjs": "^2.4.3",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",

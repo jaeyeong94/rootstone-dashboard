@@ -6,6 +6,9 @@ import { balanceSnapshots } from "@/lib/db/schema";
 import { asc } from "drizzle-orm";
 import type { MonthlyReturn } from "@/types";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) {

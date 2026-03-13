@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import type { EquityCurvePoint } from "@/types";
 
 interface Props {
@@ -8,22 +7,6 @@ interface Props {
 }
 
 export function AnimatedSparkline({ data }: Props) {
-  const pathRef = useRef<SVGPathElement>(null);
-
-  useEffect(() => {
-    const path = pathRef.current;
-    if (!path || data.length < 2) return;
-    const length = path.getTotalLength();
-    path.style.strokeDasharray = String(length);
-    path.style.strokeDashoffset = String(length);
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        path.style.transition = "stroke-dashoffset 2s ease-in-out";
-        path.style.strokeDashoffset = "0";
-      });
-    });
-  }, [data]);
-
   if (data.length < 2) return null;
 
   const values = data.map((d) => d.value);
@@ -45,7 +28,8 @@ export function AnimatedSparkline({ data }: Props) {
     <svg
       viewBox={`0 0 ${W} ${H}`}
       preserveAspectRatio="none"
-      className="h-56 w-full"
+      className="block h-56 w-full"
+      style={{ animation: "fadeIn 1.5s ease-in-out" }}
     >
       <defs>
         <linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1">
@@ -59,7 +43,6 @@ export function AnimatedSparkline({ data }: Props) {
         opacity="0.5"
       />
       <path
-        ref={pathRef}
         d={d}
         fill="none"
         stroke="#C5A049"

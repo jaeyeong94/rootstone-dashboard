@@ -398,7 +398,7 @@ export default function CalendarPage() {
       const data: MonthlyData = await res.json();
       setMonthlyData(data);
     } catch {
-      setMonthlyError("데이터를 불러오지 못했습니다.");
+      setMonthlyError("Failed to load data.");
     } finally {
       setLoadingMonthly(false);
     }

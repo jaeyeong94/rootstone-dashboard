@@ -9,6 +9,9 @@ import { getDailyClosePrices } from "@/lib/bybit/kline";
 import { historicalVaR } from "@/lib/math/statistics";
 import { calcSharpeRatio, calcSortinoRatio, calcMaxDrawdown, calcDailyReturns } from "@/lib/utils";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session) {

@@ -10,6 +10,13 @@ import {
   rollingCorrelation,
   pricesToReturns,
 } from "@/lib/math/correlation";
+import {
+  loadBenchmarkReturns,
+  getAvailableBenchmarks,
+} from "@/lib/math/benchmarks";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 const ROLLING_WINDOW = 21; // ~1 trading month
 
@@ -46,15 +53,11 @@ export async function GET(request: Request) {
       equityByDay.set(day, s.totalEquity);
     }
 
-    // Align all three assets on common dates
+    // Align Rebeta, BTC, ETH on common dates
     const btcByDate = new Map(btcData.map((d) => [d.time, d.close]));
     const ethByDate = new Map(ethData.map((d) => [d.time, d.close]));
-
-    // Build set of dates where all three data sources have values
-    // For Rebeta we need consecutive days to compute returns
     const equityDays = Array.from(equityByDay.keys()).sort();
 
-    // Collect dates that exist in all three sources, limited to last `period` days
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - period);
     const cutoff = cutoffDate.toISOString().split("T")[0];
@@ -83,33 +86,101 @@ export async function GET(request: Request) {
     const rebetaReturns = pricesToReturns(rebetaEquity);
     const returnDates = commonDates.slice(1);
 
-    // Full-period correlation matrix: [Rebeta, BTC, ETH]
-    const matrix = correlationMatrix([rebetaReturns, btcReturns, ethReturns]);
+    // Build return-by-date maps for alignment with benchmarks
+    const rebetaReturnsByDate = new Map<string, number>();
+    const btcReturnsByDate = new Map<string, number>();
+    const ethReturnsByDate = new Map<string, number>();
+    for (let i = 0; i < returnDates.length; i++) {
+      rebetaReturnsByDate.set(returnDates[i], rebetaReturns[i]);
+      btcReturnsByDate.set(returnDates[i], btcReturns[i]);
+      ethReturnsByDate.set(returnDates[i], ethReturns[i]);
+    }
 
-    // Rolling correlation (21-day window)
-    const window = Math.min(ROLLING_WINDOW, Math.floor(returnDates.length / 2));
-    const rollingBtc = rollingCorrelation(rebetaReturns, btcReturns, returnDates, window);
-    const rollingEth = rollingCorrelation(rebetaReturns, ethReturns, returnDates, window);
+    // Load benchmark returns and align to common dates
+    const benchmarks = getAvailableBenchmarks();
+    const assetNames: string[] = ["Rebeta", "BTC", "ETH"];
+    const allReturnsSeries: number[][] = [];
 
-    // Merge rolling results by time
-    const rollingByTime = new Map(rollingBtc.map((p) => [p.time, { rebetaBtc: p.value }]));
-    for (const p of rollingEth) {
-      const entry = rollingByTime.get(p.time);
-      if (entry) {
-        (entry as { rebetaBtc: number; rebetaEth?: number }).rebetaEth = p.value;
+    // Build benchmark return-by-date maps
+    const benchmarkReturnMaps: Map<string, number>[] = [];
+    for (const bm of benchmarks) {
+      const bmData = loadBenchmarkReturns(bm.symbol);
+      const bmMap = new Map<string, number>();
+      for (let i = 0; i < bmData.dates.length; i++) {
+        bmMap.set(bmData.dates[i], bmData.returns[i]);
+      }
+      benchmarkReturnMaps.push(bmMap);
+      assetNames.push(bm.symbol);
+    }
+
+    // Find dates where ALL assets have data
+    const allCommonDates: string[] = [];
+    for (const date of returnDates) {
+      const allHaveData = benchmarkReturnMaps.every((m) => m.has(date));
+      if (allHaveData) {
+        allCommonDates.push(date);
       }
     }
 
-    const rollingCorrelationData = Array.from(rollingByTime.entries())
-      .filter(([, v]) => (v as { rebetaBtc: number; rebetaEth?: number }).rebetaEth !== undefined)
-      .map(([time, v]) => {
-        const val = v as { rebetaBtc: number; rebetaEth: number };
-        return {
-          time,
-          rebetaBtc: Math.round(val.rebetaBtc * 10000) / 10000,
-          rebetaEth: Math.round(val.rebetaEth * 10000) / 10000,
-        };
+    // Build aligned return series for all assets
+    const alignedRebeta: number[] = [];
+    const alignedBtc: number[] = [];
+    const alignedEth: number[] = [];
+    const alignedBenchmarks: number[][] = benchmarks.map(() => []);
+
+    for (const date of allCommonDates) {
+      alignedRebeta.push(rebetaReturnsByDate.get(date)!);
+      alignedBtc.push(btcReturnsByDate.get(date)!);
+      alignedEth.push(ethReturnsByDate.get(date)!);
+      for (let i = 0; i < benchmarks.length; i++) {
+        alignedBenchmarks[i].push(benchmarkReturnMaps[i].get(date)!);
+      }
+    }
+
+    allReturnsSeries.push(alignedRebeta, alignedBtc, alignedEth, ...alignedBenchmarks);
+
+    // Full NxN correlation matrix
+    const matrix = correlationMatrix(allReturnsSeries);
+
+    // Rolling correlation (21-day window) - Rebeta vs all assets
+    const window = Math.min(ROLLING_WINDOW, Math.floor(allCommonDates.length / 2));
+
+    // All rolling series: BTC, ETH, + benchmarks
+    const rollingAssets: { key: string; data: { time: string; value: number }[] }[] = [];
+
+    if (allCommonDates.length > window) {
+      rollingAssets.push({
+        key: "BTC",
+        data: rollingCorrelation(alignedRebeta, alignedBtc, allCommonDates, window),
       });
+      rollingAssets.push({
+        key: "ETH",
+        data: rollingCorrelation(alignedRebeta, alignedEth, allCommonDates, window),
+      });
+      for (let i = 0; i < benchmarks.length; i++) {
+        rollingAssets.push({
+          key: benchmarks[i].symbol,
+          data: rollingCorrelation(alignedRebeta, alignedBenchmarks[i], allCommonDates, window),
+        });
+      }
+    }
+
+    // Merge all rolling series by time into unified records
+    const rollingByTime = new Map<string, Record<string, number>>();
+    for (const asset of rollingAssets) {
+      for (const p of asset.data) {
+        if (!rollingByTime.has(p.time)) {
+          rollingByTime.set(p.time, {});
+        }
+        rollingByTime.get(p.time)![asset.key] = Math.round(p.value * 10000) / 10000;
+      }
+    }
+
+    const rollingKeys = rollingAssets.map((a) => a.key);
+    const rollingCorrelationData = Array.from(rollingByTime.entries())
+      .filter(([, v]) => rollingKeys.every((k) => k in v))
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([time, v]) => ({ time, ...v }));
 
     // Round matrix values
     const roundedMatrix = matrix.map((row) =>
@@ -118,9 +189,10 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       period: `${period}d`,
-      assets: ["Rebeta", "BTC", "ETH"],
+      assets: assetNames,
       matrix: roundedMatrix,
       rollingCorrelation: rollingCorrelationData,
+      rollingKeys,
     });
   } catch (error) {
     console.error("Correlation matrix error:", error);

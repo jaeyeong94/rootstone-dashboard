@@ -10,6 +10,9 @@ import {
   calcRollingValues,
 } from "@/lib/utils";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 function calcVolatility(returns: number[]): number {
   if (returns.length < 2) return 0;
   const mean = returns.reduce((a, b) => a + b, 0) / returns.length;

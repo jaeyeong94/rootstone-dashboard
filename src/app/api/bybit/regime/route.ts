@@ -9,6 +9,9 @@ import { pricesToReturns } from "@/lib/math/correlation";
 import { estimateRegime, classifyDay } from "@/lib/math/regime";
 import { realizedVolatility, mean } from "@/lib/math/statistics";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) {

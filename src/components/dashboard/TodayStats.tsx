@@ -1,7 +1,7 @@
 "use client";
 
 import useSWR from "swr";
-import { cn, formatNumber } from "@/lib/utils";
+import { cn, formatNumber, formatPnlPercent, getPnlColor } from "@/lib/utils";
 import type { BybitExecution } from "@/types";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -40,6 +40,13 @@ interface ExecutionsResponse {
   nextPageCursor: string;
 }
 
+interface BalanceResponse {
+  changePercent: number;
+  dailyTurnover: number;
+  period: string;
+  hasHistory: boolean;
+}
+
 function getTodayExecutions(list: BybitExecution[]): BybitExecution[] {
   const now = new Date();
   const todayStart = Date.UTC(
@@ -53,55 +60,15 @@ function getTodayExecutions(list: BybitExecution[]): BybitExecution[] {
   });
 }
 
-interface TodayStatsData {
-  totalCount: number;
-  longCount: number;
-  shortCount: number;
-  totalVolume: number;
-  largestTrade: number;
-  totalFee: number;
-}
-
-function calcStats(executions: BybitExecution[]): TodayStatsData {
-  let longCount = 0;
-  let shortCount = 0;
-  let totalVolume = 0;
-  let largestTrade = 0;
-  let totalFee = 0;
-
-  for (const e of executions) {
-    const price = parseFloat(e.execPrice);
-    const qty = parseFloat(e.execQty);
-    const fee = parseFloat(e.execFee);
-    const notional = price * qty;
-
-    if (e.side === "Buy") longCount++;
-    else shortCount++;
-
-    totalVolume += notional;
-    if (notional > largestTrade) largestTrade = notional;
-    totalFee += fee;
-  }
-
-  return {
-    totalCount: executions.length,
-    longCount,
-    shortCount,
-    totalVolume,
-    largestTrade,
-    totalFee,
-  };
-}
-
-function formatVolume(value: number): string {
-  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`;
-  if (value >= 1_000) return `$${(value / 1_000).toFixed(1)}K`;
-  return `$${formatNumber(value, 0)}`;
-}
-
 export function TodayStats() {
   const { data, error, isLoading } = useSWR<ExecutionsResponse>(
     "/api/bybit/executions?limit=200",
+    fetcher,
+    { refreshInterval: 30_000 }
+  );
+
+  const { data: balanceData } = useSWR<BalanceResponse>(
+    "/api/bybit/balance?period=24h",
     fetcher,
     { refreshInterval: 30_000 }
   );
@@ -135,13 +102,17 @@ export function TodayStats() {
   }
 
   const todayExecs = getTodayExecutions(data.list);
-  const stats = calcStats(todayExecs);
 
-  const longRatio =
-    stats.totalCount > 0
-      ? Math.round((stats.longCount / stats.totalCount) * 100)
-      : 0;
-  const shortRatio = 100 - longRatio;
+  // Open = Buy (entering position), Close = Sell (closing position)
+  let openCount = 0;
+  let closeCount = 0;
+  for (const e of todayExecs) {
+    if (e.side === "Buy") openCount++;
+    else closeCount++;
+  }
+
+  const pnlPct = balanceData?.changePercent ?? null;
+  const turnover = balanceData?.dailyTurnover ?? null;
 
   return (
     <div className="rounded-sm border border-border-subtle bg-bg-card">
@@ -153,23 +124,24 @@ export function TodayStats() {
       <div className="grid grid-cols-2 gap-x-6 gap-y-4 px-4 py-4">
         <StatBlock
           label="Trades"
-          value={stats.totalCount.toString()}
-          sub="UTC 00:00 기준"
+          value={todayExecs.length.toString()}
         />
         <StatBlock
-          label="Long / Short"
-          value={`${stats.longCount} / ${stats.shortCount}`}
-          sub={`${longRatio}% · ${shortRatio}%`}
+          label="Open / Close"
+          value={`${openCount} / ${closeCount}`}
         />
         <StatBlock
-          label="Volume"
-          value={formatVolume(stats.totalVolume)}
-          sub={stats.totalCount > 0 ? `avg ${formatVolume(stats.totalVolume / stats.totalCount)}` : "—"}
+          label="PnL %"
+          value={pnlPct != null ? formatPnlPercent(pnlPct) : "--"}
+          valueClass={pnlPct != null ? getPnlColor(pnlPct) : undefined}
         />
         <StatBlock
-          label="Largest"
-          value={stats.largestTrade > 0 ? formatVolume(stats.largestTrade) : "—"}
-          sub={stats.totalFee > 0 ? `fees $${formatNumber(stats.totalFee, 2)}` : undefined}
+          label="Turnover"
+          value={
+            turnover != null
+              ? `${(turnover * 100).toFixed(1)}%`
+              : "--"
+          }
         />
       </div>
     </div>

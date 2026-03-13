@@ -36,7 +36,7 @@ export function getPnlColor(value: number): string {
 }
 
 /**
- * Format relative time (e.g., "3분 전", "1시간 전")
+ * Format relative time (e.g., "3m ago", "1h ago")
  */
 export function formatRelativeTime(date: Date): string {
   const now = new Date();
@@ -45,10 +45,10 @@ export function formatRelativeTime(date: Date): string {
   const diffMin = Math.floor(diffSec / 60);
   const diffHour = Math.floor(diffMin / 60);
 
-  if (diffSec < 60) return `${diffSec}초 전`;
-  if (diffMin < 60) return `${diffMin}분 전`;
-  if (diffHour < 24) return `${diffHour}시간 전`;
-  return `${Math.floor(diffHour / 24)}일 전`;
+  if (diffSec < 60) return `${diffSec}s ago`;
+  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffHour < 24) return `${diffHour}h ago`;
+  return `${Math.floor(diffHour / 24)}d ago`;
 }
 
 /**

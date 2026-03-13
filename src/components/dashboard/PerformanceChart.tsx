@@ -114,8 +114,8 @@ export function PerformanceChart() {
           borderColor: "#333333",
           scaleMargins: { top: 0.1, bottom: 0.1 },
         },
-        handleScroll: false,
-        handleScale: false,
+        handleScroll: true,
+        handleScale: true,
         timeScale: { borderColor: "#333333", timeVisible: false, fixLeftEdge: true, fixRightEdge: true },
         crosshair: {
           vertLine: { color: "#997B66", width: 1, style: LineStyle.Dashed },
@@ -207,9 +207,9 @@ export function PerformanceChart() {
   }, [v1Data, v31Data, btcBenchmark, period, chartReady]);
 
   return (
-    <div className="rounded-sm border border-border-subtle bg-bg-card p-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+    <div className="min-w-0 rounded-sm border border-border-subtle bg-bg-card p-6">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-4">
           <span className="text-[11px] uppercase tracking-[1px] text-text-secondary">
             Performance
           </span>
