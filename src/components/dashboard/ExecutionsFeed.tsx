@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import { cn, formatNumber } from "@/lib/utils";
 
@@ -31,7 +31,7 @@ export function ExecutionsFeed() {
     refreshInterval: 10000,
   });
 
-  const executions: Execution[] = data?.list ?? [];
+  const executions: Execution[] = useMemo(() => data?.list ?? [], [data]);
   const prevIdsRef = useRef<Set<string>>(new Set());
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
 

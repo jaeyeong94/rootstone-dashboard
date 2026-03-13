@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { getWalletBalance } from "@/lib/bybit/client";
 import { db as getDb } from "@/lib/db";
 import { balanceSnapshots } from "@/lib/db/schema";
-import { desc, and, gte } from "drizzle-orm";
+import { desc, gte } from "drizzle-orm";
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);

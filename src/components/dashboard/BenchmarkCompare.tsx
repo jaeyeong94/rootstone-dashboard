@@ -24,7 +24,10 @@ export function BenchmarkCompare() {
   );
 
   const curve: EquityCurvePoint[] = curveData?.curve ?? [];
-  const btc: BenchmarkPoint[] = benchData?.series ?? [];
+  const btc: BenchmarkPoint[] = useMemo(
+    () => benchData?.series ?? [],
+    [benchData]
+  );
 
   const rebetaLast = curve.length > 0 ? curve[curve.length - 1].value : 0;
   const btcLast = btc.length > 0 ? btc[btc.length - 1].value : 0;
