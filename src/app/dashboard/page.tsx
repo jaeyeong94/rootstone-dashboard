@@ -1,47 +1,65 @@
-import { Header } from "@/components/layout/Header";
-import { HeroStats } from "@/components/dashboard/HeroStats";
+import { HeroZone } from "@/components/dashboard/HeroZone";
 import { LiveTickerStrip } from "@/components/dashboard/LiveTickerStrip";
-import { StrategyMetricsBar } from "@/components/dashboard/StrategyMetricsBar";
+import { LivePositionBar } from "@/components/dashboard/LivePositionBar";
+import { ExecutionsFeed } from "@/components/dashboard/ExecutionsFeed";
+import { RiskGauge } from "@/components/dashboard/RiskGauge";
 import { PerformanceChart } from "@/components/dashboard/PerformanceChart";
 import { MonthlyReturnsHeatmap } from "@/components/dashboard/MonthlyReturnsHeatmap";
+import { BenchmarkCompare } from "@/components/dashboard/BenchmarkCompare";
 import { DrawdownChart } from "@/components/dashboard/DrawdownChart";
-import { PnLDistribution } from "@/components/dashboard/PnLDistribution";
 import { RollingMetrics } from "@/components/dashboard/RollingMetrics";
-import { PositionCards } from "@/components/dashboard/PositionCards";
-import { TradesFeed } from "@/components/dashboard/TradesFeed";
+import { PnLDistribution } from "@/components/dashboard/PnLDistribution";
+import { TodayStats } from "@/components/dashboard/TodayStats";
+import { ScrollSection } from "@/components/dashboard/ScrollSection";
 
 export default function OverviewPage() {
   return (
-    <div>
-      <Header title="Overview" />
-      <div className="space-y-4 p-6">
-        {/* Hero Zone: Cumulative Return + Live Market Tickers */}
-        <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
-          <HeroStats />
-          <LiveTickerStrip />
-        </div>
+    <div className="min-h-screen">
+      {/* ─── Zone 1: Hero ─── */}
+      <HeroZone />
 
-        {/* Strategy Metrics Bar */}
-        <StrategyMetricsBar />
+      {/* LiveTickerStrip: sticky */}
+      <div className="sticky top-0 z-20 border-b border-border-subtle bg-bg-primary/95 backdrop-blur-sm">
+        <LiveTickerStrip />
+      </div>
 
-        {/* Main Performance Chart */}
-        <PerformanceChart />
+      {/* ─── Zone 2: Intelligence Feed ─── */}
+      <div className="space-y-12 px-6 py-12 lg:px-12">
 
-        {/* Analytics Grid: 2x2 */}
-        <div className="grid gap-4 lg:grid-cols-2">
-          <MonthlyReturnsHeatmap />
-          <DrawdownChart />
-        </div>
-        <div className="grid gap-4 lg:grid-cols-2">
-          <PnLDistribution />
-          <RollingMetrics />
-        </div>
+        {/* Section 1: Live Activity */}
+        <ScrollSection label="Live Activity">
+          <div className="grid gap-4 lg:grid-cols-3">
+            <LivePositionBar />
+            <ExecutionsFeed />
+            <RiskGauge />
+          </div>
+        </ScrollSection>
 
-        {/* Live Activity: Positions + Trade Feed */}
-        <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
-          <PositionCards />
-          <TradesFeed />
-        </div>
+        {/* Section 2: Performance */}
+        <ScrollSection label="Performance" delay={100}>
+          <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+            <PerformanceChart />
+            <MonthlyReturnsHeatmap />
+          </div>
+        </ScrollSection>
+
+        {/* Section 3: Market Context */}
+        <ScrollSection label="Market Context" delay={100}>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <BenchmarkCompare />
+            <DrawdownChart />
+          </div>
+        </ScrollSection>
+
+        {/* Section 4: Strategy Intelligence */}
+        <ScrollSection label="Strategy Intelligence" delay={100}>
+          <div className="grid gap-4 lg:grid-cols-3">
+            <RollingMetrics />
+            <PnLDistribution />
+            <TodayStats />
+          </div>
+        </ScrollSection>
+
       </div>
     </div>
   );
