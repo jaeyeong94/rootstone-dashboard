@@ -112,7 +112,7 @@ export function LivePositionBar() {
         ) : (
           <div className="divide-border-subtle">
             {positions.map((pos) => (
-              <PositionRow key={pos.symbol} pos={pos} />
+              <PositionRow key={`${pos.symbol}-${pos.side}`} pos={pos} />
             ))}
           </div>
         )}

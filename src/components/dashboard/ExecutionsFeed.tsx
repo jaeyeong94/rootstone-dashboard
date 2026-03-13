@@ -44,11 +44,13 @@ export function ExecutionsFeed() {
         fresh.add(id);
       }
     });
+    let timer: ReturnType<typeof setTimeout> | undefined;
     if (fresh.size > 0) {
       setNewIds(fresh);
-      setTimeout(() => setNewIds(new Set()), 1500);
+      timer = setTimeout(() => setNewIds(new Set()), 1500);
     }
     prevIdsRef.current = currentIds;
+    return () => clearTimeout(timer);
   }, [executions]);
 
   return (

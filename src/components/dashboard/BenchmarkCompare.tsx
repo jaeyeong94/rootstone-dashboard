@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import useSWR from "swr";
 import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { cn } from "@/lib/utils";
@@ -24,12 +25,14 @@ export function BenchmarkCompare() {
   const btcLast = btc.length > 0 ? btc[btc.length - 1].value : 0;
   const alpha = rebetaLast - btcLast;
 
+  const btcMap = useMemo(() => new Map(btc.map((b) => [b.time, b])), [btc]);
+
   // 차트용 다운샘플 (최대 60포인트)
   const step = Math.max(1, Math.floor(curve.length / 60));
   const chartData = curve
     .filter((_, i) => i % step === 0)
     .map((c) => {
-      const btcPoint = btc.find((b) => b.time === c.time);
+      const btcPoint = btcMap.get(c.time);
       return {
         time: c.time,
         rebeta: parseFloat(c.value.toFixed(2)),

@@ -12,15 +12,18 @@ export function useCountUp(target: number, duration = 1000): number {
     prevTarget.current = target;
     const startTime = performance.now();
 
+    let raf: number;
+
     function animate(now: number) {
       const elapsed = now - startTime;
       const progress = Math.min(elapsed / duration, 1);
       const eased = 1 - Math.pow(1 - progress, 3);
       setCurrent(start + (target - start) * eased);
-      if (progress < 1) requestAnimationFrame(animate);
+      if (progress < 1) raf = requestAnimationFrame(animate);
     }
 
-    requestAnimationFrame(animate);
+    raf = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(raf);
   }, [target, duration]);
 
   return current;
