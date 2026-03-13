@@ -108,21 +108,28 @@ export function TodayStats() {
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 gap-x-8 gap-y-5 sm:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="flex flex-col gap-0.5">
-            <div className="h-2.5 w-16 rounded bg-white/5 animate-pulse" />
-            <div className="h-7 w-24 rounded bg-white/5 animate-pulse mt-0.5" />
-          </div>
-        ))}
+      <div className="rounded-sm border border-border-subtle bg-bg-card">
+        <div className="border-b border-border-subtle px-4 py-3">
+          <span className="text-[11px] uppercase tracking-[1px] text-text-secondary">
+            Today Stats
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-x-6 gap-y-4 px-4 py-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex flex-col gap-0.5">
+              <div className="h-2.5 w-16 rounded bg-white/5 animate-pulse" />
+              <div className="h-7 w-20 rounded bg-white/5 animate-pulse mt-0.5" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
 
   if (error || !data?.list) {
     return (
-      <div className="text-[11px] text-text-muted">
-        executions unavailable
+      <div className="rounded-sm border border-border-subtle bg-bg-card px-4 py-4">
+        <span className="text-[11px] text-text-muted">executions unavailable</span>
       </div>
     );
   }
@@ -137,27 +144,34 @@ export function TodayStats() {
   const shortRatio = 100 - longRatio;
 
   return (
-    <div className="grid grid-cols-2 gap-x-8 gap-y-5 sm:grid-cols-4">
-      <StatBlock
-        label="Today Trades"
-        value={stats.totalCount.toString()}
-        sub="UTC 00:00 기준"
-      />
-      <StatBlock
-        label="Long / Short"
-        value={`${longRatio}% / ${shortRatio}%`}
-        sub={`${stats.longCount}L · ${stats.shortCount}S`}
-      />
-      <StatBlock
-        label="Total Volume"
-        value={formatVolume(stats.totalVolume)}
-        sub={stats.totalCount > 0 ? `avg ${formatVolume(stats.totalVolume / stats.totalCount)}` : "—"}
-      />
-      <StatBlock
-        label="Largest Trade"
-        value={stats.largestTrade > 0 ? formatVolume(stats.largestTrade) : "—"}
-        sub={stats.totalFee > 0 ? `fees $${formatNumber(stats.totalFee, 2)}` : undefined}
-      />
+    <div className="rounded-sm border border-border-subtle bg-bg-card">
+      <div className="border-b border-border-subtle px-4 py-3">
+        <span className="text-[11px] uppercase tracking-[1px] text-text-secondary">
+          Today Stats
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-x-6 gap-y-4 px-4 py-4">
+        <StatBlock
+          label="Trades"
+          value={stats.totalCount.toString()}
+          sub="UTC 00:00 기준"
+        />
+        <StatBlock
+          label="Long / Short"
+          value={`${stats.longCount} / ${stats.shortCount}`}
+          sub={`${longRatio}% · ${shortRatio}%`}
+        />
+        <StatBlock
+          label="Volume"
+          value={formatVolume(stats.totalVolume)}
+          sub={stats.totalCount > 0 ? `avg ${formatVolume(stats.totalVolume / stats.totalCount)}` : "—"}
+        />
+        <StatBlock
+          label="Largest"
+          value={stats.largestTrade > 0 ? formatVolume(stats.largestTrade) : "—"}
+          sub={stats.totalFee > 0 ? `fees $${formatNumber(stats.totalFee, 2)}` : undefined}
+        />
+      </div>
     </div>
   );
 }

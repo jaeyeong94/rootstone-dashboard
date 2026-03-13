@@ -10,6 +10,7 @@ import { DrawdownChart } from "@/components/dashboard/DrawdownChart";
 import { RollingMetrics } from "@/components/dashboard/RollingMetrics";
 import { PnLDistribution } from "@/components/dashboard/PnLDistribution";
 import { TodayStats } from "@/components/dashboard/TodayStats";
+import { ExecutionsSidebar } from "@/components/dashboard/ExecutionsSidebar";
 import { ScrollSection } from "@/components/dashboard/ScrollSection";
 import { MarketMiniCharts } from "@/components/dashboard/MarketMiniCharts";
 
@@ -59,10 +60,17 @@ export default function OverviewPage() {
 
         {/* Section 4: Strategy Intelligence */}
         <ScrollSection label="Strategy Intelligence" delay={100}>
-          <div className="grid gap-4 lg:grid-cols-3">
-            <RollingMetrics />
-            <PnLDistribution />
-            <TodayStats />
+          <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
+            {/* Left: stacked charts */}
+            <div className="space-y-4">
+              <RollingMetrics />
+              <PnLDistribution />
+            </div>
+            {/* Right: sidebar */}
+            <div className="flex flex-col gap-3">
+              <TodayStats />
+              <ExecutionsSidebar />
+            </div>
           </div>
         </ScrollSection>
 
