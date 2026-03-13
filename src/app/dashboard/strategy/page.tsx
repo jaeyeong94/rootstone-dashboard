@@ -3,13 +3,21 @@ import { cn } from "@/lib/utils";
 
 /* ───── Data from Rebeta v3.1 Strategy Introduction ───── */
 
-const heroMetrics = [
-  { value: "872%", label: "Total Return", sub: "(v1~v3.1 Sum)" },
-  { value: "1,813+", label: "Days Live", sub: "as of Feb 15, 2025" },
-  { value: "7", label: "Outperformed in", sub: "Black Swans" },
-  { value: "+51.8%", label: "CAGR", sub: "(v3.1)" },
-  { value: "-4.1%", label: "MDD", sub: "(v3.1)" },
-];
+const V1_INCEPTION = new Date("2021-03-01");
+
+function daysLive(): number {
+  return Math.floor((Date.now() - V1_INCEPTION.getTime()) / 86400000);
+}
+
+function getHeroMetrics() {
+  return [
+    { value: "872%", label: "Total Return", sub: "(v1~v3.1 Composite)" },
+    { value: `${daysLive().toLocaleString()}+`, label: "Days Live", sub: "Since Mar 2021" },
+    { value: "7", label: "Outperformed in", sub: "Black Swans" },
+    { value: "+51.8%", label: "CAGR", sub: "(v3.1)" },
+    { value: "-4.1%", label: "MDD", sub: "(v3.1)" },
+  ];
+}
 
 const performanceMetrics = [
   { label: "CAGR", v1: "59.8%", v31: "51.8%" },
@@ -119,7 +127,7 @@ const comparisonDimensions = [
   { dim: "Approach", trad: "Rule-based / Traditional factors", rebeta: "Deep learning latent features" },
   { dim: "Alpha Type", trad: "Momentum / Beta", rebeta: "Mean-reversion / Crisis alpha" },
   { dim: "Crisis Behavior", trad: "Correlated decline with market", rebeta: "Counter-cyclical returns" },
-  { dim: "Track Record", trad: "Backtest or short live record", rebeta: "1,813 days + 7 black swan survival" },
+  { dim: "Track Record", trad: "Backtest or short live record", rebeta: `${daysLive().toLocaleString()} days + 7 black swan survival` },
   { dim: "Prediction", trad: "Point prediction", rebeta: "High accuracy probability distribution" },
 ];
 
@@ -191,12 +199,12 @@ export default function StrategyPage() {
           </p>
           <p className="mt-1 text-sm text-text-secondary">
             Deep learning crypto absolute return strategy.<br />
-            5 years live, 7 black swan events survived.
+            {Math.floor(daysLive() / 365)} years live, 7 black swan events survived.
           </p>
 
           {/* Hero Metric Strip */}
           <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            {heroMetrics.map((m) => (
+            {getHeroMetrics().map((m) => (
               <div key={m.label} className="rounded-sm border border-border-subtle bg-bg-card p-4">
                 <div className="font-[family-name:var(--font-mono)] text-2xl font-semibold text-text-primary">
                   {m.value}

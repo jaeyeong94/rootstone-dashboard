@@ -4,49 +4,51 @@ import useSWR from "swr";
 import { cn, formatPnlPercent, getPnlColor } from "@/lib/utils";
 import { useCountUp } from "@/hooks/useCountUp";
 import { AnimatedSparkline } from "./AnimatedSparkline";
-import type { EquityCurvePoint, StrategyMetrics } from "@/types";
+import staticCurve from "@/data/cumulative-returns.json";
+import type { EquityCurvePoint } from "@/types";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-const INCEPTION_DATE = new Date("2022-03-01");
+const INCEPTION_DATE = new Date("2021-03-02");
 
 function daysLive(): number {
   return Math.floor((Date.now() - INCEPTION_DATE.getTime()) / 86400000);
 }
 
+// Tearsheet composite metrics (v1~v3.1, 2021.03.02 ~ 2026.02.16)
+const COMPOSITE = {
+  sharpe: "1.91",
+  sortino: "3.22",
+  maxDrawdown: "-22.0%",
+};
+
 export function HeroZone() {
-  const { data: curveData } = useSWR("/api/bybit/equity-curve", fetcher, {
-    refreshInterval: 300000,
-  });
-  const { data: metrics } = useSWR<StrategyMetrics>("/api/bybit/metrics", fetcher, {
-    refreshInterval: 300000,
-  });
   const { data: balanceData } = useSWR<{ changePercent: number }>(
     "/api/bybit/balance?period=24h",
     fetcher,
     { refreshInterval: 30000 }
   );
 
-  const curve: EquityCurvePoint[] = curveData?.curve ?? [];
+  // Use static cumulative returns for the sparkline and headline number
+  const curve = (staticCurve as { time: string; value: number }[]).map((p) => ({
+    time: p.time,
+    value: p.value,
+  }));
   const lastValue = curve.length > 0 ? curve[curve.length - 1].value / 100 : 0;
   const animatedReturn = useCountUp(lastValue, 2000);
 
   const kpis = [
     {
       label: "Sharpe Ratio",
-      value: metrics?.sharpeRatio != null ? metrics.sharpeRatio.toFixed(2) : "--",
+      value: COMPOSITE.sharpe,
     },
     {
       label: "Sortino Ratio",
-      value: metrics?.sortinoRatio != null ? metrics.sortinoRatio.toFixed(2) : "--",
+      value: COMPOSITE.sortino,
     },
     {
       label: "Max Drawdown",
-      value: metrics?.maxDrawdown != null ? `${metrics.maxDrawdown.toFixed(1)}%` : "--",
-    },
-    {
-      label: "Win Rate",
-      value: metrics?.winRate != null ? `${metrics.winRate.toFixed(1)}%` : "--",
+      value: COMPOSITE.maxDrawdown,
     },
     {
       label: "Today",
@@ -78,7 +80,7 @@ export function HeroZone() {
       <div className="relative z-10 flex flex-1 flex-col justify-center px-6 pt-6 lg:px-12">
         {/* 서브타이틀 */}
         <p className="text-[11px] uppercase tracking-[2px] text-bronze/70">
-          Rebeta v3.1 · Algorithmic Strategy
+          Rebeta v1~v3.1 · Algorithmic Strategy
         </p>
 
         {/* 누적 수익률 카운터 */}
@@ -93,13 +95,13 @@ export function HeroZone() {
             {curve.length > 0 ? formatPnlPercent(animatedReturn) : "--"}
           </span>
           <p className="mt-3 font-[family-name:var(--font-mono)] text-sm text-text-muted">
-            Cumulative Return · Since Mar 2022 ·{" "}
+            Cumulative Return · Since Mar 2021 ·{" "}
             <span className="text-bronze">{daysLive()} days live</span>
           </p>
         </div>
 
-        {/* KPI 5개 카드 */}
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        {/* KPI 카드 */}
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {kpis.map((kpi, i) => (
             <div
               key={kpi.label}
@@ -124,23 +126,10 @@ export function HeroZone() {
         </div>
       </div>
 
-      {/* 하단: 스파크라인 + 스크롤 힌트 */}
+      {/* 하단: 스파크라인 */}
       <div className="relative z-10 mt-auto">
         <div className="px-0 opacity-60">
           <AnimatedSparkline data={curve} />
-        </div>
-        <div className="flex items-center justify-center py-2">
-          <div className="flex flex-col items-center gap-1 text-text-dim">
-            <span className="text-[10px] uppercase tracking-[1px]">Scroll</span>
-            <svg width="16" height="10" viewBox="0 0 16 10" fill="none">
-              <path
-                d="M1 1l7 7 7-7"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
-          </div>
         </div>
       </div>
     </div>

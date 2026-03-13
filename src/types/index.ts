@@ -49,6 +49,7 @@ export interface BybitExecution {
   execTime: string;
   execType: string;
   closedSize: string;
+  closedPnl: string;
 }
 
 export interface BybitClosedPnl {

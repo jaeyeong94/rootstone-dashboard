@@ -31,8 +31,8 @@ export function AnimatedSparkline({ data }: Props) {
   const max = Math.max(...values);
   const range = max - min || 1;
   const W = 1200;
-  const H = 60;
-  const pad = 4;
+  const H = 400;
+  const pad = 24;
 
   const points = data.map((d, i) => {
     const x = (i / (data.length - 1)) * W;
@@ -45,7 +45,7 @@ export function AnimatedSparkline({ data }: Props) {
     <svg
       viewBox={`0 0 ${W} ${H}`}
       preserveAspectRatio="none"
-      className="h-8 w-full"
+      className="h-56 w-full"
     >
       <defs>
         <linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1">

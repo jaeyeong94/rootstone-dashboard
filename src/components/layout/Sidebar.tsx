@@ -6,31 +6,19 @@ import { signOut } from "next-auth/react";
 import {
   LayoutDashboard,
   BarChart3,
-  History,
   BookOpen,
   TrendingUp,
-  Settings,
-  LogOut,
-  ShieldAlert,
-  Activity,
-  CalendarDays,
-  FileBarChart,
   GitCompareArrows,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navigation = [
   { name: "OVERVIEW", href: "/dashboard", icon: LayoutDashboard },
-  { name: "POSITIONS", href: "/dashboard/positions", icon: BarChart3 },
-  { name: "HISTORY", href: "/dashboard/history", icon: History },
-  { name: "RISK", href: "/dashboard/risk", icon: ShieldAlert },
-  { name: "REGIME", href: "/dashboard/regime", icon: Activity },
-  { name: "CALENDAR", href: "/dashboard/calendar", icon: CalendarDays },
-  { name: "REPORTS", href: "/dashboard/reports", icon: FileBarChart },
-  { name: "CORRELATION", href: "/dashboard/correlation", icon: GitCompareArrows },
-  { name: "STRATEGY", href: "/dashboard/strategy", icon: BookOpen },
   { name: "PERFORMANCE", href: "/dashboard/performance", icon: TrendingUp },
-  { name: "SETTINGS", href: "/dashboard/settings", icon: Settings },
+  { name: "TRADES", href: "/dashboard/positions", icon: BarChart3 },
+  { name: "CORRELATION", href: "/dashboard/correlation", icon: GitCompareArrows },
+  // { name: "STRATEGY", href: "/dashboard/strategy", icon: BookOpen },
 ];
 
 export function Sidebar() {

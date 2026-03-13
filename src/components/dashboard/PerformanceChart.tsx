@@ -1,11 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import useSWR from "swr";
 import { cn } from "@/lib/utils";
-import type { EquityCurvePoint, BenchmarkPoint } from "@/types";
+import staticCurve from "@/data/cumulative-returns.json";
+import staticBtc from "@/data/cumulative-returns-btc.json";
+import type { EquityCurvePoint } from "@/types";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
+
+const V31_START = "2024-11-17";
 
 type Period = "1M" | "3M" | "6M" | "1Y" | "3Y" | "ALL";
 
@@ -34,7 +38,12 @@ export function PerformanceChart() {
   const chartRef = useRef<ReturnType<
     typeof import("lightweight-charts").createChart
   > | null>(null);
-  const strategySeriesRef = useRef<ReturnType<
+  const v1SeriesRef = useRef<ReturnType<
+    ReturnType<
+      typeof import("lightweight-charts").createChart
+    >["addAreaSeries"]
+  > | null>(null);
+  const v31SeriesRef = useRef<ReturnType<
     ReturnType<
       typeof import("lightweight-charts").createChart
     >["addAreaSeries"]
@@ -52,11 +61,33 @@ export function PerformanceChart() {
     fetcher,
     { refreshInterval: 300000 }
   );
-  const { data: benchmarkData } = useSWR(
-    "/api/bybit/benchmark?symbol=BTCUSDT&limit=1000",
-    fetcher,
-    { refreshInterval: 3600000 }
+  const btcBenchmark = useMemo(
+    () => (staticBtc as { time: string; value: number }[]),
+    []
   );
+
+  // Split static data into v1 portion, and merge v3.1 live data
+  const { v1Data, v31Data } = useMemo(() => {
+    const typed = staticCurve as { time: string; value: number }[];
+    const v1 = typed.filter((p) => p.time < V31_START);
+
+    // v3.1: prefer live DB data, fall back to static if unavailable
+    const liveCurve: EquityCurvePoint[] = curveData?.curve ?? [];
+    if (liveCurve.length > 0) {
+      // Live data is relative to its own start (0%). Rebase to continue from v1's end.
+      const v1EndValue = v1.length > 0 ? v1[v1.length - 1].value : 0;
+      const liveStart = liveCurve[0].value;
+      const rebased = liveCurve.map((p) => ({
+        time: p.time,
+        value: v1EndValue + (p.value - liveStart),
+      }));
+      return { v1Data: v1, v31Data: rebased };
+    }
+
+    // Fallback: use static data for v3.1 portion
+    const v31Static = typed.filter((p) => p.time >= V31_START);
+    return { v1Data: v1, v31Data: v31Static };
+  }, [curveData]);
 
   // Initialize chart once
   useEffect(() => {
@@ -83,38 +114,51 @@ export function PerformanceChart() {
           borderColor: "#333333",
           scaleMargins: { top: 0.1, bottom: 0.1 },
         },
-        timeScale: { borderColor: "#333333", timeVisible: false },
+        handleScroll: false,
+        handleScale: false,
+        timeScale: { borderColor: "#333333", timeVisible: false, fixLeftEdge: true, fixRightEdge: true },
         crosshair: {
           vertLine: { color: "#997B66", width: 1, style: LineStyle.Dashed },
           horzLine: { color: "#997B66", width: 1, style: LineStyle.Dashed },
         },
       });
 
-      const strategySeries = chart.addAreaSeries({
+      const priceFormat = {
+        type: "custom" as const,
+        formatter: (price: number) => `${price.toFixed(2)}%`,
+      };
+
+      // v1 series: bronze/muted area
+      const v1Series = chart.addAreaSeries({
+        lineColor: "#997B66",
+        lineWidth: 2,
+        topColor: "rgba(153, 123, 102, 0.10)",
+        bottomColor: "rgba(153, 123, 102, 0)",
+        priceFormat,
+        title: "Rebeta v1",
+      });
+
+      // v3.1 series: gold area
+      const v31Series = chart.addAreaSeries({
         lineColor: "#C5A049",
         lineWidth: 2,
         topColor: "rgba(197, 160, 73, 0.15)",
         bottomColor: "rgba(197, 160, 73, 0)",
-        priceFormat: {
-          type: "custom",
-          formatter: (price: number) => `${price.toFixed(2)}%`,
-        },
+        priceFormat,
         title: "Rebeta v3.1",
       });
 
       const benchmarkSeries = chart.addLineSeries({
-        color: "#997B66",
+        color: "#555555",
         lineWidth: 1,
         lineStyle: LineStyle.Dashed,
-        priceFormat: {
-          type: "custom",
-          formatter: (price: number) => `${price.toFixed(2)}%`,
-        },
+        priceFormat,
         title: "BTC",
       });
 
       chartRef.current = chart;
-      strategySeriesRef.current = strategySeries;
+      v1SeriesRef.current = v1Series;
+      v31SeriesRef.current = v31Series;
       benchmarkSeriesRef.current = benchmarkSeries;
       setChartReady(true);
 
@@ -131,7 +175,8 @@ export function PerformanceChart() {
       if (chartRef.current) {
         chartRef.current.remove();
         chartRef.current = null;
-        strategySeriesRef.current = null;
+        v1SeriesRef.current = null;
+        v31SeriesRef.current = null;
         benchmarkSeriesRef.current = null;
         setChartReady(false);
       }
@@ -140,16 +185,18 @@ export function PerformanceChart() {
 
   // Update data when data or period changes
   useEffect(() => {
-    if (!chartReady || !strategySeriesRef.current) return;
+    if (!chartReady || !v1SeriesRef.current || !v31SeriesRef.current) return;
 
-    const curve: EquityCurvePoint[] = curveData?.curve ?? [];
-    const benchmark: BenchmarkPoint[] = benchmarkData?.series ?? [];
+    const filteredV1 = filterByPeriod(v1Data, period);
+    const filteredV31 = filterByPeriod(v31Data, period);
+    const filteredBenchmark = filterByPeriod(btcBenchmark, period);
 
-    const filteredCurve = filterByPeriod(curve, period);
-    const filteredBenchmark = filterByPeriod(benchmark, period);
+    v1SeriesRef.current.setData(
+      filteredV1.map((p) => ({ time: p.time, value: p.value }))
+    );
 
-    strategySeriesRef.current.setData(
-      filteredCurve.map((p) => ({ time: p.time, value: p.value }))
+    v31SeriesRef.current.setData(
+      filteredV31.map((p) => ({ time: p.time, value: p.value }))
     );
 
     benchmarkSeriesRef.current?.setData(
@@ -157,7 +204,7 @@ export function PerformanceChart() {
     );
 
     chartRef.current?.timeScale().fitContent();
-  }, [curveData, benchmarkData, period, chartReady]);
+  }, [v1Data, v31Data, btcBenchmark, period, chartReady]);
 
   return (
     <div className="rounded-sm border border-border-subtle bg-bg-card p-6">
@@ -168,11 +215,15 @@ export function PerformanceChart() {
           </span>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5">
+              <div className="h-0.5 w-4 bg-bronze" />
+              <span className="text-[10px] text-text-muted">Rebeta v1</span>
+            </div>
+            <div className="flex items-center gap-1.5">
               <div className="h-0.5 w-4 bg-gold" />
               <span className="text-[10px] text-text-muted">Rebeta v3.1</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <div className="h-0.5 w-4 border-t border-dashed border-bronze" />
+              <div className="h-0.5 w-4 border-t border-dashed border-text-muted" />
               <span className="text-[10px] text-text-muted">BTC</span>
             </div>
           </div>

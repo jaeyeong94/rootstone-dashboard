@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import chartData from "@/data/cumulative-returns.json";
+import rebetaData from "@/data/cumulative-returns.json";
+import btcData from "@/data/cumulative-returns-btc.json";
+
+const V31_START = "2024-11-17";
 
 export function CumulativeReturnsChart() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -34,41 +37,46 @@ export function CumulativeReturnsChart() {
         },
       });
 
-      // Rebeta series
-      const rebetaSeries = chartData.find((s) => s.name === "daily_return");
-      if (rebetaSeries) {
-        const area = chart.addAreaSeries({
-          lineColor: "#C5A049",
-          lineWidth: 2,
-          topColor: "rgba(197, 160, 73, 0.25)",
-          bottomColor: "rgba(197, 160, 73, 0)",
-          priceFormat: { type: "custom", formatter: (p: number) => `${(p * 100).toFixed(1)}%` },
-          title: "Rebeta",
-        });
-        area.setData(
-          rebetaSeries.x.map((date: string, i: number) => ({
-            time: date,
-            value: rebetaSeries.y[i],
-          }))
-        );
-      }
+      const priceFormat = {
+        type: "custom" as const,
+        formatter: (p: number) => `${p.toFixed(1)}%`,
+      };
+
+      const typed = rebetaData as { time: string; value: number }[];
+
+      // v1 series (bronze)
+      const v1 = typed.filter((p) => p.time < V31_START);
+      const v1Area = chart.addAreaSeries({
+        lineColor: "#997B66",
+        lineWidth: 2,
+        topColor: "rgba(153, 123, 102, 0.10)",
+        bottomColor: "rgba(153, 123, 102, 0)",
+        priceFormat,
+        title: "Rebeta v1",
+      });
+      v1Area.setData(v1.map((p) => ({ time: p.time, value: p.value })));
+
+      // v3.1 series (gold)
+      const v31 = typed.filter((p) => p.time >= V31_START);
+      const v31Area = chart.addAreaSeries({
+        lineColor: "#C5A049",
+        lineWidth: 2,
+        topColor: "rgba(197, 160, 73, 0.25)",
+        bottomColor: "rgba(197, 160, 73, 0)",
+        priceFormat,
+        title: "Rebeta v3.1",
+      });
+      v31Area.setData(v31.map((p) => ({ time: p.time, value: p.value })));
 
       // BTC series
-      const btcSeries = chartData.find((s) => s.name === "BTC");
-      if (btcSeries) {
-        const line = chart.addLineSeries({
-          color: "#555555",
-          lineWidth: 1,
-          priceFormat: { type: "custom", formatter: (p: number) => `${(p * 100).toFixed(1)}%` },
-          title: "BTC",
-        });
-        line.setData(
-          btcSeries.x.map((date: string, i: number) => ({
-            time: date,
-            value: btcSeries.y[i],
-          }))
-        );
-      }
+      const btcTyped = btcData as { time: string; value: number }[];
+      const line = chart.addLineSeries({
+        color: "#555555",
+        lineWidth: 1,
+        priceFormat,
+        title: "BTC",
+      });
+      line.setData(btcTyped.map((p) => ({ time: p.time, value: p.value })));
 
       chart.timeScale().fitContent();
       chartRef.current = chart;
