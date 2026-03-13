@@ -13,6 +13,7 @@ import { TodayStats } from "@/components/dashboard/TodayStats";
 import { ExecutionsSidebar } from "@/components/dashboard/ExecutionsSidebar";
 import { ScrollSection } from "@/components/dashboard/ScrollSection";
 import { MarketMiniCharts } from "@/components/dashboard/MarketMiniCharts";
+import { CandlestickGrid } from "@/components/dashboard/CandlestickGrid";
 
 export default function OverviewPage() {
   return (
@@ -31,6 +32,11 @@ export default function OverviewPage() {
         {/* Section 0: Market Overview */}
         <ScrollSection label="Market Overview">
           <MarketMiniCharts />
+        </ScrollSection>
+
+        {/* Section 0-1: Market Charts */}
+        <ScrollSection label="Market Charts" delay={100}>
+          <CandlestickGrid />
         </ScrollSection>
 
         {/* Section 1: Live Activity */}
