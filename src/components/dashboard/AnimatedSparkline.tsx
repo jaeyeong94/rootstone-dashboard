@@ -45,7 +45,7 @@ export function AnimatedSparkline({ data }: Props) {
     <svg
       viewBox={`0 0 ${W} ${H}`}
       preserveAspectRatio="none"
-      className="h-12 w-full"
+      className="h-8 w-full"
     >
       <defs>
         <linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1">

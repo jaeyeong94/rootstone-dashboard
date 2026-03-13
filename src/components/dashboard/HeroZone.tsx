@@ -62,7 +62,7 @@ export function HeroZone() {
   ];
 
   return (
-    <div className="relative flex min-h-screen flex-col justify-between overflow-hidden border-b border-border-subtle pb-0">
+    <div className="relative flex min-h-[55vh] flex-col justify-between overflow-hidden border-b border-border-subtle pb-0">
       {/* 배경 그리드 패턴 */}
       <div
         className="pointer-events-none absolute inset-0"
@@ -75,17 +75,17 @@ export function HeroZone() {
         }}
       />
 
-      <div className="relative z-10 flex flex-1 flex-col justify-center px-6 pt-8 lg:px-12">
+      <div className="relative z-10 flex flex-1 flex-col justify-center px-6 pt-6 lg:px-12">
         {/* 서브타이틀 */}
         <p className="text-[11px] uppercase tracking-[2px] text-bronze/70">
           Rebeta v3.1 · Algorithmic Strategy
         </p>
 
         {/* 누적 수익률 카운터 */}
-        <div className="mt-6">
+        <div className="mt-4">
           <span
             className={cn(
-              "font-[family-name:var(--font-mono)] text-7xl font-medium leading-none lg:text-8xl",
+              "font-[family-name:var(--font-mono)] text-5xl font-medium leading-none lg:text-6xl",
               curve.length > 0 ? getPnlColor(lastValue) : "text-text-muted",
               "glow-gold"
             )}
@@ -99,11 +99,11 @@ export function HeroZone() {
         </div>
 
         {/* KPI 5개 카드 */}
-        <div className="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {kpis.map((kpi, i) => (
             <div
               key={kpi.label}
-              className="rounded-sm border border-border-subtle bg-bg-card/80 p-4 backdrop-blur-sm"
+              className="rounded-sm border border-border-subtle bg-bg-card/80 p-3 backdrop-blur-sm"
               style={{
                 animation: `fadeIn 0.4s ease ${i * 0.08}s both`,
               }}
@@ -113,7 +113,7 @@ export function HeroZone() {
               </p>
               <p
                 className={cn(
-                  "mt-1.5 font-[family-name:var(--font-mono)] text-xl font-medium",
+                  "mt-1.5 font-[family-name:var(--font-mono)] text-lg font-medium",
                   kpi.color ?? "text-text-primary"
                 )}
               >
@@ -129,7 +129,7 @@ export function HeroZone() {
         <div className="px-0 opacity-60">
           <AnimatedSparkline data={curve} />
         </div>
-        <div className="flex items-center justify-center py-4">
+        <div className="flex items-center justify-center py-2">
           <div className="flex flex-col items-center gap-1 text-text-dim">
             <span className="text-[10px] uppercase tracking-[1px]">Scroll</span>
             <svg width="16" height="10" viewBox="0 0 16 10" fill="none">
