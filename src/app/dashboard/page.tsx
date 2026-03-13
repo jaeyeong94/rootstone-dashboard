@@ -13,6 +13,10 @@ import { ScrollSection } from "@/components/dashboard/ScrollSection";
 import { RightFixedPanel } from "@/components/dashboard/RightFixedPanel";
 import { MarketMiniCharts } from "@/components/dashboard/MarketMiniCharts";
 import { CandlestickGrid } from "@/components/dashboard/CandlestickGrid";
+import { GrowthSimulator } from "@/components/dashboard/GrowthSimulator";
+import { BlackSwanCard } from "@/components/dashboard/BlackSwanCard";
+import { YearlyReturnsChart } from "@/components/dashboard/YearlyReturnsChart";
+import { AlphaBetaCards } from "@/components/dashboard/AlphaBetaCards";
 
 export default function OverviewPage() {
   return (
@@ -48,7 +52,25 @@ export default function OverviewPage() {
           </div>
         </ScrollSection>
 
-        {/* Section 2: Performance */}
+        {/* Section 2: Growth Simulation */}
+        <ScrollSection label="Growth Simulation" delay={100}>
+          <GrowthSimulator />
+        </ScrollSection>
+
+        {/* Section 3: Strategy Highlights */}
+        <ScrollSection label="Strategy Highlights" delay={100}>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <BlackSwanCard />
+            <YearlyReturnsChart />
+          </div>
+        </ScrollSection>
+
+        {/* Section 4: Risk Profile */}
+        <ScrollSection label="Risk Profile" delay={100}>
+          <AlphaBetaCards />
+        </ScrollSection>
+
+        {/* Section 5: Performance */}
         <ScrollSection label="Performance" delay={100}>
           <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
             <PerformanceChart />
@@ -56,7 +78,7 @@ export default function OverviewPage() {
           </div>
         </ScrollSection>
 
-        {/* Section 3: Market Context */}
+        {/* Section 6: Market Context */}
         <ScrollSection label="Market Context" delay={100}>
           <div className="grid gap-4 lg:grid-cols-2">
             <BenchmarkCompare />
@@ -64,7 +86,7 @@ export default function OverviewPage() {
           </div>
         </ScrollSection>
 
-        {/* Section 4: Strategy Intelligence */}
+        {/* Section 7: Strategy Intelligence */}
         <ScrollSection label="Strategy Intelligence" delay={100}>
           <div className="space-y-4">
             <RollingMetrics />
