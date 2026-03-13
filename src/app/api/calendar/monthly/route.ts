@@ -79,8 +79,8 @@ export async function GET(request: Request) {
       // Find top trade by PnL %
       let topTrade: { symbol: string; pnlPercent: number } | null = null;
       for (const t of dayTrades) {
-        const entry = parseFloat(t.entryPrice);
-        const exit = parseFloat(t.exitPrice);
+        const entry = parseFloat(t.avgEntryPrice);
+        const exit = parseFloat(t.avgExitPrice);
         const pnlPct = entry > 0 ? ((exit - entry) / entry) * (t.side === "Buy" ? 1 : -1) * 100 : 0;
         if (!topTrade || Math.abs(pnlPct) > Math.abs(topTrade.pnlPercent)) {
           topTrade = {

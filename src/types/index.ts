@@ -56,9 +56,10 @@ export interface BybitClosedPnl {
   symbol: string;
   side: "Buy" | "Sell";
   qty: string;
-  entryPrice: string;
-  exitPrice: string;
+  avgEntryPrice: string;
+  avgExitPrice: string;
   closedPnl: string;
+  leverage: string;
   createdTime: string;
   updatedTime: string;
   orderId: string;

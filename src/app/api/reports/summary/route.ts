@@ -113,8 +113,8 @@ export async function GET(request: Request) {
     // Trades analysis
     const trades = pnlData.list.map((t) => {
       const pnl = parseFloat(t.closedPnl);
-      const entry = parseFloat(t.entryPrice);
-      const exit = parseFloat(t.exitPrice);
+      const entry = parseFloat(t.avgEntryPrice);
+      const exit = parseFloat(t.avgExitPrice);
       const pnlPct = entry > 0 ? ((exit - entry) / entry) * (t.side === "Buy" ? 1 : -1) * 100 : 0;
       const holdingMs = parseInt(t.updatedTime) - parseInt(t.createdTime);
       return {

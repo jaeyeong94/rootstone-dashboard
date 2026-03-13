@@ -13,8 +13,9 @@ interface ClosedPnlRecord {
   symbol: string;
   side: string;
   qty: string;
-  entryPrice: string;
+  avgEntryPrice: string;
   closedPnl: string;
+  leverage: string;
   createdTime: string;
   updatedTime: string;
 }
@@ -60,7 +61,7 @@ function OpenPositions() {
         <div className="grid grid-cols-5 gap-4 border-b border-border-subtle px-4 py-3 text-[11px] uppercase tracking-[1px] text-text-secondary">
           <span>Symbol</span>
           <span>Side</span>
-          <span className="text-right">PnL (%)</span>
+          <span className="text-right">ROI (%)</span>
           <span className="text-right">Leverage</span>
           <span className="text-right">Holding</span>
         </div>
@@ -90,10 +91,11 @@ function PositionRow({ position }: { position: Position }) {
   const currentPrice = livePrice || position.markPrice;
   const entry = parseFloat(position.entryPrice);
   const mark = parseFloat(currentPrice);
+  const lev = parseFloat(position.leverage) || 1;
   const pnlPercent =
     position.side === "Buy"
-      ? (mark - entry) / entry
-      : (entry - mark) / entry;
+      ? ((mark - entry) / entry) * lev
+      : ((entry - mark) / entry) * lev;
 
   const holdingTime = position.createdTime
     ? Math.floor(
@@ -275,7 +277,7 @@ function TradeHistory() {
           <span>Side</span>
           <span className="text-right">Price</span>
           <span className="text-right">Qty</span>
-          <span className="text-right">PnL (%)</span>
+          <span className="text-right">ROI (%)</span>
         </div>
 
         {isLoading ? (
@@ -295,11 +297,12 @@ function TradeHistory() {
         ) : (
           <>
             {records.map((rec) => {
-              const entry = parseFloat(rec.entryPrice || "0");
+              const entry = parseFloat(rec.avgEntryPrice || "0");
               const qty = parseFloat(rec.qty || "0");
+              const lev = parseFloat(rec.leverage || "1");
               const pnlUsdt = parseFloat(rec.closedPnl || "0");
-              const positionValue = entry * qty;
-              const pnlPercent = positionValue > 0 ? (pnlUsdt / positionValue) * 100 : 0;
+              const margin = entry * qty / lev;
+              const pnlPercent = margin > 0 ? (pnlUsdt / margin) * 100 : 0;
               return (
                 <div
                   key={rec.orderId + rec.updatedTime}
@@ -337,7 +340,7 @@ function TradeHistory() {
                       getPnlColor(pnlPercent)
                     )}
                   >
-                    {formatPnlPercent(pnlPercent / 100)}
+                    {formatPnlPercent(pnlPercent / 100, 4)}
                   </span>
                 </div>
               );

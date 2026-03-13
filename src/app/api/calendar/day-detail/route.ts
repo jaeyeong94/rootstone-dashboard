@@ -63,8 +63,8 @@ export async function GET(request: Request) {
 
     // Format trades - ONLY showing percentages, no absolute amounts
     const trades = pnlData.list.map((t) => {
-      const entry = parseFloat(t.entryPrice);
-      const exit = parseFloat(t.exitPrice);
+      const entry = parseFloat(t.avgEntryPrice);
+      const exit = parseFloat(t.avgExitPrice);
       const closedPnlPct =
         entry > 0 ? ((exit - entry) / entry) * (t.side === "Buy" ? 1 : -1) * 100 : 0;
       return {
