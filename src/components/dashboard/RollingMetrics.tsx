@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 import type { RollingMetricPoint } from "@/types";
 
@@ -11,6 +11,7 @@ export function RollingMetrics() {
   const chartRef = useRef<ReturnType<typeof import("lightweight-charts").createChart> | null>(null);
   const sharpeSeriesRef = useRef<ReturnType<ReturnType<typeof import("lightweight-charts").createChart>["addLineSeries"]> | null>(null);
   const volSeriesRef = useRef<ReturnType<ReturnType<typeof import("lightweight-charts").createChart>["addLineSeries"]> | null>(null);
+  const [chartReady, setChartReady] = useState(false);
 
   const { data, isLoading } = useSWR(
     "/api/bybit/rolling-metrics?window=30",
@@ -79,6 +80,7 @@ export function RollingMetrics() {
       chartRef.current = chart;
       sharpeSeriesRef.current = sharpeSeries;
       volSeriesRef.current = volSeries;
+      setChartReady(true);
 
       const handleResize = () => {
         if (chartContainerRef.current) {
@@ -95,13 +97,14 @@ export function RollingMetrics() {
         chartRef.current = null;
         sharpeSeriesRef.current = null;
         volSeriesRef.current = null;
+        setChartReady(false);
       }
     };
   }, []);
 
   // Update data when data changes
   useEffect(() => {
-    if (!sharpeSeriesRef.current || !data) return;
+    if (!chartReady || !sharpeSeriesRef.current || !data) return;
 
     const sharpe: RollingMetricPoint[] = data.sharpe ?? [];
     const volatility: RollingMetricPoint[] = data.volatility ?? [];
@@ -114,7 +117,7 @@ export function RollingMetrics() {
     );
 
     chartRef.current?.timeScale().fitContent();
-  }, [data]);
+  }, [data, chartReady]);
 
   return (
     <div className="rounded-sm border border-border-subtle bg-bg-card p-5">

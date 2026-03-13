@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import { useTickerStore } from "@/stores/useTickerStore";
 import { cn, formatNumber, getPnlColor } from "@/lib/utils";
@@ -59,7 +59,7 @@ function SingleCandleChart({
   );
 
   const livePrice = useTickerStore((s) => s.getPrice(symbol));
-  const points: KlinePoint[] = data?.points ?? [];
+  const points: KlinePoint[] = useMemo(() => data?.points ?? [], [data]);
 
   const firstClose = points.length > 0 ? points[0].close : 0;
   const lastClose = livePrice

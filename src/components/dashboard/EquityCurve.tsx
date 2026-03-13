@@ -30,6 +30,7 @@ export function EquityCurve() {
   const chartRef = useRef<ReturnType<typeof import("lightweight-charts").createChart> | null>(null);
   const seriesRef = useRef<ReturnType<ReturnType<typeof import("lightweight-charts").createChart>["addAreaSeries"]> | null>(null);
   const [period, setPeriod] = useState<Period>("ALL");
+  const [chartReady, setChartReady] = useState(false);
 
   const { data, isLoading } = useSWR("/api/bybit/equity-curve", fetcher, {
     refreshInterval: 300000,
@@ -78,6 +79,7 @@ export function EquityCurve() {
 
       chartRef.current = chart;
       seriesRef.current = series;
+      setChartReady(true);
 
       const handleResize = () => {
         if (chartContainerRef.current) {
@@ -93,13 +95,14 @@ export function EquityCurve() {
         chartRef.current.remove();
         chartRef.current = null;
         seriesRef.current = null;
+        setChartReady(false);
       }
     };
   }, []);
 
   // Update data when data or period changes
   useEffect(() => {
-    if (!seriesRef.current || !data?.curve?.length) return;
+    if (!chartReady || !seriesRef.current || !data?.curve?.length) return;
 
     const filtered = filterByPeriod(data.curve, period);
     seriesRef.current.setData(
@@ -109,7 +112,7 @@ export function EquityCurve() {
       }))
     );
     chartRef.current?.timeScale().fitContent();
-  }, [data, period]);
+  }, [data, period, chartReady]);
 
   return (
     <div className="rounded-sm border border-border-subtle bg-bg-card p-6">

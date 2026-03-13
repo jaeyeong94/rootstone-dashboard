@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import { cn, formatNumber } from "@/lib/utils";
 import type { BybitExecution } from "@/types";
@@ -22,7 +22,7 @@ export function ExecutionsSidebar() {
     refreshInterval: 10000,
   });
 
-  const executions: BybitExecution[] = data?.list ?? [];
+  const executions: BybitExecution[] = useMemo(() => data?.list ?? [], [data]);
   const prevIdsRef = useRef<Set<string>>(new Set());
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
 
