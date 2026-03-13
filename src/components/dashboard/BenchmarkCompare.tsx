@@ -12,8 +12,13 @@ export function BenchmarkCompare() {
   const { data: curveData } = useSWR("/api/bybit/equity-curve", fetcher, {
     refreshInterval: 300000,
   });
+
+  const startDate: string | null = curveData?.startDate ?? null;
+
   const { data: benchData } = useSWR(
-    "/api/bybit/benchmark?symbol=BTCUSDT&limit=1000",
+    startDate
+      ? `/api/bybit/benchmark?symbol=BTCUSDT&limit=1800&startDate=${startDate}`
+      : null,
     fetcher,
     { refreshInterval: 3600000 }
   );

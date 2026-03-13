@@ -15,6 +15,7 @@ export async function GET(request: Request) {
   const symbol = searchParams.get("symbol") || "BTCUSDT";
   const interval = "D";
   const limit = searchParams.get("limit") || "365";
+  const startDateParam = searchParams.get("startDate"); // "YYYY-MM-DD"
 
   try {
     const url = `${BYBIT_PUBLIC}/v5/market/kline?category=linear&symbol=${symbol}&interval=${interval}&limit=${limit}`;
@@ -32,12 +33,28 @@ export async function GET(request: Request) {
     }
 
     const sorted = [...klines].reverse();
-    const firstClose = parseFloat(sorted[0][4]);
 
-    const series: BenchmarkPoint[] = sorted.map((k) => ({
-      time: new Date(parseInt(k[0])).toISOString().split("T")[0],
-      value: ((parseFloat(k[4]) - firstClose) / firstClose) * 100,
-    }));
+    let baseClose: number;
+    if (startDateParam) {
+      const startTs = new Date(startDateParam).getTime();
+      // startDate 이후 첫 번째 캔들 (또는 그보다 앞선 가장 가까운 캔들)
+      const baseKline =
+        sorted.find((k) => parseInt(k[0]) >= startTs) ?? sorted[0];
+      baseClose = parseFloat(baseKline[4]);
+    } else {
+      baseClose = parseFloat(sorted[0][4]);
+    }
+
+    const series: BenchmarkPoint[] = sorted
+      .filter(
+        (k) =>
+          !startDateParam ||
+          parseInt(k[0]) >= new Date(startDateParam).getTime()
+      )
+      .map((k) => ({
+        time: new Date(parseInt(k[0])).toISOString().split("T")[0],
+        value: ((parseFloat(k[4]) - baseClose) / baseClose) * 100,
+      }));
 
     return NextResponse.json({ series, symbol });
   } catch (error) {

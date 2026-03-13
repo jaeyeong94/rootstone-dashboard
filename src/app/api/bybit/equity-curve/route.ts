@@ -20,7 +20,7 @@ export async function GET() {
       .orderBy(asc(balanceSnapshots.snapshotAt));
 
     if (snapshots.length === 0) {
-      return NextResponse.json({ curve: [] });
+      return NextResponse.json({ curve: [], startDate: null });
     }
 
     // Deduplicate: keep last snapshot per day
@@ -38,7 +38,10 @@ export async function GET() {
       })
     );
 
-    return NextResponse.json({ curve });
+    return NextResponse.json({
+      curve,
+      startDate: snapshots[0]?.snapshotAt.toISOString().split("T")[0] ?? null,
+    });
   } catch (error) {
     console.error("Equity curve error:", error);
     return NextResponse.json(
