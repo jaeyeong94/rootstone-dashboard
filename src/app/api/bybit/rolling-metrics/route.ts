@@ -30,7 +30,10 @@ export async function GET(request: Request) {
 
   try {
     const snapshots = await getDb()
-      .select()
+      .select({
+        snapshotAt: balanceSnapshots.snapshotAt,
+        totalEquity: balanceSnapshots.totalEquity,
+      })
       .from(balanceSnapshots)
       .orderBy(asc(balanceSnapshots.snapshotAt));
 

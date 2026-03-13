@@ -37,6 +37,7 @@ export default function HistoryPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [hasMore, setHasMore] = useState(true);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   const fetchPage = useCallback(async (pageCursor: string) => {
@@ -50,12 +51,21 @@ export default function HistoryPage() {
 
   // Initial load
   useEffect(() => {
-    fetchPage("").then((data) => {
-      setExecutions(data?.list ?? []);
-      setCursor(data?.nextPageCursor ?? "");
-      setHasMore(!!(data?.nextPageCursor));
-      setIsLoading(false);
-    });
+    fetchPage("")
+      .then((data) => {
+        if (data?.error) {
+          setLoadError(data.error);
+        } else {
+          setExecutions(data?.list ?? []);
+          setCursor(data?.nextPageCursor ?? "");
+          setHasMore(!!(data?.nextPageCursor));
+        }
+        setIsLoading(false);
+      })
+      .catch(() => {
+        setLoadError("Failed to load trade history");
+        setIsLoading(false);
+      });
   }, [fetchPage]);
 
   // Infinite scroll with Intersection Observer
@@ -104,6 +114,10 @@ export default function HistoryPage() {
               {[1, 2, 3, 4, 5].map((i) => (
                 <div key={i} className="h-10 animate-pulse rounded bg-bg-elevated" />
               ))}
+            </div>
+          ) : loadError ? (
+            <div className="flex h-48 items-center justify-center text-sm text-pnl-negative">
+              {loadError}
             </div>
           ) : executions.length === 0 ? (
             <div className="flex h-48 items-center justify-center text-sm text-text-muted">

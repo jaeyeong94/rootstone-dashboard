@@ -13,8 +13,7 @@ export async function POST() {
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const isAdmin =
-    (session.user as unknown as { role: string })?.role === "admin";
+  const isAdmin = session.user?.role === "admin";
   if (!isAdmin) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

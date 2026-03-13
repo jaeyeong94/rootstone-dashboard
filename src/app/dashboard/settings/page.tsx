@@ -190,7 +190,7 @@ function SnapshotManagerSection() {
 export default function SettingsPage() {
   const { data: session } = useSession();
   const isAdmin =
-    (session?.user as unknown as { role?: string })?.role === "admin";
+    session?.user?.role === "admin";
 
   return (
     <div>

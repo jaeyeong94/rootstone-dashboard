@@ -1,4 +1,4 @@
-import { pgTable, text, serial, doublePrecision, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, doublePrecision, timestamp, index } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
   id: text("id").primaryKey(),
@@ -17,7 +17,9 @@ export const balanceSnapshots = pgTable("balance_snapshots", {
   totalWalletBalance: doublePrecision("total_wallet_balance").notNull(),
   totalUnrealisedPnl: doublePrecision("total_unrealised_pnl").notNull(),
   snapshotAt: timestamp("snapshot_at").notNull().defaultNow(),
-});
+}, (table) => [
+  index("idx_balance_snapshots_snapshot_at").on(table.snapshotAt),
+]);
 
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
