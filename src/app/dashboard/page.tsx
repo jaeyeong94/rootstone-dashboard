@@ -11,6 +11,7 @@ import { RollingMetrics } from "@/components/dashboard/RollingMetrics";
 import { PnLDistribution } from "@/components/dashboard/PnLDistribution";
 import { TodayStats } from "@/components/dashboard/TodayStats";
 import { ScrollSection } from "@/components/dashboard/ScrollSection";
+import { MarketMiniCharts } from "@/components/dashboard/MarketMiniCharts";
 
 export default function OverviewPage() {
   return (
@@ -25,6 +26,11 @@ export default function OverviewPage() {
 
       {/* ─── Zone 2: Intelligence Feed ─── */}
       <div className="space-y-12 px-6 py-12 lg:px-12">
+
+        {/* Section 0: Market Overview */}
+        <ScrollSection label="Market Overview">
+          <MarketMiniCharts />
+        </ScrollSection>
 
         {/* Section 1: Live Activity */}
         <ScrollSection label="Live Activity">
