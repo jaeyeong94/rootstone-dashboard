@@ -70,9 +70,10 @@ export function calcSharpeRatio(dailyReturns: number[], riskFreeRate = 0): numbe
 export function calcSortinoRatio(dailyReturns: number[], riskFreeRate = 0): number {
   if (dailyReturns.length < 2) return 0;
   const mean = dailyReturns.reduce((a, b) => a + b, 0) / dailyReturns.length;
-  const downsideReturns = dailyReturns.filter((r) => r < riskFreeRate);
-  if (downsideReturns.length === 0) return 0;
-  const downsideVariance = downsideReturns.reduce((sum, r) => sum + (r - riskFreeRate) ** 2, 0) / downsideReturns.length;
+  // semi-deviation: 전체 N을 분모로 사용 (표준 Sortino 공식)
+  const downsideVariance =
+    dailyReturns.reduce((sum, r) => sum + Math.min(r - riskFreeRate, 0) ** 2, 0) /
+    dailyReturns.length;
   const downsideStd = Math.sqrt(downsideVariance);
   if (downsideStd === 0) return 0;
   return ((mean - riskFreeRate) / downsideStd) * Math.sqrt(365);

@@ -78,6 +78,8 @@ export interface BybitOrder {
   qty: string;
   orderType: string;
   orderStatus: string;
+  cumExecQty: string;
+  createdTime: string;
 }
 
 // Ticker (WebSocket)

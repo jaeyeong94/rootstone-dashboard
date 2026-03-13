@@ -45,7 +45,7 @@ export function ExecutionsSidebar() {
   }, [executions]);
 
   return (
-    <div className="flex flex-col rounded-sm border border-border-subtle bg-bg-card">
+    <div className="flex min-h-0 flex-1 flex-col rounded-sm border border-border-subtle bg-bg-card">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border-subtle px-4 py-3">
         <span className="text-[11px] uppercase tracking-[1px] text-text-secondary">
@@ -58,7 +58,7 @@ export function ExecutionsSidebar() {
       </div>
 
       {/* Scrollable list */}
-      <div className="max-h-[260px] overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         {executions.length === 0 ? (
           <div className="flex h-20 items-center justify-center">
             <span className="text-xs text-text-muted">No executions</span>

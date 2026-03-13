@@ -20,10 +20,14 @@ export async function GET(request: Request) {
         price: o.price,
         qty: o.qty,
         orderType: o.orderType,
+        cumExecQty: o.cumExecQty ?? "0",
+        orderStatus: o.orderStatus,
+        createdTime: o.createdTime,
       })),
     });
   } catch (error) {
+    // 오더 조회 실패 시 빈 배열 반환 (차트에 오더 없이 표시)
     console.error("orders error:", error);
-    return NextResponse.json({ error: "Failed to fetch orders" }, { status: 500 });
+    return NextResponse.json({ orders: [] });
   }
 }

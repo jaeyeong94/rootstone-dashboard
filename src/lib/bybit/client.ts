@@ -89,6 +89,7 @@ export async function getClosedPnl(
     limit?: string;
     startTime?: string;
     endTime?: string;
+    cursor?: string;
   } = {}
 ): Promise<{ list: BybitClosedPnl[]; nextPageCursor: string }> {
   return fetchBybit("/v5/position/closed-pnl", {
@@ -107,7 +108,12 @@ export async function getOpenOrders(
   const params: Record<string, string> = {
     category: "linear",
   };
-  if (symbol) params.symbol = symbol;
+  if (symbol) {
+    params.symbol = symbol;
+  } else {
+    params.settleCoin = "USDT"; // symbol 미지정 시 settleCoin 필수
+    params.limit = "50"; // 기본 20 → 최대 50으로 확장
+  }
   return fetchBybit("/v5/order/realtime", params);
 }
 

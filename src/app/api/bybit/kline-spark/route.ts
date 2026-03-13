@@ -53,9 +53,10 @@ export async function GET(request: Request) {
       const totalDays = Math.ceil((Date.now() - startMs) / dayMs);
 
       if (totalDays <= 1000) {
-        // 단일 요청
+        // 단일 요청 (Bybit은 내림차순 반환 → 역순 정렬)
         const url = `${BYBIT_PUBLIC}/v5/market/kline?category=linear&symbol=${symbol}&interval=D&start=${startMs}&limit=1000`;
-        points = await fetchKlines(url);
+        const raw = await fetchKlines(url);
+        points = [...raw].reverse();
       } else {
         // 두 요청으로 최대 2000개 커버
         const midMs = startMs + 1000 * dayMs;
