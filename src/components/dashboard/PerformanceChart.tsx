@@ -78,15 +78,17 @@ export function PerformanceChart() {
     const liveAfterStatic = liveCurve.filter((p) => p.time > staticEndDate);
 
     if (liveAfterStatic.length > 0) {
-      // Rebase live extension to continue from static data's end using compound returns
+      // Rebase live extension using compound return ratio
+      // Live API returns: ((equity - firstEquity) / firstEquity) * 100
+      // Actual compound return from base to point: (1 + p.value/100) / (1 + baseline/100) - 1
       const staticEndValue = v31Static[v31Static.length - 1].value;
       const staticEndMultiplier = 1 + staticEndValue / 100;
-      // Find the live data point closest to static end to use as the live baseline
       const liveAtStaticEnd = liveCurve.find((p) => p.time >= staticEndDate);
       const liveBaseline = liveAtStaticEnd?.value ?? liveAfterStatic[0].value;
+      const liveBaselineMultiplier = 1 + liveBaseline / 100;
       const extension = liveAfterStatic.map((p) => ({
         time: p.time,
-        value: (staticEndMultiplier * (1 + (p.value - liveBaseline) / 100) - 1) * 100,
+        value: (staticEndMultiplier * ((1 + p.value / 100) / liveBaselineMultiplier) - 1) * 100,
       }));
       return { v1Data: v1, v31Data: [...v31Static, ...extension] };
     }

@@ -3,7 +3,7 @@
 import { Header } from "@/components/layout/Header";
 import { useTickerStore } from "@/stores/useTickerStore";
 import { usePositionStore } from "@/stores/usePositionStore";
-import { cn, formatNumber, getPnlColor, formatPnlPercent } from "@/lib/utils";
+import { cn, getPnlColor, formatPnlPercent } from "@/lib/utils";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Position } from "@/types";
 
@@ -12,6 +12,8 @@ interface ClosedPnlRecord {
   orderId: string;
   symbol: string;
   side: string;
+  qty: string;
+  entryPrice: string;
   closedPnl: string;
   createdTime: string;
   updatedTime: string;
@@ -273,7 +275,7 @@ function TradeHistory() {
           <span>Side</span>
           <span className="text-right">Price</span>
           <span className="text-right">Qty</span>
-          <span className="text-right">PnL (USDT)</span>
+          <span className="text-right">PnL (%)</span>
         </div>
 
         {isLoading ? (
@@ -293,7 +295,11 @@ function TradeHistory() {
         ) : (
           <>
             {records.map((rec) => {
-              const pnl = parseFloat(rec.closedPnl || "0");
+              const entry = parseFloat(rec.entryPrice || "0");
+              const qty = parseFloat(rec.qty || "0");
+              const pnlUsdt = parseFloat(rec.closedPnl || "0");
+              const positionValue = entry * qty;
+              const pnlPercent = positionValue > 0 ? (pnlUsdt / positionValue) * 100 : 0;
               return (
                 <div
                   key={rec.orderId + rec.updatedTime}
@@ -328,10 +334,10 @@ function TradeHistory() {
                   <span
                     className={cn(
                       "text-right font-[family-name:var(--font-mono)] text-sm",
-                      getPnlColor(pnl)
+                      getPnlColor(pnlPercent)
                     )}
                   >
-                    {pnl >= 0 ? "+" : ""}{formatNumber(pnl, 2)}
+                    {formatPnlPercent(pnlPercent / 100)}
                   </span>
                 </div>
               );

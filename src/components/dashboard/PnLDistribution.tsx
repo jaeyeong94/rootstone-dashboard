@@ -77,6 +77,7 @@ export function PnLDistribution() {
                   fontSize: "11px",
                 }}
                 labelStyle={{ color: "#888888" }}
+                itemStyle={{ color: "#EEEEEE" }}
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 formatter={(value: any) => {
                   if (value === undefined || value === null) return ["", "P&L"] as [string, string];

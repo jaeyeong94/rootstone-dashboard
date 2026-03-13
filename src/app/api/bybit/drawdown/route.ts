@@ -3,11 +3,14 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db as getDb } from "@/lib/db";
 import { balanceSnapshots } from "@/lib/db/schema";
-import { asc } from "drizzle-orm";
+import { asc, gte } from "drizzle-orm";
 import { calcDrawdownSeries } from "@/lib/utils";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+// v3.1 운용 시작일 — 이전 데이터는 포지션 정리로 인해 왜곡됨
+const V31_START = new Date("2024-11-17");
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -19,6 +22,7 @@ export async function GET() {
     const snapshots = await getDb()
       .select()
       .from(balanceSnapshots)
+      .where(gte(balanceSnapshots.snapshotAt, V31_START))
       .orderBy(asc(balanceSnapshots.snapshotAt));
 
     if (snapshots.length === 0) {

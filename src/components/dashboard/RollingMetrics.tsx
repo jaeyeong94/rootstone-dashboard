@@ -10,7 +10,6 @@ export function RollingMetrics() {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ReturnType<typeof import("lightweight-charts").createChart> | null>(null);
   const sharpeSeriesRef = useRef<ReturnType<ReturnType<typeof import("lightweight-charts").createChart>["addLineSeries"]> | null>(null);
-  const volSeriesRef = useRef<ReturnType<ReturnType<typeof import("lightweight-charts").createChart>["addLineSeries"]> | null>(null);
   const [chartReady, setChartReady] = useState(false);
 
   const { data, isLoading } = useSWR(
@@ -61,25 +60,8 @@ export function RollingMetrics() {
         },
       });
 
-      const volSeries = chart.addLineSeries({
-        color: "#997B66",
-        lineWidth: 1,
-        lineStyle: LineStyle.Dashed,
-        title: "Vol (30d)",
-        priceScaleId: "vol",
-        priceFormat: {
-          type: "custom",
-          formatter: (price: number) => `${price.toFixed(1)}%`,
-        },
-      });
-
-      chart.priceScale("vol").applyOptions({
-        scaleMargins: { top: 0.1, bottom: 0.1 },
-      });
-
       chartRef.current = chart;
       sharpeSeriesRef.current = sharpeSeries;
-      volSeriesRef.current = volSeries;
       setChartReady(true);
 
       const handleResize = () => {
@@ -96,7 +78,6 @@ export function RollingMetrics() {
         chartRef.current.remove();
         chartRef.current = null;
         sharpeSeriesRef.current = null;
-        volSeriesRef.current = null;
         setChartReady(false);
       }
     };
@@ -107,14 +88,23 @@ export function RollingMetrics() {
     if (!chartReady || !sharpeSeriesRef.current || !data) return;
 
     const sharpe: RollingMetricPoint[] = data.sharpe ?? [];
-    const volatility: RollingMetricPoint[] = data.volatility ?? [];
 
     sharpeSeriesRef.current.setData(
       sharpe.map((p) => ({ time: p.time, value: p.value }))
     );
-    volSeriesRef.current?.setData(
-      volatility.map((p) => ({ time: p.time, value: p.value }))
-    );
+
+    // Sharpe 평균 수평선
+    if (sharpe.length > 0) {
+      const avg = sharpe.reduce((sum, p) => sum + p.value, 0) / sharpe.length;
+      sharpeSeriesRef.current.createPriceLine({
+        price: avg,
+        color: "#997B66",
+        lineWidth: 1,
+        lineStyle: 2, // Dashed
+        axisLabelVisible: true,
+        title: `Avg ${avg.toFixed(2)}`,
+      });
+    }
 
     chartRef.current?.timeScale().fitContent();
   }, [data, chartReady]);
@@ -132,7 +122,7 @@ export function RollingMetrics() {
           </div>
           <div className="flex items-center gap-1">
             <div className="h-0.5 w-3 border-t border-dashed border-bronze" />
-            <span className="text-[9px] text-text-muted">Volatility</span>
+            <span className="text-[9px] text-text-muted">Avg</span>
           </div>
         </div>
       </div>

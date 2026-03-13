@@ -30,15 +30,36 @@ export function HeroZone() {
     { refreshInterval: 60000 }
   );
 
-  // Use static cumulative returns for the sparkline and headline number
-  const curve = useMemo(
-    () =>
-      (staticCurve as { time: string; value: number }[]).map((p) => ({
-        time: p.time,
-        value: p.value,
-      })),
-    []
+  const { data: curveData } = useSWR<{ curve: EquityCurvePoint[] }>(
+    "/api/bybit/equity-curve",
+    fetcher,
+    { refreshInterval: 300000 }
   );
+
+  // Static tearsheet + live compound extension
+  const curve = useMemo(() => {
+    const typed = staticCurve as { time: string; value: number }[];
+    const liveCurve: EquityCurvePoint[] = curveData?.curve ?? [];
+    const staticEndDate = typed.length > 0 ? typed[typed.length - 1].time : "";
+    const liveAfterStatic = liveCurve.filter((p) => p.time > staticEndDate);
+
+    if (liveAfterStatic.length > 0) {
+      // Compound rebase: R_t = S_mul × (C_mul / L_mul) - 1
+      const staticEndValue = typed[typed.length - 1].value;
+      const staticEndMultiplier = 1 + staticEndValue / 100;
+      const liveAtStaticEnd = liveCurve.find((p) => p.time >= staticEndDate);
+      const liveBaseline = liveAtStaticEnd?.value ?? liveAfterStatic[0].value;
+      const liveBaselineMultiplier = 1 + liveBaseline / 100;
+      const extension = liveAfterStatic.map((p) => ({
+        time: p.time,
+        value: (staticEndMultiplier * ((1 + p.value / 100) / liveBaselineMultiplier) - 1) * 100,
+      }));
+      return [...typed, ...extension];
+    }
+
+    return typed;
+  }, [curveData]);
+
   const lastValue = curve.length > 0 ? curve[curve.length - 1].value / 100 : 0;
   const animatedReturn = useCountUp(lastValue, 2000);
 
