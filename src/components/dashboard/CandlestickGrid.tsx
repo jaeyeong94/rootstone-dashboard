@@ -12,7 +12,7 @@ type Interval = "1h" | "4h" | "D";
 const INTERVAL_MAP: Record<Interval, { api: string; limit: number }> = {
   "1h": { api: "60", limit: 72 },
   "4h": { api: "240", limit: 60 },
-  D: { api: "D", limit: 90 },
+  D: { api: "D", limit: 1000 },
 };
 
 const SYMBOLS = [
@@ -30,14 +30,25 @@ interface KlinePoint {
   close: number;
 }
 
+interface OpenOrder {
+  orderId: string;
+  symbol: string;
+  side: string;
+  price: string;
+  qty: string;
+  orderType: string;
+}
+
 function SingleCandleChart({
   symbol,
   label,
   interval,
+  inceptionDate,
 }: {
   symbol: string;
   label: string;
   interval: Interval;
+  inceptionDate?: string;
 }) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ReturnType<
@@ -48,18 +59,33 @@ function SingleCandleChart({
       typeof import("lightweight-charts").createChart
     >["addCandlestickSeries"]
   > | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const priceLineRefs = useRef<any[]>([]);
   const [chartReady, setChartReady] = useState(false);
 
   const { api, limit } = INTERVAL_MAP[interval];
 
+  // D 인터벌이고 inceptionDate 있으면 startTime 파라미터 추가
+  const startTimeParam =
+    interval === "D" && inceptionDate
+      ? `&startTime=${new Date(inceptionDate).getTime()}`
+      : "";
+
   const { data, isLoading } = useSWR(
-    `/api/bybit/kline-spark?symbol=${symbol}&interval=${api}&limit=${limit}`,
+    `/api/bybit/kline-spark?symbol=${symbol}&interval=${api}&limit=${limit}${startTimeParam}`,
     fetcher,
     { refreshInterval: 300000 }
   );
 
+  const { data: ordersData } = useSWR(
+    `/api/bybit/orders?symbol=${symbol}`,
+    fetcher,
+    { refreshInterval: 30000 }
+  );
+
   const livePrice = useTickerStore((s) => s.getPrice(symbol));
   const points: KlinePoint[] = useMemo(() => data?.points ?? [], [data]);
+  const orders: OpenOrder[] = useMemo(() => ordersData?.orders ?? [], [ordersData]);
 
   const firstClose = points.length > 0 ? points[0].close : 0;
   const lastClose = livePrice
@@ -155,6 +181,36 @@ function SingleCandleChart({
     chartRef.current?.timeScale().fitContent();
   }, [points, chartReady]);
 
+  // Open order price lines
+  useEffect(() => {
+    if (!chartReady || !seriesRef.current) return;
+
+    // 기존 price lines 제거
+    priceLineRefs.current.forEach((pl) => {
+      try {
+        seriesRef.current?.removePriceLine(pl);
+      } catch {}
+    });
+    priceLineRefs.current = [];
+
+    // 새 price lines 추가 (Limit 오더만)
+    orders
+      .filter((o) => o.orderType === "Limit")
+      .forEach((o) => {
+        const priceVal = parseFloat(o.price);
+        if (isNaN(priceVal) || priceVal <= 0) return;
+        const pl = seriesRef.current!.createPriceLine({
+          price: priceVal,
+          color: o.side === "Buy" ? "#C5A049" : "#EF4444",
+          lineWidth: 1,
+          lineStyle: 2, // Dotted
+          axisLabelVisible: true,
+          title: `${o.side === "Buy" ? "L" : "S"} ${parseFloat(o.qty).toFixed(3)}`,
+        });
+        priceLineRefs.current.push(pl);
+      });
+  }, [orders, chartReady]);
+
   return (
     <div className="rounded-sm border border-border-subtle bg-bg-card p-4">
       {/* Header */}
@@ -190,7 +246,12 @@ function SingleCandleChart({
 }
 
 export function CandlestickGrid() {
-  const [interval, setInterval] = useState<Interval>("1h");
+  const [interval, setInterval] = useState<Interval>("D");
+
+  const { data: equityCurveData } = useSWR("/api/bybit/equity-curve", fetcher, {
+    refreshInterval: 0,
+  });
+  const inceptionDate: string | undefined = equityCurveData?.startDate ?? undefined;
 
   return (
     <div>
@@ -225,6 +286,7 @@ export function CandlestickGrid() {
             symbol={symbol}
             label={label}
             interval={interval}
+            inceptionDate={inceptionDate}
           />
         ))}
       </div>

@@ -5,6 +5,7 @@ import type {
   BybitPosition,
   BybitExecution,
   BybitClosedPnl,
+  BybitOrder,
 } from "@/types";
 
 const BASE_URL = "https://api.bybit.com";
@@ -95,6 +96,19 @@ export async function getClosedPnl(
     ...params,
     limit: params.limit || "50",
   });
+}
+
+/**
+ * Get open orders (realtime)
+ */
+export async function getOpenOrders(
+  symbol?: string
+): Promise<{ list: BybitOrder[] }> {
+  const params: Record<string, string> = {
+    category: "linear",
+  };
+  if (symbol) params.symbol = symbol;
+  return fetchBybit("/v5/order/realtime", params);
 }
 
 /**

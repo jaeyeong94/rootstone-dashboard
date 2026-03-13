@@ -1,31 +1,14 @@
 "use client";
 
 import { Header } from "@/components/layout/Header";
-import useSWR from "swr";
 import { useTickerStore } from "@/stores/useTickerStore";
+import { usePositionStore } from "@/stores/usePositionStore";
 import { cn, formatNumber, formatPnlPercent, getPnlColor } from "@/lib/utils";
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
-
-interface Position {
-  symbol: string;
-  side: "Buy" | "Sell";
-  size: string;
-  entryPrice: string;
-  markPrice: string;
-  leverage: string;
-  unrealisedPnl: string;
-  liqPrice: string;
-  createdTime: string;
-  updatedTime: string;
-}
+import type { Position } from "@/types";
 
 export default function PositionsPage() {
-  const { data, isLoading } = useSWR("/api/bybit/positions", fetcher, {
-    refreshInterval: 5000,
-  });
-
-  const positions: Position[] = data?.positions ?? [];
+  const positions = usePositionStore((s) => s.positions);
+  const isLoading = usePositionStore((s) => s.isLoading);
 
   return (
     <div>

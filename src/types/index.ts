@@ -70,6 +70,16 @@ export interface BybitApiResponse<T> {
   time: number;
 }
 
+export interface BybitOrder {
+  orderId: string;
+  symbol: string;
+  side: string; // "Buy" | "Sell"
+  price: string;
+  qty: string;
+  orderType: string;
+  orderStatus: string;
+}
+
 // Ticker (WebSocket)
 export interface TickerData {
   symbol: string;
@@ -147,4 +157,19 @@ export interface BenchmarkPoint {
 export interface DailyPnL {
   time: string;
   value: number; // daily return %
+}
+
+// Normalized position (from /api/bybit/positions response)
+export interface Position {
+  symbol: string;
+  side: "Buy" | "Sell";
+  size: string;
+  entryPrice: string;
+  markPrice: string;
+  leverage: string;
+  unrealisedPnl: string;
+  cumRealisedPnl: string;
+  liqPrice: string;
+  createdTime: string;
+  updatedTime: string;
 }

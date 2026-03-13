@@ -1,6 +1,7 @@
 "use client";
 
 import useSWR from "swr";
+import { usePositionStore } from "@/stores/usePositionStore";
 import { cn, formatPnlPercent, getPnlColor, formatRelativeTime } from "@/lib/utils";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -33,15 +34,13 @@ export function MetricsGrid() {
   const { data: balanceData } = useSWR("/api/bybit/balance?period=24h", fetcher, {
     refreshInterval: 30000,
   });
-  const { data: posData } = useSWR("/api/bybit/positions", fetcher, {
-    refreshInterval: 5000,
-  });
+  const positions = usePositionStore((s) => s.positions);
 
   const todayChangePercent = balanceData?.changePercent ?? 0;
-  const positionCount = posData?.count ?? 0;
+  const positionCount = positions.length;
 
   // Last position update as proxy for last rebalance
-  const lastUpdate = posData?.positions?.[0]?.updatedTime;
+  const lastUpdate = positions[0]?.updatedTime;
   const lastRebalance = lastUpdate
     ? formatRelativeTime(new Date(parseInt(lastUpdate)))
     : "-";

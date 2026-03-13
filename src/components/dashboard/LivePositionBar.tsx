@@ -1,20 +1,9 @@
 "use client";
 
-import useSWR from "swr";
 import { useTickerStore } from "@/stores/useTickerStore";
+import { usePositionStore } from "@/stores/usePositionStore";
 import { cn, formatNumber, formatPnlPercent, getPnlColor } from "@/lib/utils";
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
-
-interface Position {
-  symbol: string;
-  side: "Buy" | "Sell";
-  size: string;
-  entryPrice: string;
-  markPrice: string;
-  leverage: string;
-  unrealisedPnl: string;
-}
+import type { Position } from "@/types";
 
 function PositionRow({ pos }: { pos: Position }) {
   const livePrice = useTickerStore((s) => s.getPrice(pos.symbol));
@@ -76,10 +65,8 @@ function PositionRow({ pos }: { pos: Position }) {
 }
 
 export function LivePositionBar() {
-  const { data, isLoading } = useSWR("/api/bybit/positions", fetcher, {
-    refreshInterval: 5000,
-  });
-  const positions: Position[] = data?.positions ?? [];
+  const positions = usePositionStore((s) => s.positions);
+  const isLoading = usePositionStore((s) => s.isLoading);
 
   return (
     <div className="rounded-sm border border-border-subtle bg-bg-card p-5">

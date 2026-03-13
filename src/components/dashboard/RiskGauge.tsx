@@ -1,15 +1,7 @@
 "use client";
 
-import useSWR from "swr";
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
-
-interface Position {
-  size: string;
-  markPrice: string;
-  leverage: string;
-  unrealisedPnl: string;
-}
+import { usePositionStore } from "@/stores/usePositionStore";
+import type { Position } from "@/types";
 
 function ArcGauge({ pct }: { pct: number }) {
   const R = 54;
@@ -92,11 +84,7 @@ function calcRiskPct(positions: Position[]): number {
 }
 
 export function RiskGauge() {
-  const { data: posData } = useSWR("/api/bybit/positions", fetcher, {
-    refreshInterval: 10000,
-  });
-
-  const positions: Position[] = posData?.positions ?? [];
+  const positions = usePositionStore((s) => s.positions);
   const marginPct = calcRiskPct(positions);
 
   const avgLev =
