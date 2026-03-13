@@ -3,37 +3,11 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db as getDb } from "@/lib/db";
 import { balanceSnapshots } from "@/lib/db/schema";
-import { and, asc, gte, lte } from "drizzle-orm";
+import { asc, and, gte, lte } from "drizzle-orm";
 import { getClosedPnl } from "@/lib/bybit/client";
-import {
-  calcSharpeRatio,
-  calcSortinoRatio,
-  calcMaxDrawdown,
-  calcDailyReturns,
-} from "@/lib/utils";
-import type { BybitClosedPnl } from "@/types";
-
-export interface ReportSummary {
-  totalReturn: number;       // % e.g. 12.34
-  sharpeRatio: number;
-  sortinoRatio: number;
-  maxDrawdown: number;       // % negative e.g. -5.12
-  totalTrades: number;
-  winRate: number;           // % e.g. 61.5
-  equityCurve: { time: string; value: number }[];  // normalized % from start
-  monthlyReturns: { year: number; month: number; return: number }[];
-  topWins: TradeHighlight[];
-  topLosses: TradeHighlight[];
-  avgGrossExposure: number;  // % placeholder
-  var95: number;             // 1-day VaR 95% as negative %
-}
-
-export interface TradeHighlight {
-  symbol: string;
-  closedPnlPct: number;   // % relative to period start equity (no abs dollar)
-  side: string;
-  time: string;
-}
+import { getDailyClosePrices } from "@/lib/bybit/kline";
+import { historicalVaR } from "@/lib/math/statistics";
+import { calcSharpeRatio, calcSortinoRatio, calcMaxDrawdown, calcDailyReturns } from "@/lib/utils";
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
@@ -42,194 +16,138 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const startParam = searchParams.get("start");
-  const endParam = searchParams.get("end");
+  const startDate = searchParams.get("start");
+  const endDate = searchParams.get("end");
 
-  // Default: last 30 days
-  const endDate = endParam ? new Date(endParam + "T23:59:59Z") : new Date();
-  const startDate = startParam
-    ? new Date(startParam + "T00:00:00Z")
-    : new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+  if (!startDate || !endDate) {
+    return NextResponse.json({ error: "start and end required" }, { status: 400 });
+  }
 
   try {
-    // ── Balance snapshots for the period ──────────────────────────────────
-    const snapshots = await getDb()
-      .select({
-        snapshotAt: balanceSnapshots.snapshotAt,
-        totalEquity: balanceSnapshots.totalEquity,
-      })
-      .from(balanceSnapshots)
-      .where(
-        startParam || endParam
-          ? and(gte(balanceSnapshots.snapshotAt, startDate), lte(balanceSnapshots.snapshotAt, endDate))
-          : lte(balanceSnapshots.snapshotAt, endDate)
-      )
-      .orderBy(asc(balanceSnapshots.snapshotAt));
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
 
-    const equities = snapshots.map((s) => s.totalEquity);
-    const startEquity = equities.length > 0 ? equities[0] : 1;
+    // Fetch equity snapshots and BTC prices in parallel
+    const [snapshots, btcData, pnlData] = await Promise.all([
+      getDb()
+        .select({
+          snapshotAt: balanceSnapshots.snapshotAt,
+          totalEquity: balanceSnapshots.totalEquity,
+        })
+        .from(balanceSnapshots)
+        .where(and(gte(balanceSnapshots.snapshotAt, start), lte(balanceSnapshots.snapshotAt, end)))
+        .orderBy(asc(balanceSnapshots.snapshotAt)),
+      getDailyClosePrices("BTCUSDT", 200),
+      getClosedPnl({
+        startTime: String(start.getTime()),
+        endTime: String(end.getTime()),
+        limit: "100",
+      }),
+    ]);
 
-    // ── Core metrics from equity curve ───────────────────────────────────
-    const dailyReturns = calcDailyReturns(equities);
-    const sharpeRatio = calcSharpeRatio(dailyReturns);
-    const sortinoRatio = calcSortinoRatio(dailyReturns);
-    const maxDrawdownRaw = calcMaxDrawdown(equities);
-    const totalReturn =
-      equities.length >= 2
-        ? ((equities[equities.length - 1] - equities[0]) / equities[0]) * 100
-        : 0;
+    // Build daily equity (last snapshot per day)
+    const equityByDay = new Map<string, number>();
+    for (const s of snapshots) {
+      const day = new Date(s.snapshotAt).toISOString().split("T")[0];
+      equityByDay.set(day, s.totalEquity);
+    }
 
-    // ── Equity curve: normalized to % from period start ───────────────────
-    const equityCurve = snapshots.map((s) => ({
-      time: s.snapshotAt.toISOString().slice(0, 10),
-      value: parseFloat(
-        (((s.totalEquity - startEquity) / startEquity) * 100).toFixed(4)
-      ),
+    const equityDays = Array.from(equityByDay.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    const equityValues = equityDays.map(([, v]) => v);
+
+    // Calculate returns
+    const dailyReturns = calcDailyReturns(equityValues);
+    const totalReturn = equityValues.length >= 2
+      ? (equityValues[equityValues.length - 1] - equityValues[0]) / equityValues[0]
+      : 0;
+
+    // BTC return for same period
+    const btcByDate = new Map(btcData.map((d) => [d.time, d.close]));
+    const startStr = startDate;
+    const endStr = endDate;
+    let btcStartPrice = 0;
+    let btcEndPrice = 0;
+    for (const [date, price] of btcByDate) {
+      if (date >= startStr && btcStartPrice === 0) btcStartPrice = price;
+      if (date <= endStr) btcEndPrice = price;
+    }
+    const btcReturn = btcStartPrice > 0 ? (btcEndPrice - btcStartPrice) / btcStartPrice : 0;
+
+    // Equity curve (normalized to cumulative return %)
+    const equityCurve = equityDays.map(([time, value]) => ({
+      time,
+      value: equityValues[0] > 0 ? ((value - equityValues[0]) / equityValues[0]) * 100 : 0,
     }));
 
-    // ── Monthly returns ───────────────────────────────────────────────────
-    const monthlyMap = new Map<string, { start: number; end: number }>();
-    for (const s of snapshots) {
-      const y = s.snapshotAt.getUTCFullYear();
-      const m = s.snapshotAt.getUTCMonth() + 1;
-      const key = `${y}-${String(m).padStart(2, "0")}`;
-      const existing = monthlyMap.get(key);
-      if (!existing) {
-        monthlyMap.set(key, { start: s.totalEquity, end: s.totalEquity });
-      } else {
-        existing.end = s.totalEquity;
+    // BTC curve (aligned to same dates)
+    const btcCurve: { time: string; value: number }[] = [];
+    const btcFirst = btcByDate.get(equityDays[0]?.[0] ?? "") ?? btcStartPrice;
+    for (const [day] of equityDays) {
+      const btcPrice = btcByDate.get(day);
+      if (btcPrice && btcFirst > 0) {
+        btcCurve.push({ time: day, value: ((btcPrice - btcFirst) / btcFirst) * 100 });
       }
     }
-    const monthlyReturns: { year: number; month: number; return: number }[] = [];
-    for (const [key, { start, end }] of monthlyMap.entries()) {
-      const [y, m] = key.split("-").map(Number);
-      monthlyReturns.push({
-        year: y,
-        month: m,
-        return: parseFloat((((end - start) / start) * 100).toFixed(2)),
-      });
-    }
-    monthlyReturns.sort((a, b) =>
-      a.year !== b.year ? a.year - b.year : a.month - b.month
-    );
 
-    // ── VaR 95% (historical simulation from daily returns) ────────────────
-    let var95 = 0;
-    if (dailyReturns.length >= 5) {
-      const sorted = [...dailyReturns].sort((a, b) => a - b);
-      const idx = Math.floor(sorted.length * 0.05);
-      var95 = parseFloat((sorted[idx] * 100).toFixed(2));
+    // Monthly returns
+    const monthlyMap = new Map<string, number[]>();
+    for (let i = 0; i < dailyReturns.length; i++) {
+      const [date] = equityDays[i + 1] || [];
+      if (!date) continue;
+      const [y, m] = date.split("-");
+      const key = `${y}-${m}`;
+      if (!monthlyMap.has(key)) monthlyMap.set(key, []);
+      monthlyMap.get(key)!.push(dailyReturns[i]);
     }
 
-    // ── Closed PnL trades for the period ─────────────────────────────────
-    let totalTrades = 0;
-    let winRate = 0;
-    const topWins: TradeHighlight[] = [];
-    const topLosses: TradeHighlight[] = [];
-    let avgGrossExposure = 0;
+    const monthlyReturns = Array.from(monthlyMap.entries()).map(([key, returns]) => {
+      const [y, m] = key.split("-");
+      const compoundReturn = returns.reduce((acc, r) => acc * (1 + r), 1) - 1;
+      return { year: parseInt(y), month: parseInt(m), return: Math.round(compoundReturn * 10000) / 100 };
+    });
 
-    try {
-      const startTime = String(startDate.getTime());
-      const endTime = String(endDate.getTime());
+    // Trades analysis
+    const trades = pnlData.list.map((t) => {
+      const pnl = parseFloat(t.closedPnl);
+      const entry = parseFloat(t.entryPrice);
+      const exit = parseFloat(t.exitPrice);
+      const pnlPct = entry > 0 ? ((exit - entry) / entry) * (t.side === "Buy" ? 1 : -1) * 100 : 0;
+      const holdingMs = parseInt(t.updatedTime) - parseInt(t.createdTime);
+      return {
+        symbol: t.symbol.replace("USDT", ""),
+        side: t.side,
+        entryPrice: entry,
+        exitPrice: exit,
+        pnlPercent: Math.round(pnlPct * 100) / 100,
+        holdingHours: Math.round(holdingMs / (1000 * 60 * 60) * 10) / 10,
+        closedAt: new Date(parseInt(t.updatedTime)).toISOString(),
+        // suppress unused variable warning
+        _pnl: pnl,
+      };
+    });
 
-      const allFills: BybitClosedPnl[] = [];
-      let cursor: string | undefined;
-      do {
-        const page = await getClosedPnl({
-          limit: "200",
-          startTime,
-          endTime,
-          ...(cursor ? { cursor } : {}),
-        });
-        allFills.push(...page.list);
-        cursor = page.nextPageCursor || undefined;
-      } while (cursor);
+    const wins = trades.filter((t) => t.pnlPercent > 0);
+    const topWins = [...trades].sort((a, b) => b.pnlPercent - a.pnlPercent).slice(0, 5);
+    const topLosses = [...trades].sort((a, b) => a.pnlPercent - b.pnlPercent).slice(0, 5);
 
-      // Aggregate fills into positions (same symbol + 1-min bucket)
-      const posMap = new Map<
-        string,
-        { pnl: number; created: number; updated: number; symbol: string; side: string }
-      >();
-      for (const t of allFills) {
-        const minuteBucket = Math.floor(parseInt(t.updatedTime) / 60000);
-        const key = `${t.symbol}_${minuteBucket}`;
-        const existing = posMap.get(key);
-        if (existing) {
-          existing.pnl += parseFloat(t.closedPnl);
-          existing.updated = Math.max(existing.updated, parseInt(t.updatedTime));
-        } else {
-          posMap.set(key, {
-            pnl: parseFloat(t.closedPnl),
-            created: parseInt(t.createdTime),
-            updated: parseInt(t.updatedTime),
-            symbol: t.symbol,
-            side: t.side,
-          });
-        }
-      }
-
-      const positions = Array.from(posMap.values());
-      totalTrades = positions.length;
-
-      if (totalTrades > 0) {
-        const wins = positions.filter((p) => p.pnl > 0);
-        winRate = parseFloat(((wins.length / totalTrades) * 100).toFixed(1));
-
-        // Convert PnL to % relative to period start equity (no absolute amounts)
-        const toPct = (pnl: number) =>
-          startEquity > 0
-            ? parseFloat(((pnl / startEquity) * 100).toFixed(4))
-            : 0;
-
-        const sorted = [...positions].sort((a, b) => b.pnl - a.pnl);
-
-        topWins.push(
-          ...sorted.slice(0, 5).map((p) => ({
-            symbol: p.symbol,
-            closedPnlPct: toPct(p.pnl),
-            side: p.side,
-            time: new Date(p.updated).toISOString().slice(0, 10),
-          }))
-        );
-
-        topLosses.push(
-          ...sorted
-            .slice(-5)
-            .reverse()
-            .map((p) => ({
-              symbol: p.symbol,
-              closedPnlPct: toPct(p.pnl),
-              side: p.side,
-              time: new Date(p.updated).toISOString().slice(0, 10),
-            }))
-        );
-
-        // Avg gross exposure: average of abs(positionValue) is unavailable from closed-pnl
-        // Use a proxy: avg pnl magnitude as % of equity, annualized to exposure estimate
-        // Since we have no position size data here, we set a flag value and let the UI
-        // show "N/A" if 0. A real implementation would query /v5/position/list history.
-        avgGrossExposure = 0;
-      }
-    } catch {
-      // PnL API failure — return equity metrics only
-    }
-
-    const summary: ReportSummary = {
-      totalReturn: parseFloat(totalReturn.toFixed(2)),
-      sharpeRatio: parseFloat(sharpeRatio.toFixed(2)),
-      sortinoRatio: parseFloat(sortinoRatio.toFixed(2)),
-      maxDrawdown: parseFloat((maxDrawdownRaw * 100).toFixed(2)),
-      totalTrades,
-      winRate,
+    return NextResponse.json({
+      period: { start: startDate, end: endDate },
+      totalReturn: Math.round(totalReturn * 10000) / 100,
+      sharpeRatio: Math.round(calcSharpeRatio(dailyReturns) * 100) / 100,
+      sortinoRatio: Math.round(calcSortinoRatio(dailyReturns) * 100) / 100,
+      maxDrawdown: Math.round(calcMaxDrawdown(equityValues) * 10000) / 100,
+      totalTrades: trades.length,
+      winRate: trades.length > 0 ? Math.round((wins.length / trades.length) * 10000) / 100 : 0,
+      btcReturn: Math.round(btcReturn * 10000) / 100,
+      alpha: Math.round((totalReturn - btcReturn) * 10000) / 100,
       equityCurve,
+      btcCurve,
       monthlyReturns,
       topWins,
       topLosses,
-      avgGrossExposure,
-      var95,
-    };
-
-    return NextResponse.json(summary);
+      var95: Math.round(historicalVaR(dailyReturns, 0.95) * 10000) / 100,
+    });
   } catch (error) {
     console.error("Report summary error:", error);
     return NextResponse.json(

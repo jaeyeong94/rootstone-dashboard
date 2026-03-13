@@ -2,12 +2,13 @@
 
 import { Header } from "@/components/layout/Header";
 import { cn } from "@/lib/utils";
-import useSWR from "swr";
-import { getRegimeDisplay, RegimeType } from "@/lib/math/regime";
+import { useState, useEffect, useCallback } from "react";
 
 /* ═══════════════════════════════════════════════════════════════
    Types
    ═══════════════════════════════════════════════════════════════ */
+
+type RegimeType = "core" | "crisis" | "challenging";
 
 interface RegimeIndicators {
   btcVolatility30d: number;
@@ -16,14 +17,14 @@ interface RegimeIndicators {
   btcReturn7d: number;
 }
 
-interface TimelineEntry {
+interface TimelineDay {
   date: string;
-  regime: RegimeType;
-  dailyReturn: number | null;
+  regime: string;
+  dailyReturn: number;
 }
 
 interface RegimeStat {
-  regime: RegimeType;
+  regime: string;
   avgDailyReturn: number;
   totalDays: number;
   totalReturn: number;
@@ -33,23 +34,13 @@ interface RegimeData {
   currentRegime: RegimeType;
   confidence: number;
   indicators: RegimeIndicators;
-  timeline: TimelineEntry[];
+  timeline: TimelineDay[];
   regimeStats: RegimeStat[];
   updatedAt: string;
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   Fetcher
-   ═══════════════════════════════════════════════════════════════ */
-
-const fetcher = (url: string) =>
-  fetch(url).then((r) => {
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    return r.json();
-  });
-
-/* ═══════════════════════════════════════════════════════════════
-   Helper Components
+   Helpers
    ═══════════════════════════════════════════════════════════════ */
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -60,135 +51,167 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function SkeletonCard({ className }: { className?: string }) {
-  return (
-    <div
-      className={cn(
-        "animate-pulse rounded-sm border border-border-subtle bg-bg-card",
-        className
-      )}
-    />
-  );
+function getRegimeDisplay(regime: RegimeType) {
+  const displays = {
+    core: {
+      label: "CORE",
+      description: "Normal trending markets — Full signal deployment",
+      color: "text-gold",
+      bgColor: "bg-gold/10",
+      borderColor: "border-gold/30",
+      barColor: "bg-gold",
+      icon: "○",
+    },
+    crisis: {
+      label: "CRISIS",
+      description: "Extreme volatility — Defensive positioning",
+      color: "text-pnl-negative",
+      bgColor: "bg-pnl-negative/10",
+      borderColor: "border-pnl-negative/30",
+      barColor: "bg-pnl-negative",
+      icon: "⚠",
+    },
+    challenging: {
+      label: "CHALLENGING",
+      description: "Choppy environment — Reduced position sizes",
+      color: "text-status-warn",
+      bgColor: "bg-status-warn/10",
+      borderColor: "border-status-warn/30",
+      barColor: "bg-status-warn",
+      icon: "✱",
+    },
+  };
+  return displays[regime];
 }
 
-/* ─── Confidence Progress Bar ─── */
-function ConfidenceBar({
-  value,
-  colorClass,
-}: {
-  value: number;
-  colorClass: string;
-}) {
-  const pct = Math.round(value * 100);
-  return (
-    <div className="space-y-1.5">
-      <div className="flex items-center justify-between">
-        <span className="text-[11px] uppercase tracking-[1px] text-text-muted">
-          Confidence
-        </span>
-        <span
-          className={cn(
-            "font-[family-name:var(--font-mono)] text-sm font-medium",
-            colorClass
-          )}
-        >
-          {pct}%
-        </span>
-      </div>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-bg-elevated">
-        <div
-          className={cn("h-full rounded-full transition-all duration-700", colorClass.replace("text-", "bg-"))}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-    </div>
-  );
+function formatPct(v: number, sign = true): string {
+  const prefix = sign && v > 0 ? "+" : "";
+  return `${prefix}${v.toFixed(2)}%`;
 }
 
-/* ─── Threshold Marker ─── */
-function ThresholdRow({
-  label,
-  status,
-  statusColor,
-}: {
-  label: string;
-  status: string;
-  statusColor: string;
-}) {
-  return (
-    <div className="flex items-center justify-between py-1.5">
-      <span className="text-xs text-text-secondary">{label}</span>
-      <span
-        className={cn(
-          "text-[11px] font-medium uppercase tracking-[0.5px]",
-          statusColor
-        )}
-      >
-        {status}
-      </span>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   Section A: Current Regime Hero
-   ═══════════════════════════════════════════════════════════════ */
-
-function RegimeHero({ data }: { data: RegimeData }) {
-  const display = getRegimeDisplay(data.currentRegime);
-  const updatedAt = new Date(data.updatedAt).toLocaleString("ko-KR", {
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleString("ko-KR", {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
   });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Skeleton
+   ═══════════════════════════════════════════════════════════════ */
+
+function SkeletonBlock({ className }: { className?: string }) {
+  return (
+    <div
+      className={cn(
+        "animate-pulse rounded-sm bg-bg-elevated",
+        className
+      )}
+    />
+  );
+}
+
+function LoadingSkeleton() {
+  return (
+    <div className="p-6 space-y-8">
+      {/* Hero skeleton */}
+      <SkeletonBlock className="h-48 w-full" />
+      {/* Indicators skeleton */}
+      <div className="grid grid-cols-3 gap-3">
+        <SkeletonBlock className="h-28" />
+        <SkeletonBlock className="h-28" />
+        <SkeletonBlock className="h-28" />
+      </div>
+      {/* Timeline skeleton */}
+      <SkeletonBlock className="h-20 w-full" />
+      {/* Stats skeleton */}
+      <div className="grid grid-cols-3 gap-3">
+        <SkeletonBlock className="h-28" />
+        <SkeletonBlock className="h-28" />
+        <SkeletonBlock className="h-28" />
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   A. Current Regime Hero
+   ═══════════════════════════════════════════════════════════════ */
+
+function RegimeHero({
+  regime,
+  confidence,
+  updatedAt,
+}: {
+  regime: RegimeType;
+  confidence: number;
+  updatedAt: string;
+}) {
+  const display = getRegimeDisplay(regime);
 
   return (
     <div
       className={cn(
-        "rounded-sm border bg-bg-card p-8",
+        "rounded-sm border p-8",
+        display.bgColor,
         display.borderColor
       )}
     >
-      <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
-        {/* Left: Icon + Regime name */}
-        <div className="flex items-start gap-5">
-          <div
-            className={cn(
-              "flex h-16 w-16 shrink-0 items-center justify-center rounded-sm text-3xl",
-              display.bgColor
-            )}
-          >
-            <span className={display.color}>{display.icon}</span>
-          </div>
-          <div>
-            <div className="text-[11px] font-medium uppercase tracking-[2px] text-text-muted">
-              Current Market Regime
-            </div>
-            <div
+      <div className="flex items-start justify-between">
+        <div className="space-y-3">
+          {/* Regime label */}
+          <div className="flex items-center gap-3">
+            <span className={cn("text-2xl leading-none", display.color)}>
+              {display.icon}
+            </span>
+            <h2
               className={cn(
-                "mt-1 font-[family-name:var(--font-heading)] text-4xl font-light tracking-wide",
+                "font-[family-name:var(--font-heading)] text-5xl font-light tracking-[4px] uppercase",
                 display.color
               )}
             >
               {display.label}
+            </h2>
+          </div>
+
+          {/* Description */}
+          <p className="text-sm text-text-secondary">{display.description}</p>
+
+          {/* Confidence bar */}
+          <div className="space-y-1.5 pt-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] uppercase tracking-[1px] text-text-muted">
+                Confidence
+              </span>
+              <span
+                className={cn(
+                  "font-[family-name:var(--font-mono)] text-sm",
+                  display.color
+                )}
+              >
+                {(confidence * 100).toFixed(0)}%
+              </span>
             </div>
-            <p className="mt-2 text-sm leading-relaxed text-text-secondary">
-              {display.description}
-            </p>
+            <div className="h-1.5 w-64 overflow-hidden rounded-full bg-bg-primary/40">
+              <div
+                className={cn("h-full rounded-full transition-all", display.barColor)}
+                style={{ width: `${confidence * 100}%` }}
+              />
+            </div>
           </div>
         </div>
 
-        {/* Right: Confidence + Timestamp */}
-        <div className="w-full shrink-0 space-y-3 sm:w-56">
-          <ConfidenceBar
-            value={data.confidence}
-            colorClass={display.color}
-          />
-          <div className="text-right text-[10px] text-text-muted">
-            Updated {updatedAt}
-          </div>
+        {/* Updated at */}
+        <div className="text-right">
+          <p className="text-[10px] uppercase tracking-[1px] text-text-muted">
+            Last updated
+          </p>
+          <p className="mt-1 font-[family-name:var(--font-mono)] text-xs text-text-secondary">
+            {formatDate(updatedAt)}
+          </p>
         </div>
       </div>
     </div>
@@ -196,317 +219,282 @@ function RegimeHero({ data }: { data: RegimeData }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   Section B: Regime Indicators (3-column)
+   B. Regime Indicators
    ═══════════════════════════════════════════════════════════════ */
 
-function VolatilityCard({ vol }: { vol: number }) {
-  const status =
-    vol > 80
-      ? { label: "Extreme", color: "text-pnl-negative" }
-      : vol > 50
-        ? { label: "Elevated", color: "text-status-warn" }
-        : { label: "Normal", color: "text-pnl-positive" };
-
-  return (
-    <div className="rounded-sm border border-border-subtle bg-bg-card p-5">
-      <SectionLabel>Volatility Index</SectionLabel>
-      <div className="mt-4">
-        <div className="font-[family-name:var(--font-mono)] text-3xl font-semibold text-text-primary">
-          {vol.toFixed(1)}
-          <span className="ml-1 text-base text-text-muted">%</span>
-        </div>
-        <div className="mt-1 text-[10px] uppercase tracking-[0.5px] text-text-muted">
-          BTC 30d Annualized
-        </div>
-      </div>
-      <div className="mt-4 divide-y divide-border-subtle">
-        <ThresholdRow label="Normal" status="< 50%" statusColor="text-pnl-positive" />
-        <ThresholdRow label="Elevated" status="50–80%" statusColor="text-status-warn" />
-        <ThresholdRow label="Extreme" status="> 80%" statusColor="text-pnl-negative" />
-      </div>
-      <div className="mt-4 pt-3 border-t border-border-subtle">
-        <span className="text-[11px] text-text-muted">Current: </span>
-        <span className={cn("text-[11px] font-semibold uppercase", status.color)}>
-          {status.label}
-        </span>
-      </div>
-    </div>
-  );
+interface IndicatorLevel {
+  label: string;
+  color: string;
 }
 
-function CorrelationCard({ corr }: { corr: number }) {
-  const status =
-    corr < 0.4
-      ? { label: "Breakdown", color: "text-pnl-negative" }
-      : corr < 0.6
-        ? { label: "Weakening", color: "text-status-warn" }
-        : { label: "Normal", color: "text-pnl-positive" };
-
-  return (
-    <div className="rounded-sm border border-border-subtle bg-bg-card p-5">
-      <SectionLabel>Correlation Score</SectionLabel>
-      <div className="mt-4">
-        <div className="font-[family-name:var(--font-mono)] text-3xl font-semibold text-text-primary">
-          {corr.toFixed(3)}
-        </div>
-        <div className="mt-1 text-[10px] uppercase tracking-[0.5px] text-text-muted">
-          BTC-ETH 30d Pearson
-        </div>
-      </div>
-      <div className="mt-4 divide-y divide-border-subtle">
-        <ThresholdRow label="Normal" status="> 0.60" statusColor="text-pnl-positive" />
-        <ThresholdRow label="Weakening" status="0.40–0.60" statusColor="text-status-warn" />
-        <ThresholdRow label="Breakdown" status="< 0.40" statusColor="text-pnl-negative" />
-      </div>
-      <div className="mt-4 pt-3 border-t border-border-subtle">
-        <span className="text-[11px] text-text-muted">Current: </span>
-        <span className={cn("text-[11px] font-semibold uppercase", status.color)}>
-          {status.label}
-        </span>
-      </div>
-    </div>
-  );
+function getVolLevel(vol: number): IndicatorLevel {
+  if (vol > 80) return { label: "EXTREME", color: "text-pnl-negative" };
+  if (vol > 50) return { label: "ELEVATED", color: "text-status-warn" };
+  return { label: "NORMAL", color: "text-pnl-positive" };
 }
 
-function MomentumCard({ score }: { score: number }) {
-  const status =
-    score > 2
-      ? { label: "Positive", color: "text-pnl-positive" }
-      : score < -2
-        ? { label: "Negative", color: "text-pnl-negative" }
-        : { label: "Neutral", color: "text-text-secondary" };
+function getCorrLevel(corr: number): IndicatorLevel {
+  if (corr < 0.4) return { label: "BREAKDOWN", color: "text-pnl-negative" };
+  if (corr < 0.65) return { label: "WEAKENING", color: "text-status-warn" };
+  return { label: "NORMAL", color: "text-pnl-positive" };
+}
 
+function getMomentumLevel(score: number): IndicatorLevel {
+  if (score > 3) return { label: "POSITIVE", color: "text-pnl-positive" };
+  if (score < -3) return { label: "NEGATIVE", color: "text-pnl-negative" };
+  return { label: "NEUTRAL", color: "text-text-secondary" };
+}
+
+function IndicatorCard({
+  label,
+  value,
+  level,
+  description,
+}: {
+  label: string;
+  value: string;
+  level: IndicatorLevel;
+  description: string;
+}) {
   return (
-    <div className="rounded-sm border border-border-subtle bg-bg-card p-5">
-      <SectionLabel>Momentum Score</SectionLabel>
-      <div className="mt-4">
-        <div
+    <div className="rounded-sm border border-border-subtle bg-bg-card p-4 space-y-3">
+      <SectionLabel>{label}</SectionLabel>
+      <div className="flex items-end justify-between">
+        <span className="font-[family-name:var(--font-mono)] text-2xl text-text-primary">
+          {value}
+        </span>
+        <span
           className={cn(
-            "font-[family-name:var(--font-mono)] text-3xl font-semibold",
-            score > 0 ? "text-pnl-positive" : score < 0 ? "text-pnl-negative" : "text-text-primary"
+            "text-[11px] font-medium uppercase tracking-[1px]",
+            level.color
           )}
         >
-          {score > 0 ? "+" : ""}
-          {score.toFixed(2)}
-          <span className="ml-1 text-base text-text-muted">%</span>
-        </div>
-        <div className="mt-1 text-[10px] uppercase tracking-[0.5px] text-text-muted">
-          Multi-Asset 7d Avg Return
-        </div>
-      </div>
-      <div className="mt-4 divide-y divide-border-subtle">
-        <ThresholdRow label="Positive" status="> +2%" statusColor="text-pnl-positive" />
-        <ThresholdRow label="Neutral" status="-2% ~ +2%" statusColor="text-text-secondary" />
-        <ThresholdRow label="Negative" status="< -2%" statusColor="text-pnl-negative" />
-      </div>
-      <div className="mt-4 pt-3 border-t border-border-subtle">
-        <span className="text-[11px] text-text-muted">Current: </span>
-        <span className={cn("text-[11px] font-semibold uppercase", status.color)}>
-          {status.label}
+          {level.label}
         </span>
       </div>
+      <p className="text-[11px] text-text-muted leading-relaxed">{description}</p>
+    </div>
+  );
+}
+
+function RegimeIndicators({ indicators }: { indicators: RegimeIndicators }) {
+  const volLevel = getVolLevel(indicators.btcVolatility30d);
+  const corrLevel = getCorrLevel(indicators.btcEthCorrelation);
+  const momentumLevel = getMomentumLevel(indicators.momentumScore);
+
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <IndicatorCard
+        label="Volatility Index"
+        value={`${indicators.btcVolatility30d.toFixed(1)}%`}
+        level={volLevel}
+        description="BTC 30-day realized volatility (annualized). Normal <50%, Elevated 50-80%, Extreme >80%."
+      />
+      <IndicatorCard
+        label="Correlation Score"
+        value={
+          (indicators.btcEthCorrelation >= 0 ? "+" : "") +
+          indicators.btcEthCorrelation.toFixed(3)
+        }
+        level={corrLevel}
+        description="BTC-ETH 30-day rolling correlation. Normal >0.65, Weakening 0.4-0.65, Breakdown <0.4."
+      />
+      <IndicatorCard
+        label="Momentum Score"
+        value={formatPct(indicators.momentumScore)}
+        level={momentumLevel}
+        description="4-asset (BTC/ETH/XRP/LTC) average 7-day return. Positive >+3%, Negative <-3%."
+      />
     </div>
   );
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   Section C: Regime Timeline
+   C. Regime Timeline
    ═══════════════════════════════════════════════════════════════ */
 
-const REGIME_COLORS: Record<RegimeType, string> = {
-  core: "bg-gold/70",
-  challenging: "bg-status-warn/70",
-  crisis: "bg-pnl-negative/70",
+const REGIME_BAR_COLORS: Record<string, string> = {
+  core: "bg-gold",
+  crisis: "bg-pnl-negative",
+  challenging: "bg-status-warn",
 };
 
-function RegimeTimeline({ timeline }: { timeline: TimelineEntry[] }) {
-  if (timeline.length === 0) return null;
+const REGIME_HOVER_COLORS: Record<string, string> = {
+  core: "bg-gold/80",
+  crisis: "bg-pnl-negative/80",
+  challenging: "bg-status-warn/80",
+};
 
-  return (
-    <div>
-      <SectionLabel>90-Day Regime Timeline</SectionLabel>
-      <div className="mt-3 rounded-sm border border-border-subtle bg-bg-card p-5">
-        {/* Bar */}
-        <div className="flex h-8 overflow-hidden rounded-sm">
-          {timeline.map((entry, i) => (
-            <div
-              key={i}
-              className={cn("shrink-0 transition-opacity hover:opacity-80", REGIME_COLORS[entry.regime])}
-              style={{ width: `${100 / timeline.length}%` }}
-              title={`${entry.date}: ${entry.regime.toUpperCase()}${entry.dailyReturn !== null ? ` (${entry.dailyReturn > 0 ? "+" : ""}${entry.dailyReturn.toFixed(2)}%)` : ""}`}
-            />
-          ))}
-        </div>
+function RegimeTimeline({ timeline }: { timeline: TimelineDay[] }) {
+  const [hovered, setHovered] = useState<TimelineDay | null>(null);
 
-        {/* Date labels */}
-        <div className="mt-2 flex justify-between text-[10px] text-text-muted font-[family-name:var(--font-mono)]">
-          <span>{timeline[0]?.date}</span>
-          <span>{timeline[Math.floor(timeline.length / 2)]?.date}</span>
-          <span>{timeline[timeline.length - 1]?.date}</span>
-        </div>
-
-        {/* Legend */}
-        <div className="mt-4 flex flex-wrap items-center gap-4 text-[11px]">
-          {(["core", "challenging", "crisis"] as RegimeType[]).map((r) => {
-            const count = timeline.filter((t) => t.regime === r).length;
-            const pct = ((count / timeline.length) * 100).toFixed(0);
-            return (
-              <div key={r} className="flex items-center gap-1.5">
-                <div className={cn("h-3 w-3 rounded-sm", REGIME_COLORS[r])} />
-                <span className="text-text-secondary capitalize">{r}</span>
-                <span className="font-[family-name:var(--font-mono)] text-text-muted">
-                  {count}d ({pct}%)
-                </span>
-              </div>
-            );
-          })}
+  if (timeline.length === 0) {
+    return (
+      <div className="rounded-sm border border-border-subtle bg-bg-card p-4">
+        <div className="flex h-16 items-center justify-center text-sm text-text-muted">
+          Insufficient timeline data
         </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
 
-/* ═══════════════════════════════════════════════════════════════
-   Section D: Regime Performance Stats
-   ═══════════════════════════════════════════════════════════════ */
-
-function RegimeStatsCards({ stats }: { stats: RegimeStat[] }) {
   return (
-    <div>
-      <SectionLabel>Regime Performance Stats</SectionLabel>
-      <div className="mt-3 grid gap-3 sm:grid-cols-3">
-        {stats.map((s) => {
-          const display = getRegimeDisplay(s.regime);
+    <div className="rounded-sm border border-border-subtle bg-bg-card p-4 space-y-3">
+      {/* Timeline bar */}
+      <div className="flex h-8 w-full gap-px overflow-hidden rounded-sm">
+        {timeline.map((day, i) => {
+          const barColor =
+            hovered === day
+              ? (REGIME_HOVER_COLORS[day.regime] ?? "bg-bg-elevated")
+              : (REGIME_BAR_COLORS[day.regime] ?? "bg-bg-elevated");
           return (
             <div
-              key={s.regime}
-              className={cn(
-                "rounded-sm border bg-bg-card p-5",
-                display.borderColor
-              )}
-            >
-              <div className={cn("text-[11px] font-medium uppercase tracking-[2px]", display.color)}>
-                {display.label}
-              </div>
-              <div className="mt-4 space-y-3">
-                <div>
-                  <div className="text-[10px] uppercase tracking-[0.5px] text-text-muted">
-                    Avg Daily Return
-                  </div>
-                  <div
-                    className={cn(
-                      "mt-1 font-[family-name:var(--font-mono)] text-xl font-semibold",
-                      s.avgDailyReturn > 0
-                        ? "text-pnl-positive"
-                        : s.avgDailyReturn < 0
-                          ? "text-pnl-negative"
-                          : "text-text-primary"
-                    )}
-                  >
-                    {s.avgDailyReturn > 0 ? "+" : ""}
-                    {s.avgDailyReturn.toFixed(3)}%
-                  </div>
-                </div>
-                <div className="flex items-center justify-between border-t border-border-subtle pt-3">
-                  <div>
-                    <div className="text-[10px] uppercase tracking-[0.5px] text-text-muted">Days</div>
-                    <div className="mt-0.5 font-[family-name:var(--font-mono)] text-sm text-text-primary">
-                      {s.totalDays}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-[10px] uppercase tracking-[0.5px] text-text-muted">
-                      Total Return
-                    </div>
-                    <div
-                      className={cn(
-                        "mt-0.5 font-[family-name:var(--font-mono)] text-sm",
-                        s.totalReturn > 0
-                          ? "text-pnl-positive"
-                          : s.totalReturn < 0
-                            ? "text-pnl-negative"
-                            : "text-text-muted"
-                      )}
-                    >
-                      {s.totalReturn > 0 ? "+" : ""}
-                      {s.totalReturn.toFixed(2)}%
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+              key={i}
+              className={cn("flex-1 cursor-pointer transition-colors", barColor)}
+              onMouseEnter={() => setHovered(day)}
+              onMouseLeave={() => setHovered(null)}
+            />
           );
         })}
       </div>
+
+      {/* Hover tooltip */}
+      <div className="min-h-[36px]">
+        {hovered ? (
+          <div className="flex items-center gap-4 text-xs">
+            <span className="font-[family-name:var(--font-mono)] text-text-muted">
+              {hovered.date}
+            </span>
+            <span
+              className={cn(
+                "uppercase tracking-[1px] font-medium text-[11px]",
+                hovered.regime === "core"
+                  ? "text-gold"
+                  : hovered.regime === "crisis"
+                    ? "text-pnl-negative"
+                    : "text-status-warn"
+              )}
+            >
+              {hovered.regime}
+            </span>
+            {hovered.dailyReturn !== 0 && (
+              <span
+                className={cn(
+                  "font-[family-name:var(--font-mono)]",
+                  hovered.dailyReturn >= 0 ? "text-pnl-positive" : "text-pnl-negative"
+                )}
+              >
+                {formatPct(hovered.dailyReturn)}
+              </span>
+            )}
+          </div>
+        ) : (
+          <p className="text-[11px] text-text-muted">
+            Hover over a day to see details &mdash; {timeline.length} days
+          </p>
+        )}
+      </div>
+
+      {/* Legend */}
+      <div className="flex items-center gap-5 text-[10px] text-text-muted border-t border-border-subtle pt-3">
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-gold" />
+          Core
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-status-warn" />
+          Challenging
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-pnl-negative" />
+          Crisis
+        </span>
+        <span className="ml-auto font-[family-name:var(--font-mono)]">
+          {timeline[0]?.date} — {timeline[timeline.length - 1]?.date}
+        </span>
+      </div>
     </div>
   );
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   Section E: Market Context Panel
+   D. Regime Performance Stats
    ═══════════════════════════════════════════════════════════════ */
 
-function MarketContextPanel({ indicators }: { indicators: RegimeIndicators }) {
-  const items = [
-    {
-      label: "BTC 30d Volatility",
-      value: `${indicators.btcVolatility30d.toFixed(1)}%`,
-      sub: "Annualized realized vol",
-      color:
-        indicators.btcVolatility30d > 80
-          ? "text-pnl-negative"
-          : indicators.btcVolatility30d > 50
-            ? "text-status-warn"
-            : "text-pnl-positive",
-    },
-    {
-      label: "BTC-ETH Correlation",
-      value: indicators.btcEthCorrelation.toFixed(3),
-      sub: "30d Pearson coefficient",
-      color:
-        indicators.btcEthCorrelation < 0.4
-          ? "text-pnl-negative"
-          : indicators.btcEthCorrelation < 0.6
-            ? "text-status-warn"
-            : "text-pnl-positive",
-    },
-    {
-      label: "Recent 7d Return",
-      value: `${indicators.btcReturn7d > 0 ? "+" : ""}${indicators.btcReturn7d.toFixed(2)}%`,
-      sub: "BTC price change",
-      color:
-        indicators.btcReturn7d > 0
-          ? "text-pnl-positive"
-          : indicators.btcReturn7d < 0
-            ? "text-pnl-negative"
-            : "text-text-primary",
-    },
-  ];
+const REGIME_ORDER: RegimeType[] = ["core", "challenging", "crisis"];
+
+function RegimeStatCard({ stat }: { stat: RegimeStat }) {
+  const regime = stat.regime as RegimeType;
+  const display = getRegimeDisplay(regime);
 
   return (
-    <div>
-      <SectionLabel>Market Context</SectionLabel>
-      <div className="mt-3 grid gap-3 sm:grid-cols-3">
-        {items.map((item) => (
-          <div
-            key={item.label}
-            className="rounded-sm border border-border-subtle bg-bg-card p-4"
-          >
-            <div className="text-[10px] uppercase tracking-[1px] text-text-muted">
-              {item.label}
-            </div>
-            <div
-              className={cn(
-                "mt-2 font-[family-name:var(--font-mono)] text-2xl font-semibold",
-                item.color
-              )}
-            >
-              {item.value}
-            </div>
-            <div className="mt-1 text-[10px] text-text-muted">{item.sub}</div>
-          </div>
-        ))}
+    <div
+      className={cn(
+        "rounded-sm border p-5 space-y-4",
+        display.bgColor,
+        display.borderColor
+      )}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <span
+          className={cn(
+            "text-[11px] font-medium uppercase tracking-[2px]",
+            display.color
+          )}
+        >
+          {display.label}
+        </span>
+        <span className="font-[family-name:var(--font-mono)] text-xs text-text-muted">
+          {stat.totalDays}d
+        </span>
       </div>
+
+      {/* Metrics */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] text-text-muted">Avg Daily Return</span>
+          <span
+            className={cn(
+              "font-[family-name:var(--font-mono)] text-sm font-medium",
+              stat.avgDailyReturn >= 0 ? "text-pnl-positive" : "text-pnl-negative"
+            )}
+          >
+            {formatPct(stat.avgDailyReturn)}
+          </span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] text-text-muted">Total Return</span>
+          <span
+            className={cn(
+              "font-[family-name:var(--font-mono)] text-sm",
+              stat.totalReturn >= 0 ? "text-pnl-positive" : "text-pnl-negative"
+            )}
+          >
+            {formatPct(stat.totalReturn)}
+          </span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] text-text-muted">Days in Regime</span>
+          <span className="font-[family-name:var(--font-mono)] text-sm text-text-primary">
+            {stat.totalDays}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RegimePerformanceStats({ regimeStats }: { regimeStats: RegimeStat[] }) {
+  const sorted = REGIME_ORDER.map(
+    (r) => regimeStats.find((s) => s.regime === r) ?? { regime: r, avgDailyReturn: 0, totalDays: 0, totalReturn: 0 }
+  );
+
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      {sorted.map((stat) => (
+        <RegimeStatCard key={stat.regime} stat={stat} />
+      ))}
     </div>
   );
 }
@@ -516,73 +504,92 @@ function MarketContextPanel({ indicators }: { indicators: RegimeIndicators }) {
    ═══════════════════════════════════════════════════════════════ */
 
 export default function RegimePage() {
-  const { data, error, isLoading } = useSWR<RegimeData>(
-    "/api/bybit/regime",
-    fetcher,
-    { refreshInterval: 5 * 60 * 1000 } // refresh every 5 minutes
-  );
+  const [data, setData] = useState<RegimeData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchData = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    fetch("/api/bybit/regime")
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.error) throw new Error(json.error);
+        setData(json as RegimeData);
+      })
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   return (
     <div>
       <Header title="Market Regime" />
-      <div className="p-6 space-y-8">
-        {/* Error state */}
-        {error && (
-          <div className="rounded-sm border border-pnl-negative/30 bg-pnl-negative/10 px-5 py-4 text-sm text-pnl-negative">
-            Failed to load regime data. Please try again later.
+
+      {loading ? (
+        <LoadingSkeleton />
+      ) : error ? (
+        <div className="p-6">
+          <div className="rounded-sm border border-pnl-negative/30 bg-pnl-negative/10 px-5 py-4">
+            <p className="text-sm text-pnl-negative">{error}</p>
+            <button
+              onClick={fetchData}
+              className="mt-3 text-[11px] uppercase tracking-[1px] text-text-secondary hover:text-text-primary transition-colors"
+            >
+              Retry
+            </button>
           </div>
-        )}
+        </div>
+      ) : data ? (
+        <div className="p-6 space-y-8">
 
-        {/* Loading skeleton */}
-        {isLoading && !data && (
-          <>
-            <SkeletonCard className="h-40" />
-            <div className="grid gap-3 sm:grid-cols-3">
-              <SkeletonCard className="h-56" />
-              <SkeletonCard className="h-56" />
-              <SkeletonCard className="h-56" />
+          {/* ── A. Current Regime Hero ── */}
+          <section>
+            <RegimeHero
+              regime={data.currentRegime}
+              confidence={data.confidence}
+              updatedAt={data.updatedAt}
+            />
+          </section>
+
+          {/* ── B. Regime Indicators ── */}
+          <section>
+            <SectionLabel>Regime Indicators</SectionLabel>
+            <p className="mt-1 text-xs text-text-muted">
+              Proxy signals used to classify the current market environment
+            </p>
+            <div className="mt-3">
+              <RegimeIndicators indicators={data.indicators} />
             </div>
-            <SkeletonCard className="h-24" />
-            <div className="grid gap-3 sm:grid-cols-3">
-              <SkeletonCard className="h-36" />
-              <SkeletonCard className="h-36" />
-              <SkeletonCard className="h-36" />
+          </section>
+
+          {/* ── C. Regime Timeline ── */}
+          <section>
+            <SectionLabel>90-Day Regime Timeline</SectionLabel>
+            <p className="mt-1 text-xs text-text-muted">
+              Historical regime classification — each segment represents one trading day
+            </p>
+            <div className="mt-3">
+              <RegimeTimeline timeline={data.timeline} />
             </div>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <SkeletonCard className="h-24" />
-              <SkeletonCard className="h-24" />
-              <SkeletonCard className="h-24" />
+          </section>
+
+          {/* ── D. Regime Performance Stats ── */}
+          <section>
+            <SectionLabel>Performance by Regime</SectionLabel>
+            <p className="mt-1 text-xs text-text-muted">
+              Strategy daily returns segmented by market regime (from available equity snapshots)
+            </p>
+            <div className="mt-3">
+              <RegimePerformanceStats regimeStats={data.regimeStats} />
             </div>
-          </>
-        )}
+          </section>
 
-        {/* Data loaded */}
-        {data && !error && (
-          <>
-            {/* A. Current Regime Hero */}
-            <RegimeHero data={data} />
-
-            {/* B. Regime Indicators */}
-            <div>
-              <SectionLabel>Regime Indicators</SectionLabel>
-              <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                <VolatilityCard vol={data.indicators.btcVolatility30d} />
-                <CorrelationCard corr={data.indicators.btcEthCorrelation} />
-                <MomentumCard score={data.indicators.momentumScore} />
-              </div>
-            </div>
-
-            {/* C. Regime Timeline */}
-            <RegimeTimeline timeline={data.timeline} />
-
-            {/* D. Regime Performance Stats */}
-            <RegimeStatsCards stats={data.regimeStats} />
-
-            {/* E. Market Context Panel */}
-            <MarketContextPanel indicators={data.indicators} />
-          </>
-        )}
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }

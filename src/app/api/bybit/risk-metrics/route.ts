@@ -4,23 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { getWalletBalance, getPositions } from "@/lib/bybit/client";
 import { db as getDb } from "@/lib/db";
 import { balanceSnapshots } from "@/lib/db/schema";
-import { gte, asc } from "drizzle-orm";
-
-const MAX_POSITIONS = 4;
-const MAX_GROSS_EXPOSURE = 3; // x multiplier
-const MAX_MONTHLY_DRAWDOWN = -0.10; // -10%
-const MAX_HOLDING_HOURS = 24;
-
-export interface RiskMetrics {
-  grossExposure: number;       // Σ|positionValue| / totalEquity (multiplier)
-  netExposure: number;         // (Σ longValue - Σ shortValue) / totalEquity
-  positionCount: number;
-  maxPositions: number;
-  avgLeverage: number;         // weighted average by positionValue
-  monthlyDrawdown: number;     // fraction, negative (e.g. -0.05 = -5%)
-  longestHoldingHours: number; // max holding time among open positions
-  concentrations: { symbol: string; weight: number }[]; // weight = |posValue|/grossValue
-}
+import { desc } from "drizzle-orm";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -29,119 +13,104 @@ export async function GET() {
   }
 
   try {
-    const [balanceResult, positionsResult] = await Promise.all([
+    const [walletData, positionData] = await Promise.all([
       getWalletBalance(),
       getPositions(),
     ]);
 
-    const account = balanceResult.list?.[0];
-    if (!account) {
-      return NextResponse.json({ error: "No account data" }, { status: 404 });
-    }
-
-    const totalEquity = parseFloat(account.totalEquity);
-
-    // Filter only positions with non-zero size
-    const openPositions = positionsResult.list.filter(
+    const account = walletData.list[0];
+    const totalEquity = parseFloat(account?.totalEquity || "0");
+    const positions = positionData.list.filter(
       (p) => parseFloat(p.size) > 0
     );
 
-    // Exposure calculations
-    let sumAbsPositionValue = 0;
-    let sumLongValue = 0;
-    let sumShortValue = 0;
-    let weightedLeverageSum = 0;
-    let longestHoldingHours = 0;
+    // Calculate Gross Exposure = Σ |positionValue| / totalEquity
+    let grossLong = 0;
+    let grossShort = 0;
+    const concentrations: {
+      symbol: string;
+      weight: number;
+      side: "Buy" | "Sell";
+      exposure: number;
+    }[] = [];
 
-    for (const pos of openPositions) {
-      const absValue = Math.abs(parseFloat(pos.positionValue));
-      const leverage = parseFloat(pos.leverage);
-
-      sumAbsPositionValue += absValue;
-
+    for (const pos of positions) {
+      const value = Math.abs(parseFloat(pos.positionValue));
       if (pos.side === "Buy") {
-        sumLongValue += absValue;
+        grossLong += value;
       } else {
-        sumShortValue += absValue;
+        grossShort += value;
       }
-
-      weightedLeverageSum += absValue * leverage;
-
-      if (pos.createdTime) {
-        const holdingHours =
-          (Date.now() - parseInt(pos.createdTime)) / (1000 * 60 * 60);
-        if (holdingHours > longestHoldingHours) {
-          longestHoldingHours = holdingHours;
-        }
-      }
-    }
-
-    const grossExposure =
-      totalEquity > 0 ? sumAbsPositionValue / totalEquity : 0;
-    const netExposure =
-      totalEquity > 0 ? (sumLongValue - sumShortValue) / totalEquity : 0;
-    const avgLeverage =
-      sumAbsPositionValue > 0
-        ? weightedLeverageSum / sumAbsPositionValue
-        : 0;
-
-    // Per-symbol concentration (weight relative to total gross value)
-    const concentrations: { symbol: string; weight: number }[] = openPositions
-      .map((pos) => ({
+      concentrations.push({
         symbol: pos.symbol.replace("USDT", ""),
-        weight:
-          sumAbsPositionValue > 0
-            ? Math.abs(parseFloat(pos.positionValue)) / sumAbsPositionValue
-            : 0,
-      }))
-      .sort((a, b) => b.weight - a.weight);
-
-    // Monthly drawdown: first snapshot of current calendar month vs current equity
-    const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-
-    let monthlyDrawdown = 0;
-    try {
-      const db = getDb();
-      const monthRows = await db
-        .select({
-          totalEquity: balanceSnapshots.totalEquity,
-          snapshotAt: balanceSnapshots.snapshotAt,
-        })
-        .from(balanceSnapshots)
-        .where(gte(balanceSnapshots.snapshotAt, monthStart))
-        .orderBy(asc(balanceSnapshots.snapshotAt))
-        .limit(1);
-
-      const monthStartSnapshot = monthRows[0];
-      if (monthStartSnapshot && monthStartSnapshot.totalEquity > 0) {
-        monthlyDrawdown =
-          (totalEquity - monthStartSnapshot.totalEquity) /
-          monthStartSnapshot.totalEquity;
-      }
-    } catch {
-      // DB query failure — monthly drawdown stays 0
+        weight: 0, // will recalculate after
+        side: pos.side,
+        exposure: totalEquity > 0 ? value / totalEquity : 0,
+      });
     }
 
-    const metrics: RiskMetrics = {
-      grossExposure: parseFloat(grossExposure.toFixed(4)),
-      netExposure: parseFloat(netExposure.toFixed(4)),
-      positionCount: openPositions.length,
-      maxPositions: MAX_POSITIONS,
-      avgLeverage: parseFloat(avgLeverage.toFixed(2)),
-      monthlyDrawdown: parseFloat(monthlyDrawdown.toFixed(4)),
-      longestHoldingHours: parseFloat(longestHoldingHours.toFixed(1)),
-      concentrations,
-    };
+    const grossTotal = grossLong + grossShort;
+    const grossExposure = totalEquity > 0 ? grossTotal / totalEquity : 0;
+    const netExposure = totalEquity > 0 ? (grossLong - grossShort) / totalEquity : 0;
+
+    // Recalculate weights now that we have grossTotal
+    for (const c of concentrations) {
+      c.weight = grossTotal > 0 ? (c.exposure * totalEquity) / grossTotal : 0;
+    }
+
+    // Average leverage (weighted by position value)
+    let avgLeverage = 0;
+    if (grossTotal > 0) {
+      for (const pos of positions) {
+        const value = Math.abs(parseFloat(pos.positionValue));
+        avgLeverage += parseFloat(pos.leverage) * (value / grossTotal);
+      }
+    }
+
+    // Longest holding: find oldest position
+    let longestHoldingHours = 0;
+    const now = Date.now();
+    for (const pos of positions) {
+      const created = parseInt(pos.createdTime);
+      const hours = (now - created) / (1000 * 60 * 60);
+      if (hours > longestHoldingHours) longestHoldingHours = hours;
+    }
+
+    // Monthly Drawdown: get first snapshot of current month
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+
+    const snapshots = await getDb()
+      .select({ totalEquity: balanceSnapshots.totalEquity, snapshotAt: balanceSnapshots.snapshotAt })
+      .from(balanceSnapshots)
+      .orderBy(desc(balanceSnapshots.snapshotAt))
+      .limit(200);
+
+    // Find month-start equity
+    let monthStartEquity = totalEquity;
+    for (const snap of snapshots) {
+      if (new Date(snap.snapshotAt) >= monthStart) {
+        monthStartEquity = snap.totalEquity;
+      }
+    }
+
+    const monthlyDrawdown = monthStartEquity > 0
+      ? ((totalEquity - monthStartEquity) / monthStartEquity) * 100
+      : 0;
 
     return NextResponse.json({
-      ...metrics,
-      // Risk parameter limits (for client-side status evaluation)
-      limits: {
-        maxGrossExposure: MAX_GROSS_EXPOSURE,
-        maxMonthlyDrawdown: MAX_MONTHLY_DRAWDOWN,
-        maxHoldingHours: MAX_HOLDING_HOURS,
-      },
+      grossExposure: Math.round(grossExposure * 1000) / 1000,
+      netExposure: Math.round(netExposure * 1000) / 1000,
+      maxGrossLimit: 3.0,
+      positionCount: positions.length,
+      maxPositions: 4,
+      avgLeverage: Math.round(avgLeverage * 100) / 100,
+      monthlyDrawdown: Math.round(monthlyDrawdown * 100) / 100,
+      monthlyDrawdownLimit: -10,
+      longestHoldingHours: Math.round(longestHoldingHours * 10) / 10,
+      maxHoldingHours: 24,
+      concentrations,
     });
   } catch (error) {
     console.error("Risk metrics error:", error);

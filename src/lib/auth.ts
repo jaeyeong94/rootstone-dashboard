@@ -1,43 +1,32 @@
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { compareSync } from "bcryptjs";
 import { db as getDb } from "@/lib/db";
-import { users } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { visitors } from "@/lib/db/schema";
 
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
-      name: "Credentials",
+      name: "Email",
       credentials: {
-        username: { label: "Username", type: "text" },
-        password: { label: "Password", type: "password" },
+        email: { label: "Email", type: "email" },
       },
       async authorize(credentials) {
-        if (!credentials?.username || !credentials?.password) {
+        if (!credentials?.email) {
           return null;
         }
 
-        const rows = await getDb()
-          .select()
-          .from(users)
-          .where(eq(users.username, credentials.username))
-          .limit(1);
-        const user = rows[0];
-
-        if (!user) {
+        const email = credentials.email.trim().toLowerCase();
+        if (!email || !email.includes("@")) {
           return null;
         }
 
-        const isValid = compareSync(credentials.password, user.passwordHash);
-        if (!isValid) {
-          return null;
-        }
+        // 방문자 이메일 저장
+        await getDb().insert(visitors).values({ email });
 
         return {
-          id: user.id,
-          name: user.username,
-          role: user.role,
+          id: email,
+          name: email,
+          email,
         };
       },
     }),
@@ -49,13 +38,13 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.role = user.role;
+        token.email = user.email ?? undefined;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.role = token.role ?? "viewer";
+        session.user.email = token.email as string;
         session.user.id = token.sub ?? "";
       }
       return session;

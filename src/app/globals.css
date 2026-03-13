@@ -26,9 +26,9 @@
 
   /* Text */
   --color-text-primary: #FFFFFF;
-  --color-text-secondary: #888888;
-  --color-text-muted: #555555;
-  --color-text-dim: #333333;
+  --color-text-secondary: #AAAAAA;
+  --color-text-muted: #777777;
+  --color-text-dim: #444444;
 
   /* Border */
   --color-border: #333333;

@@ -1,61 +1,64 @@
 "use client";
 
 import { Header } from "@/components/layout/Header";
-import { cn, formatPnlPercent, formatNumber, getPnlColor } from "@/lib/utils";
-import { useState, useCallback } from "react";
+import { cn, formatPnlPercent } from "@/lib/utils";
+import { useState, useEffect, useCallback } from "react";
 import {
   LineChart,
   Line,
   XAxis,
   YAxis,
+  CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  Legend,
 } from "recharts";
-import type { ReportSummary } from "@/app/api/reports/summary/route";
 
 /* ═══════════════════════════════════════════════════════════════
    Types
    ═══════════════════════════════════════════════════════════════ */
 
-type Preset = "last-month" | "last-quarter" | "last-year" | "custom";
+interface CurvePoint {
+  time: string;
+  value: number;
+}
 
-interface DateRange {
-  start: string;
-  end: string;
+interface MonthlyReturn {
+  year: number;
+  month: number;
+  return: number;
+}
+
+interface TradeHighlight {
+  symbol: string;
+  side: "Buy" | "Sell";
+  entryPrice: number;
+  exitPrice: number;
+  pnlPercent: number;
+  holdingHours: number;
+  closedAt: string;
+}
+
+interface ReportSummary {
+  period: { start: string; end: string };
+  totalReturn: number;
+  sharpeRatio: number;
+  sortinoRatio: number;
+  maxDrawdown: number;
+  totalTrades: number;
+  winRate: number;
+  btcReturn: number;
+  alpha: number;
+  equityCurve: CurvePoint[];
+  btcCurve: CurvePoint[];
+  monthlyReturns: MonthlyReturn[];
+  topWins: TradeHighlight[];
+  topLosses: TradeHighlight[];
+  var95: number;
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   Date helpers
-   ═══════════════════════════════════════════════════════════════ */
-
-function toIsoDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
-function getPresetRange(preset: Preset): DateRange {
-  const now = new Date();
-  const end = toIsoDate(now);
-
-  if (preset === "last-month") {
-    const start = new Date(now);
-    start.setMonth(start.getMonth() - 1);
-    return { start: toIsoDate(start), end };
-  }
-  if (preset === "last-quarter") {
-    const start = new Date(now);
-    start.setMonth(start.getMonth() - 3);
-    return { start: toIsoDate(start), end };
-  }
-  if (preset === "last-year") {
-    const start = new Date(now);
-    start.setFullYear(start.getFullYear() - 1);
-    return { start: toIsoDate(start), end };
-  }
-  return { start: toIsoDate(new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)), end };
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   Helper components
+   Helpers
    ═══════════════════════════════════════════════════════════════ */
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -66,458 +69,81 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-interface MetricCardProps {
+function MetricCard({
+  label,
+  value,
+  sub,
+  colorClass,
+}: {
   label: string;
   value: string;
   sub?: string;
-  valueClass?: string;
-}
-
-function MetricCard({ label, value, sub, valueClass }: MetricCardProps) {
+  colorClass?: string;
+}) {
   return (
     <div className="rounded-sm border border-border-subtle bg-bg-card p-4">
-      <div className="text-[10px] uppercase tracking-[1px] text-text-muted">{label}</div>
       <div
         className={cn(
-          "mt-2 font-[family-name:var(--font-mono)] text-2xl font-semibold",
-          valueClass ?? "text-text-primary"
+          "font-[family-name:var(--font-mono)] text-2xl font-semibold",
+          colorClass ?? "text-text-primary"
         )}
       >
         {value}
+      </div>
+      <div className="mt-1 text-[11px] uppercase tracking-[1px] text-text-secondary">
+        {label}
       </div>
       {sub && <div className="mt-0.5 text-[10px] text-text-muted">{sub}</div>}
     </div>
   );
 }
 
-/* ── Equity Curve Chart ── */
-interface EquityCurveProps {
-  data: { time: string; value: number }[];
-}
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-function EquityCurveChart({ data }: EquityCurveProps) {
-  if (data.length === 0) {
-    return (
-      <div className="flex h-56 items-center justify-center text-xs text-text-muted">
-        No equity data for period
-      </div>
-    );
-  }
-
-  const min = Math.min(...data.map((d) => d.value));
-  const max = Math.max(...data.map((d) => d.value));
-  const padding = Math.max(Math.abs(max - min) * 0.1, 0.5);
-
-  return (
-    <ResponsiveContainer width="100%" height={240}>
-      <LineChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-        <XAxis
-          dataKey="time"
-          tick={{ fill: "#555", fontSize: 10, fontFamily: "JetBrains Mono, monospace" }}
-          tickLine={false}
-          axisLine={{ stroke: "#222" }}
-          minTickGap={60}
-        />
-        <YAxis
-          domain={[min - padding, max + padding]}
-          tick={{ fill: "#555", fontSize: 10, fontFamily: "JetBrains Mono, monospace" }}
-          tickLine={false}
-          axisLine={false}
-          tickFormatter={(v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`}
-          width={52}
-        />
-        <Tooltip
-          contentStyle={{
-            background: "#161616",
-            border: "1px solid #222",
-            borderRadius: 2,
-            fontSize: 11,
-            fontFamily: "JetBrains Mono, monospace",
-            color: "#ccc",
-          }}
-          formatter={(value: unknown) => {
-            const v = typeof value === "string" ? parseFloat(value) : Number(value);
-            return [`${v >= 0 ? "+" : ""}${v.toFixed(2)}%`, "Return"];
-          }}
-          labelStyle={{ color: "#888", marginBottom: 2 }}
-        />
-        <Line
-          type="monotone"
-          dataKey="value"
-          stroke="#C5A049"
-          strokeWidth={2}
-          dot={false}
-          activeDot={{ r: 3, fill: "#C5A049" }}
-        />
-      </LineChart>
-    </ResponsiveContainer>
-  );
-}
-
-/* ── Trade highlights table ── */
-interface TradeHighlight {
-  symbol: string;
-  closedPnlPct: number;
-  side: string;
-  time: string;
-}
-
-function TradeTable({
-  title,
-  trades,
-  emptyLabel,
-}: {
-  title: string;
-  trades: TradeHighlight[];
-  emptyLabel: string;
-}) {
-  return (
-    <div>
-      <SectionLabel>{title}</SectionLabel>
-      <div className="mt-3 overflow-hidden rounded-sm border border-border-subtle bg-bg-card">
-        {trades.length === 0 ? (
-          <div className="flex h-16 items-center justify-center text-xs text-text-muted">
-            {emptyLabel}
-          </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border-subtle bg-bg-elevated">
-                <th className="px-4 py-2.5 text-left text-[11px] uppercase tracking-[1px] text-text-secondary font-normal">
-                  Symbol
-                </th>
-                <th className="px-4 py-2.5 text-left text-[11px] uppercase tracking-[1px] text-text-secondary font-normal">
-                  Side
-                </th>
-                <th className="px-4 py-2.5 text-right text-[11px] uppercase tracking-[1px] text-text-secondary font-normal">
-                  PnL (% equity)
-                </th>
-                <th className="px-4 py-2.5 text-right text-[11px] uppercase tracking-[1px] text-text-secondary font-normal">
-                  Date
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {trades.map((t, i) => (
-                <tr
-                  key={i}
-                  className="border-b border-border-subtle last:border-0 transition-colors hover:bg-bg-elevated"
-                >
-                  <td className="px-4 py-2 font-[family-name:var(--font-mono)] text-text-primary">
-                    {t.symbol}
-                  </td>
-                  <td className="px-4 py-2 text-[11px] uppercase tracking-[0.5px] text-text-muted">
-                    {t.side}
-                  </td>
-                  <td
-                    className={cn(
-                      "px-4 py-2 text-right font-[family-name:var(--font-mono)]",
-                      getPnlColor(t.closedPnlPct)
-                    )}
-                  >
-                    {t.closedPnlPct >= 0 ? "+" : ""}
-                    {formatNumber(t.closedPnlPct, 3)}%
-                  </td>
-                  <td className="px-4 py-2 text-right font-[family-name:var(--font-mono)] text-xs text-text-muted">
-                    {t.time}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </div>
-  );
+function monthReturnColor(v: number): string {
+  if (v >= 8) return "text-gold bg-pnl-positive/40";
+  if (v >= 3) return "text-pnl-positive bg-pnl-positive/20";
+  if (v > 0) return "text-pnl-positive/80 bg-pnl-positive/10";
+  if (v === 0) return "text-text-muted bg-bg-elevated";
+  if (v > -3) return "text-pnl-negative/80 bg-pnl-negative/10";
+  if (v > -8) return "text-pnl-negative bg-pnl-negative/20";
+  return "text-pnl-negative bg-pnl-negative/40";
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   Monthly Returns heatmap (live data)
+   Preset date helpers
    ═══════════════════════════════════════════════════════════════ */
 
-function MonthlyReturnsHeatmap({
-  data,
-}: {
-  data: { year: number; month: number; return: number }[];
-}) {
-  if (data.length === 0) return null;
+function getPresetDates(preset: "month" | "quarter" | "year"): { start: string; end: string } {
+  const now = new Date();
+  const end = now.toISOString().split("T")[0];
+  let start: Date;
 
-  const years = [...new Set(data.map((d) => d.year))].sort();
-  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-  function getColor(v: number): string {
-    if (v >= 8) return "bg-pnl-positive/60 text-bg-primary";
-    if (v >= 3) return "bg-pnl-positive/35 text-text-primary";
-    if (v > 0) return "bg-pnl-positive/15 text-text-secondary";
-    if (v === 0) return "bg-bg-elevated text-text-muted";
-    if (v > -3) return "bg-pnl-negative/15 text-text-secondary";
-    if (v > -8) return "bg-pnl-negative/35 text-text-primary";
-    return "bg-pnl-negative/60 text-text-primary";
+  if (preset === "month") {
+    start = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+  } else if (preset === "quarter") {
+    start = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+  } else {
+    start = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
   }
 
-  const lookup: Record<string, number> = {};
-  for (const d of data) {
-    lookup[`${d.year}-${d.month}`] = d.return;
-  }
-
-  const yearTotals: Record<number, number> = {};
-  for (const y of years) {
-    const yearData = data.filter((d) => d.year === y);
-    if (yearData.length > 0) {
-      yearTotals[y] = yearData.reduce((acc, d) => {
-        return (1 + acc / 100) * (1 + d.return / 100) * 100 - 100;
-      }, 0);
-    }
-  }
-
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-xs">
-        <thead>
-          <tr>
-            <th className="w-14 px-2 py-2 text-left text-[10px] font-normal uppercase tracking-[1px] text-text-secondary">
-              Year
-            </th>
-            {MONTHS.map((m) => (
-              <th
-                key={m}
-                className="px-0.5 py-2 text-center text-[10px] font-normal uppercase tracking-[0.5px] text-text-muted"
-              >
-                {m}
-              </th>
-            ))}
-            <th className="px-2 py-2 text-right text-[10px] font-normal uppercase tracking-[1px] text-text-secondary">
-              Total
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {years.map((year) => (
-            <tr key={year}>
-              <td className="px-2 py-0.5 font-[family-name:var(--font-mono)] text-[11px] text-text-secondary">
-                {year}
-              </td>
-              {MONTHS.map((_, mi) => {
-                const val = lookup[`${year}-${mi + 1}`];
-                if (val === undefined) {
-                  return (
-                    <td key={mi} className="px-0.5 py-0.5">
-                      <div className="flex h-7 items-center justify-center rounded-sm bg-bg-primary text-text-muted">
-                        &mdash;
-                      </div>
-                    </td>
-                  );
-                }
-                return (
-                  <td key={mi} className="px-0.5 py-0.5">
-                    <div
-                      className={cn(
-                        "flex h-7 items-center justify-center rounded-sm font-[family-name:var(--font-mono)] text-[10px]",
-                        getColor(val)
-                      )}
-                    >
-                      {val >= 0 ? "+" : ""}
-                      {val.toFixed(1)}
-                    </div>
-                  </td>
-                );
-              })}
-              <td className="px-2 py-0.5 text-right">
-                {yearTotals[year] !== undefined ? (
-                  <span
-                    className={cn(
-                      "font-[family-name:var(--font-mono)] text-[11px] font-medium",
-                      yearTotals[year] >= 0 ? "text-pnl-positive" : "text-pnl-negative"
-                    )}
-                  >
-                    {yearTotals[year] >= 0 ? "+" : ""}
-                    {yearTotals[year].toFixed(1)}%
-                  </span>
-                ) : null}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+  return { start: start.toISOString().split("T")[0], end };
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   Report content
+   Merged chart data
    ═══════════════════════════════════════════════════════════════ */
 
-interface ReportContentProps {
-  data: ReportSummary;
-  period: DateRange;
-}
-
-function ReportContent({ data, period }: ReportContentProps) {
-  const alphaLabel =
-    data.sharpeRatio > 0 ? `Sharpe ${data.sharpeRatio.toFixed(2)}` : "N/A";
-
-  return (
-    <div id="report-content" className="space-y-8 print:space-y-6">
-      {/* Print header */}
-      <div className="hidden print:block">
-        <div className="flex items-center justify-between border-b border-black pb-4">
-          <span className="font-[family-name:var(--font-heading)] text-2xl font-light tracking-[2px] text-black">
-            ROOTSTONE
-          </span>
-          <span className="text-xs text-gray-500 uppercase tracking-[1px]">
-            Strategy Performance Report
-          </span>
-        </div>
-        <p className="mt-2 text-xs text-gray-500">
-          Period: {period.start} — {period.end}
-        </p>
-      </div>
-
-      {/* A. Executive Summary */}
-      <div>
-        <SectionLabel>Executive Summary</SectionLabel>
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6 print:grid-cols-3 print:gap-2">
-          <MetricCard
-            label="Total Return"
-            value={formatPnlPercent(data.totalReturn / 100)}
-            valueClass={getPnlColor(data.totalReturn)}
-          />
-          <MetricCard
-            label="Sharpe Ratio"
-            value={formatNumber(data.sharpeRatio, 2)}
-            valueClass={data.sharpeRatio >= 1 ? "text-pnl-positive" : "text-text-primary"}
-          />
-          <MetricCard
-            label="Max Drawdown"
-            value={`${data.maxDrawdown.toFixed(2)}%`}
-            valueClass={data.maxDrawdown < 0 ? "text-pnl-negative" : "text-pnl-positive"}
-          />
-          <MetricCard
-            label="Total Trades"
-            value={String(data.totalTrades)}
-          />
-          <MetricCard
-            label="Win Rate"
-            value={`${data.winRate.toFixed(1)}%`}
-            valueClass={data.winRate >= 50 ? "text-pnl-positive" : "text-pnl-negative"}
-          />
-          <MetricCard
-            label="Alpha"
-            value={alphaLabel}
-            sub="Annualized vs benchmark"
-          />
-        </div>
-      </div>
-
-      {/* B. Equity Curve */}
-      <div>
-        <SectionLabel>Equity Curve</SectionLabel>
-        <p className="mt-1 text-xs text-text-muted print:text-gray-500">
-          Cumulative return from period start (normalized to %)
-        </p>
-        <div className="mt-3 rounded-sm border border-border-subtle bg-bg-card p-4 print:border-gray-300 print:bg-white">
-          <EquityCurveChart data={data.equityCurve} />
-          <div className="mt-2 flex items-center gap-2 text-[10px] text-text-muted print:text-gray-500">
-            <span className="inline-block h-0.5 w-4 bg-gold" />
-            <span>Rebeta Strategy</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Monthly Returns Heatmap */}
-      {data.monthlyReturns.length > 0 && (
-        <div>
-          <SectionLabel>Monthly Returns (%)</SectionLabel>
-          <div className="mt-3 rounded-sm border border-border-subtle bg-bg-card p-4 print:border-gray-300 print:bg-white">
-            <MonthlyReturnsHeatmap data={data.monthlyReturns} />
-          </div>
-        </div>
-      )}
-
-      {/* C. Trade Highlights */}
-      <div className="space-y-4">
-        <SectionLabel>Trade Highlights</SectionLabel>
-        <div className="mt-1 grid gap-4 lg:grid-cols-2 print:grid-cols-2">
-          <TradeTable
-            title="Top 5 Wins"
-            trades={data.topWins}
-            emptyLabel="No winning trades in period"
-          />
-          <TradeTable
-            title="Top 5 Losses"
-            trades={data.topLosses}
-            emptyLabel="No losing trades in period"
-          />
-        </div>
-      </div>
-
-      {/* D. Risk Summary */}
-      <div>
-        <SectionLabel>Risk Summary</SectionLabel>
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3 print:grid-cols-3 print:gap-2">
-          <div className="rounded-sm border border-border-subtle bg-bg-card p-4 print:border-gray-300 print:bg-white">
-            <div className="text-[10px] uppercase tracking-[1px] text-text-muted print:text-gray-500">
-              Max Drawdown
-            </div>
-            <div
-              className={cn(
-                "mt-2 font-[family-name:var(--font-mono)] text-xl font-semibold",
-                data.maxDrawdown < 0 ? "text-pnl-negative" : "text-pnl-positive"
-              )}
-            >
-              {data.maxDrawdown.toFixed(2)}%
-            </div>
-            <div className="mt-0.5 text-[10px] text-text-muted print:text-gray-500">
-              Peak-to-trough decline
-            </div>
-          </div>
-
-          <div className="rounded-sm border border-border-subtle bg-bg-card p-4 print:border-gray-300 print:bg-white">
-            <div className="text-[10px] uppercase tracking-[1px] text-text-muted print:text-gray-500">
-              Avg Gross Exposure
-            </div>
-            <div className="mt-2 font-[family-name:var(--font-mono)] text-xl font-semibold text-text-primary">
-              {data.avgGrossExposure > 0
-                ? `${formatNumber(data.avgGrossExposure, 1)}%`
-                : "N/A"}
-            </div>
-            <div className="mt-0.5 text-[10px] text-text-muted print:text-gray-500">
-              Avg deployed capital
-            </div>
-          </div>
-
-          <div className="rounded-sm border border-border-subtle bg-bg-card p-4 print:border-gray-300 print:bg-white">
-            <div className="text-[10px] uppercase tracking-[1px] text-text-muted print:text-gray-500">
-              1-Day VaR (95%)
-            </div>
-            <div
-              className={cn(
-                "mt-2 font-[family-name:var(--font-mono)] text-xl font-semibold",
-                data.var95 < 0 ? "text-pnl-negative" : "text-text-primary"
-              )}
-            >
-              {data.var95 !== 0 ? `${data.var95.toFixed(2)}%` : "N/A"}
-            </div>
-            <div className="mt-0.5 text-[10px] text-text-muted print:text-gray-500">
-              Historical simulation
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Print footer */}
-      <div className="hidden print:block">
-        <div className="mt-8 border-t border-black pt-4 text-center">
-          <p className="text-[10px] uppercase tracking-[2px] text-gray-500">
-            ROOTSTONE &mdash; Confidential
-          </p>
-          <p className="mt-0.5 text-[9px] text-gray-400">
-            This report is for internal use only and may not be distributed without authorization.
-          </p>
-        </div>
-      </div>
-    </div>
-  );
+function mergeChartData(
+  equityCurve: CurvePoint[],
+  btcCurve: CurvePoint[]
+): { time: string; rebeta: number | null; btc: number | null }[] {
+  const btcMap = new Map(btcCurve.map((p) => [p.time, p.value]));
+  return equityCurve.map((p) => ({
+    time: p.time,
+    rebeta: p.value,
+    btc: btcMap.get(p.time) ?? null,
+  }));
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -525,140 +151,119 @@ function ReportContent({ data, period }: ReportContentProps) {
    ═══════════════════════════════════════════════════════════════ */
 
 export default function ReportsPage() {
-  const [preset, setPreset] = useState<Preset>("last-month");
-  const [customRange, setCustomRange] = useState<DateRange>(() => {
-    const r = getPresetRange("last-month");
-    return r;
-  });
+  const defaultDates = getPresetDates("month");
+  const [startDate, setStartDate] = useState(defaultDates.start);
+  const [endDate, setEndDate] = useState(defaultDates.end);
+  const [activePreset, setActivePreset] = useState<"month" | "quarter" | "year" | null>("month");
+  const [report, setReport] = useState<ReportSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [report, setReport] = useState<ReportSummary | null>(null);
-  const [generatedPeriod, setGeneratedPeriod] = useState<DateRange | null>(null);
 
-  const effectiveRange: DateRange =
-    preset === "custom" ? customRange : getPresetRange(preset);
-
-  const handleGenerate = useCallback(async () => {
+  const fetchReport = useCallback(async (start: string, end: string) => {
     setLoading(true);
     setError(null);
-    setReport(null);
-
     try {
-      const params = new URLSearchParams({
-        start: effectiveRange.start,
-        end: effectiveRange.end,
-      });
-      const res = await fetch(`/api/reports/summary?${params}`);
+      const res = await fetch(`/api/reports/summary?start=${start}&end=${end}`);
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body?.error ?? `HTTP ${res.status}`);
+        const data = await res.json();
+        throw new Error(data.error ?? "Failed to fetch report");
       }
       const data: ReportSummary = await res.json();
       setReport(data);
-      setGeneratedPeriod(effectiveRange);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setLoading(false);
     }
-  }, [effectiveRange]);
+  }, []);
 
-  const handlePrint = () => {
-    window.print();
-  };
+  // Auto-load on mount
+  useEffect(() => {
+    fetchReport(startDate, endDate);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const PRESETS: { key: Preset; label: string }[] = [
-    { key: "last-month", label: "Last Month" },
-    { key: "last-quarter", label: "Last Quarter" },
-    { key: "last-year", label: "Last Year" },
-    { key: "custom", label: "Custom" },
-  ];
+  function applyPreset(preset: "month" | "quarter" | "year") {
+    const dates = getPresetDates(preset);
+    setStartDate(dates.start);
+    setEndDate(dates.end);
+    setActivePreset(preset);
+  }
+
+  function handleGenerate() {
+    setActivePreset(null);
+    fetchReport(startDate, endDate);
+  }
+
+  const chartData = report ? mergeChartData(report.equityCurve, report.btcCurve) : [];
+
+  // Group monthly returns by year
+  const monthlyByYear = report
+    ? report.monthlyReturns.reduce<Record<number, Record<number, number>>>((acc, m) => {
+        if (!acc[m.year]) acc[m.year] = {};
+        acc[m.year][m.month] = m.return;
+        return acc;
+      }, {})
+    : {};
+  const years = Object.keys(monthlyByYear).map(Number).sort((a, b) => a - b);
 
   return (
-    <>
-      {/* Print styles */}
-      <style>{`
-        @media print {
-          body { background: #fff !important; color: #000 !important; }
-          [data-sidebar], nav, header, #report-controls { display: none !important; }
-          #report-content { max-width: 800px; margin: 0 auto; }
-          .text-text-primary, .text-text-secondary, .text-text-muted { color: #333 !important; }
-          .text-pnl-positive { color: #2a7a2a !important; }
-          .text-pnl-negative { color: #c0392b !important; }
-          .text-bronze { color: #7a5c3a !important; }
-          .border-border-subtle { border-color: #ddd !important; }
-          .bg-bg-card, .bg-bg-elevated { background: #fff !important; }
-          .bg-bg-primary { background: #f5f5f5 !important; }
-          .bg-pnl-positive\\/60, .bg-pnl-positive\\/35, .bg-pnl-positive\\/15 { background-color: rgba(60,180,60,0.25) !important; }
-          .bg-pnl-negative\\/60, .bg-pnl-negative\\/35, .bg-pnl-negative\\/15 { background-color: rgba(200,60,60,0.25) !important; }
-        }
-      `}</style>
+    <div className="print:bg-white">
+      <Header title="Reports" />
+      <div className="p-6 print:p-4">
 
-      <div className="print:hidden">
-        <Header title="Reports" />
-      </div>
-
-      <div className="p-6">
-        {/* Period selector */}
-        <div id="report-controls" className="print:hidden">
+        {/* ── Period Selector ── */}
+        <div className="rounded-sm border border-border-subtle bg-bg-card p-4 print:hidden">
           <SectionLabel>Report Period</SectionLabel>
           <div className="mt-3 flex flex-wrap items-end gap-3">
             {/* Preset buttons */}
-            <div className="flex gap-1">
-              {PRESETS.map((p) => (
+            <div className="flex gap-2">
+              {(["month", "quarter", "year"] as const).map((preset) => (
                 <button
-                  key={p.key}
-                  onClick={() => setPreset(p.key)}
+                  key={preset}
+                  onClick={() => applyPreset(preset)}
                   className={cn(
-                    "px-3 py-1.5 text-[11px] uppercase tracking-[1px] transition-colors rounded-sm",
-                    preset === p.key
-                      ? "bg-bronze text-bg-primary"
-                      : "border border-border-subtle text-text-muted hover:text-text-secondary hover:border-bronze/50"
+                    "relative px-3 py-1.5 text-[11px] uppercase tracking-[1px] transition-colors",
+                    "before:absolute before:left-0 before:top-0 before:h-1.5 before:w-1.5 before:border-l before:border-t",
+                    "after:absolute after:bottom-0 after:right-0 after:h-1.5 after:w-1.5 after:border-b after:border-r",
+                    activePreset === preset
+                      ? "text-bronze before:border-bronze after:border-bronze"
+                      : "text-text-muted before:border-border-subtle after:border-border-subtle hover:text-text-secondary hover:before:border-text-secondary hover:after:border-text-secondary"
                   )}
                 >
-                  {p.label}
+                  {preset === "month" ? "Last Month" : preset === "quarter" ? "Last Quarter" : "Last Year"}
                 </button>
               ))}
             </div>
 
             {/* Custom date inputs */}
-            {preset === "custom" && (
-              <div className="flex items-center gap-2">
-                <input
-                  type="date"
-                  value={customRange.start}
-                  onChange={(e) =>
-                    setCustomRange((r) => ({ ...r, start: e.target.value }))
-                  }
-                  className="rounded-sm border border-border-subtle bg-bg-card px-2.5 py-1.5 font-[family-name:var(--font-mono)] text-xs text-text-primary focus:border-bronze focus:outline-none"
-                />
-                <span className="text-text-muted text-xs">to</span>
-                <input
-                  type="date"
-                  value={customRange.end}
-                  onChange={(e) =>
-                    setCustomRange((r) => ({ ...r, end: e.target.value }))
-                  }
-                  className="rounded-sm border border-border-subtle bg-bg-card px-2.5 py-1.5 font-[family-name:var(--font-mono)] text-xs text-text-primary focus:border-bronze focus:outline-none"
-                />
-              </div>
-            )}
-
-            {/* Active period display for presets */}
-            {preset !== "custom" && (
-              <span className="font-[family-name:var(--font-mono)] text-xs text-text-muted">
-                {effectiveRange.start} — {effectiveRange.end}
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => { setStartDate(e.target.value); setActivePreset(null); }}
+                className="rounded-sm border border-border-subtle bg-bg-elevated px-3 py-1.5 text-xs text-text-primary focus:border-bronze focus:outline-none font-[family-name:var(--font-mono)]"
+              />
+              <span className="text-text-muted text-xs">—</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => { setEndDate(e.target.value); setActivePreset(null); }}
+                className="rounded-sm border border-border-subtle bg-bg-elevated px-3 py-1.5 text-xs text-text-primary focus:border-bronze focus:outline-none font-[family-name:var(--font-mono)]"
+              />
+            </div>
 
             {/* Generate button */}
             <button
               onClick={handleGenerate}
               disabled={loading}
               className={cn(
-                "relative px-5 py-1.5 text-[11px] uppercase tracking-[2px] transition-colors rounded-sm",
-                "border border-bronze text-bronze hover:bg-bronze hover:text-bg-primary",
-                "disabled:opacity-50 disabled:cursor-not-allowed"
+                "relative px-4 py-1.5 text-[11px] uppercase tracking-[1px] transition-colors",
+                "before:absolute before:left-0 before:top-0 before:h-1.5 before:w-1.5 before:border-l before:border-t before:border-bronze",
+                "after:absolute after:bottom-0 after:right-0 after:h-1.5 after:w-1.5 after:border-b after:border-r after:border-bronze",
+                loading
+                  ? "cursor-not-allowed text-text-muted"
+                  : "text-bronze hover:bg-bronze/5"
               )}
             >
               {loading ? "Generating..." : "Generate Report"}
@@ -667,54 +272,368 @@ export default function ReportsPage() {
             {/* Print button */}
             {report && (
               <button
-                onClick={handlePrint}
-                className="px-4 py-1.5 text-[11px] uppercase tracking-[2px] border border-border-subtle text-text-muted hover:border-bronze/50 hover:text-text-secondary transition-colors rounded-sm"
+                onClick={() => window.print()}
+                className={cn(
+                  "relative ml-auto px-4 py-1.5 text-[11px] uppercase tracking-[1px] transition-colors",
+                  "before:absolute before:left-0 before:top-0 before:h-1.5 before:w-1.5 before:border-l before:border-t before:border-border-subtle",
+                  "after:absolute after:bottom-0 after:right-0 after:h-1.5 after:w-1.5 after:border-b after:border-r after:border-border-subtle",
+                  "text-text-secondary hover:text-text-primary hover:before:border-text-secondary hover:after:border-text-secondary"
+                )}
               >
-                Print / PDF
+                Print Report
               </button>
             )}
           </div>
         </div>
 
-        {/* Error */}
+        {/* Error state */}
         {error && (
-          <div className="mt-6 rounded-sm border border-pnl-negative/30 bg-pnl-negative/10 px-4 py-3 text-sm text-pnl-negative print:hidden">
+          <div className="mt-4 rounded-sm border border-pnl-negative/30 bg-pnl-negative/5 px-4 py-3 text-sm text-pnl-negative">
             {error}
           </div>
         )}
 
         {/* Loading skeleton */}
-        {loading && (
-          <div className="mt-8 space-y-4 print:hidden">
-            {[1, 2, 3].map((i) => (
+        {loading && !report && (
+          <div className="mt-6 space-y-4">
+            {[120, 80, 240].map((h) => (
               <div
-                key={i}
-                className="h-24 animate-pulse rounded-sm border border-border-subtle bg-bg-card"
+                key={h}
+                className="animate-pulse rounded-sm border border-border-subtle bg-bg-card"
+                style={{ height: h }}
               />
             ))}
           </div>
         )}
 
         {/* Report content */}
-        {report && generatedPeriod && !loading && (
-          <div className="mt-8">
-            <ReportContent data={report} period={generatedPeriod} />
+        {report && (
+          <div className="mt-6 space-y-8">
+
+            {/* Print header (only visible on print) */}
+            <div className="hidden print:block">
+              <h1 className="font-[family-name:var(--font-heading)] text-2xl font-light text-text-primary">
+                Rootstone — Performance Report
+              </h1>
+              <p className="mt-1 text-xs text-text-secondary font-[family-name:var(--font-mono)]">
+                {report.period.start} — {report.period.end}
+              </p>
+            </div>
+
+            {/* ── A. Executive Summary ── */}
+            <div>
+              <SectionLabel>Executive Summary</SectionLabel>
+              <p className="mt-1 text-xs text-text-muted font-[family-name:var(--font-mono)]">
+                {report.period.start} — {report.period.end}
+              </p>
+              <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                <MetricCard
+                  label="Period Return"
+                  value={`${report.totalReturn >= 0 ? "+" : ""}${report.totalReturn.toFixed(2)}%`}
+                  colorClass={report.totalReturn >= 0 ? "text-gold" : "text-pnl-negative"}
+                />
+                <MetricCard
+                  label="Sharpe Ratio"
+                  value={report.sharpeRatio.toFixed(2)}
+                  colorClass={report.sharpeRatio >= 1 ? "text-pnl-positive" : "text-text-primary"}
+                />
+                <MetricCard
+                  label="Max Drawdown"
+                  value={`${report.maxDrawdown.toFixed(2)}%`}
+                  colorClass="text-pnl-negative"
+                />
+                <MetricCard
+                  label="Total Trades"
+                  value={String(report.totalTrades)}
+                />
+                <MetricCard
+                  label="Win Rate"
+                  value={`${report.winRate.toFixed(2)}%`}
+                  colorClass={report.winRate >= 50 ? "text-pnl-positive" : "text-pnl-negative"}
+                />
+                <MetricCard
+                  label="Alpha vs BTC"
+                  value={`${report.alpha >= 0 ? "+" : ""}${report.alpha.toFixed(2)}%`}
+                  sub={`BTC: ${report.btcReturn >= 0 ? "+" : ""}${report.btcReturn.toFixed(2)}%`}
+                  colorClass={report.alpha >= 0 ? "text-gold" : "text-pnl-negative"}
+                />
+              </div>
+            </div>
+
+            {/* ── B. Equity Curve ── */}
+            <div>
+              <SectionLabel>Equity Curve</SectionLabel>
+              <p className="mt-1 text-xs text-text-muted">Cumulative return (%) vs BTC benchmark</p>
+              <div className="mt-3 rounded-sm border border-border-subtle bg-bg-card p-4">
+                <ResponsiveContainer width="100%" height={280}>
+                  <LineChart data={chartData} margin={{ top: 8, right: 8, bottom: 4, left: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" />
+                    <XAxis
+                      dataKey="time"
+                      tick={{ fontSize: 10, fill: "#666" }}
+                      tickFormatter={(v: string) => v.slice(5)}
+                      tickLine={false}
+                      axisLine={{ stroke: "#1a1a1a" }}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 10, fill: "#666", fontFamily: "var(--font-mono)" }}
+                      tickFormatter={(v: number) => `${v.toFixed(0)}%`}
+                      tickLine={false}
+                      axisLine={false}
+                      width={48}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: "#141414",
+                        border: "1px solid #222",
+                        borderRadius: 2,
+                        fontSize: 12,
+                      }}
+                      labelStyle={{ color: "#888", fontSize: 10, marginBottom: 4 }}
+                      formatter={(value: unknown) => {
+                        return [`${Number(value).toFixed(2)}%`, ""];
+                      }}
+                    />
+                    <Legend
+                      iconType="plainline"
+                      wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="rebeta"
+                      name="Rebeta"
+                      stroke="#C5A049"
+                      strokeWidth={1.5}
+                      dot={false}
+                      connectNulls
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="btc"
+                      name="BTC"
+                      stroke="#777777"
+                      strokeWidth={1}
+                      dot={false}
+                      connectNulls
+                      strokeDasharray="4 2"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* ── C. Monthly Returns Grid ── */}
+            {years.length > 0 && (
+              <div>
+                <SectionLabel>Monthly Returns (%)</SectionLabel>
+                <div className="mt-3 overflow-x-auto rounded-sm border border-border-subtle bg-bg-card p-4">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr>
+                        <th className="px-2 py-2 text-left text-[11px] uppercase tracking-[1px] text-text-secondary font-normal w-14">
+                          Year
+                        </th>
+                        {MONTH_NAMES.map((m) => (
+                          <th
+                            key={m}
+                            className="px-1 py-2 text-center text-[10px] uppercase tracking-[0.5px] text-text-muted font-normal"
+                          >
+                            {m}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {years.map((year) => (
+                        <tr key={year}>
+                          <td className="px-2 py-1 font-[family-name:var(--font-mono)] text-text-primary font-medium">
+                            {year}
+                          </td>
+                          {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => {
+                            const val = monthlyByYear[year]?.[month];
+                            if (val === undefined) {
+                              return (
+                                <td key={month} className="px-0.5 py-0.5">
+                                  <div className="flex h-8 items-center justify-center rounded-sm bg-bg-primary text-text-muted">
+                                    &mdash;
+                                  </div>
+                                </td>
+                              );
+                            }
+                            return (
+                              <td key={month} className="px-0.5 py-0.5">
+                                <div
+                                  className={cn(
+                                    "flex h-8 items-center justify-center rounded-sm font-[family-name:var(--font-mono)] text-[11px]",
+                                    monthReturnColor(val)
+                                  )}
+                                >
+                                  {val > 0 ? `+${val.toFixed(1)}` : val.toFixed(1)}
+                                </div>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* ── D. Trade Highlights ── */}
+            {(report.topWins.length > 0 || report.topLosses.length > 0) && (
+              <div>
+                <SectionLabel>Trade Highlights</SectionLabel>
+                <div className="mt-3 grid gap-4 lg:grid-cols-2">
+                  {/* Top Wins */}
+                  <div>
+                    <div className="mb-2 text-[11px] uppercase tracking-[1px] text-pnl-positive">
+                      Top Wins
+                    </div>
+                    <div className="overflow-hidden rounded-sm border border-border-subtle bg-bg-card">
+                      {report.topWins.length === 0 ? (
+                        <div className="px-4 py-6 text-center text-xs text-text-muted">No trades</div>
+                      ) : (
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b border-border-subtle bg-bg-elevated">
+                              <th className="px-3 py-2 text-left text-[10px] uppercase tracking-[0.5px] text-text-secondary font-normal">Symbol</th>
+                              <th className="px-3 py-2 text-left text-[10px] uppercase tracking-[0.5px] text-text-secondary font-normal">Side</th>
+                              <th className="px-3 py-2 text-right text-[10px] uppercase tracking-[0.5px] text-text-secondary font-normal">PnL %</th>
+                              <th className="px-3 py-2 text-right text-[10px] uppercase tracking-[0.5px] text-text-secondary font-normal">Hold (h)</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {report.topWins.map((t, i) => (
+                              <tr key={i} className="border-b border-border-subtle last:border-0 transition-colors hover:bg-bg-elevated">
+                                <td className="px-3 py-2 font-[family-name:var(--font-mono)] font-medium text-text-primary">
+                                  {t.symbol}
+                                </td>
+                                <td className="px-3 py-2">
+                                  <span className={cn(
+                                    "text-[10px] uppercase tracking-[0.5px]",
+                                    t.side === "Buy" ? "text-pnl-positive" : "text-pnl-negative"
+                                  )}>
+                                    {t.side}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2 text-right font-[family-name:var(--font-mono)] text-gold">
+                                  {formatPnlPercent(t.pnlPercent / 100)}
+                                </td>
+                                <td className="px-3 py-2 text-right font-[family-name:var(--font-mono)] text-text-secondary">
+                                  {t.holdingHours}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Top Losses */}
+                  <div>
+                    <div className="mb-2 text-[11px] uppercase tracking-[1px] text-pnl-negative">
+                      Top Losses
+                    </div>
+                    <div className="overflow-hidden rounded-sm border border-border-subtle bg-bg-card">
+                      {report.topLosses.length === 0 ? (
+                        <div className="px-4 py-6 text-center text-xs text-text-muted">No trades</div>
+                      ) : (
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b border-border-subtle bg-bg-elevated">
+                              <th className="px-3 py-2 text-left text-[10px] uppercase tracking-[0.5px] text-text-secondary font-normal">Symbol</th>
+                              <th className="px-3 py-2 text-left text-[10px] uppercase tracking-[0.5px] text-text-secondary font-normal">Side</th>
+                              <th className="px-3 py-2 text-right text-[10px] uppercase tracking-[0.5px] text-text-secondary font-normal">PnL %</th>
+                              <th className="px-3 py-2 text-right text-[10px] uppercase tracking-[0.5px] text-text-secondary font-normal">Hold (h)</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {report.topLosses.map((t, i) => (
+                              <tr key={i} className="border-b border-border-subtle last:border-0 transition-colors hover:bg-bg-elevated">
+                                <td className="px-3 py-2 font-[family-name:var(--font-mono)] font-medium text-text-primary">
+                                  {t.symbol}
+                                </td>
+                                <td className="px-3 py-2">
+                                  <span className={cn(
+                                    "text-[10px] uppercase tracking-[0.5px]",
+                                    t.side === "Buy" ? "text-pnl-positive" : "text-pnl-negative"
+                                  )}>
+                                    {t.side}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2 text-right font-[family-name:var(--font-mono)] text-pnl-negative">
+                                  {formatPnlPercent(t.pnlPercent / 100)}
+                                </td>
+                                <td className="px-3 py-2 text-right font-[family-name:var(--font-mono)] text-text-secondary">
+                                  {t.holdingHours}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── Additional Metrics ── */}
+            <div>
+              <SectionLabel>Risk Metrics</SectionLabel>
+              <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <MetricCard
+                  label="Sortino Ratio"
+                  value={report.sortinoRatio.toFixed(2)}
+                  colorClass={report.sortinoRatio >= 1 ? "text-pnl-positive" : "text-text-primary"}
+                />
+                <MetricCard
+                  label="Daily VaR (95%)"
+                  value={`${report.var95.toFixed(2)}%`}
+                  colorClass="text-pnl-negative"
+                />
+                <MetricCard
+                  label="BTC Return"
+                  value={`${report.btcReturn >= 0 ? "+" : ""}${report.btcReturn.toFixed(2)}%`}
+                  colorClass={report.btcReturn >= 0 ? "text-pnl-positive" : "text-pnl-negative"}
+                />
+                <MetricCard
+                  label="Total Trades"
+                  value={String(report.totalTrades)}
+                  sub={`Win rate: ${report.winRate.toFixed(1)}%`}
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-border-subtle pt-4 text-center print:block">
+              <p className="text-[10px] text-text-muted">
+                Rootstone Dashboard &middot; Period: {report.period.start} ~ {report.period.end} &middot; Benchmark: BTC
+              </p>
+            </div>
           </div>
         )}
 
         {/* Empty state */}
         {!report && !loading && !error && (
-          <div className="mt-16 flex flex-col items-center gap-3 text-center print:hidden">
-            <div className="text-[11px] uppercase tracking-[2px] text-text-muted">
-              Select a period and generate a report
-            </div>
-            <p className="max-w-xs text-xs text-text-muted/60">
-              The report will calculate returns, risk metrics, and trade highlights
-              for the selected date range.
-            </p>
+          <div className="mt-12 flex flex-col items-center justify-center gap-3 text-center">
+            <div className="text-[11px] uppercase tracking-[2px] text-text-muted">No Report Generated</div>
+            <p className="text-xs text-text-muted">Select a period and click Generate Report.</p>
           </div>
         )}
       </div>
-    </>
+
+      {/* Print styles */}
+      <style jsx global>{`
+        @media print {
+          nav, header { display: none !important; }
+          body { background: white !important; color: black !important; }
+          .print\\:hidden { display: none !important; }
+        }
+      `}</style>
+    </div>
   );
 }

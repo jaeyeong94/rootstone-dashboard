@@ -1,105 +1,89 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getClosedPnl } from "@/lib/bybit/client";
-import type { BybitClosedPnl } from "@/types";
+import { db as getDb } from "@/lib/db";
+import { balanceSnapshots } from "@/lib/db/schema";
+import { asc, and, gte, lte } from "drizzle-orm";
 
-export interface DayTrade {
-  symbol: string;
-  side: "Buy" | "Sell";
-  entryPrice: number;
-  exitPrice: number;
-  qty: number;
-  closedPnl: number;
-  closedPnlPct: number;
-  closedAt: string; // ISO string
-}
-
-export interface DayDetailResponse {
-  date: string; // YYYY-MM-DD
-  tradeCount: number;
-  totalPnl: number;
-  winCount: number;
-  lossCount: number;
-  trades: DayTrade[];
-}
-
-export async function GET(req: NextRequest) {
+export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { searchParams } = req.nextUrl;
-  const dateParam = searchParams.get("date");
+  const { searchParams } = new URL(request.url);
+  const dateStr = searchParams.get("date");
 
-  if (!dateParam || !/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
-    return NextResponse.json({ error: "Invalid date. Use YYYY-MM-DD" }, { status: 400 });
+  if (!dateStr) {
+    return NextResponse.json({ error: "date parameter required" }, { status: 400 });
   }
 
-  const [yearStr, monthStr, dayStr] = dateParam.split("-");
-  const year = parseInt(yearStr, 10);
-  const month = parseInt(monthStr, 10);
-  const day = parseInt(dayStr, 10);
-
-  const dayStart = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
-  const dayEnd = new Date(Date.UTC(year, month - 1, day + 1, 0, 0, 0, 0)); // exclusive
-
-  const startTime = String(dayStart.getTime());
-  const endTime = String(dayEnd.getTime() - 1);
-
   try {
-    const allPnl: BybitClosedPnl[] = [];
-    let cursor: string | undefined;
-    do {
-      const page = await getClosedPnl({
-        limit: "200",
-        startTime,
-        endTime,
-        ...(cursor ? { cursor } : {}),
-      });
-      allPnl.push(...page.list);
-      cursor = page.nextPageCursor || undefined;
-    } while (cursor);
+    const dayStart = new Date(dateStr);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(dateStr);
+    dayEnd.setHours(23, 59, 59, 999);
 
-    const trades: DayTrade[] = allPnl.map((record) => {
-      const pnl = parseFloat(record.closedPnl);
-      const entry = parseFloat(record.entryPrice);
-      const exit = parseFloat(record.exitPrice);
-      const qty = parseFloat(record.qty);
-      const pnlPct = entry !== 0 ? (pnl / (entry * qty)) * 100 : 0;
+    const [pnlData, snapshots] = await Promise.all([
+      getClosedPnl({
+        startTime: String(dayStart.getTime()),
+        endTime: String(dayEnd.getTime()),
+        limit: "50",
+      }),
+      getDb()
+        .select({
+          snapshotAt: balanceSnapshots.snapshotAt,
+          totalEquity: balanceSnapshots.totalEquity,
+        })
+        .from(balanceSnapshots)
+        .where(and(
+          gte(balanceSnapshots.snapshotAt, new Date(dayStart.getTime() - 86400000)),
+          lte(balanceSnapshots.snapshotAt, dayEnd)
+        ))
+        .orderBy(asc(balanceSnapshots.snapshotAt)),
+    ]);
 
+    // Calculate daily return from snapshots
+    const equityByDay = new Map<string, number>();
+    for (const s of snapshots) {
+      const day = new Date(s.snapshotAt).toISOString().split("T")[0];
+      equityByDay.set(day, s.totalEquity);
+    }
+    const prevDay = new Date(dayStart.getTime() - 86400000).toISOString().split("T")[0];
+    const todayEquity = equityByDay.get(dateStr);
+    const prevEquity = equityByDay.get(prevDay);
+    const dailyReturn =
+      todayEquity && prevEquity && prevEquity > 0
+        ? ((todayEquity - prevEquity) / prevEquity) * 100
+        : 0;
+
+    // Format trades - ONLY showing percentages, no absolute amounts
+    const trades = pnlData.list.map((t) => {
+      const entry = parseFloat(t.entryPrice);
+      const exit = parseFloat(t.exitPrice);
+      const closedPnlPct =
+        entry > 0 ? ((exit - entry) / entry) * (t.side === "Buy" ? 1 : -1) * 100 : 0;
       return {
-        symbol: record.symbol.replace(/USDT$/, ""),
-        side: record.side,
+        symbol: t.symbol.replace("USDT", ""),
+        side: t.side,
         entryPrice: entry,
         exitPrice: exit,
-        qty,
-        closedPnl: pnl,
-        closedPnlPct: parseFloat(pnlPct.toFixed(2)),
-        closedAt: new Date(parseInt(record.updatedTime)).toISOString(),
+        closedPnlPct: Math.round(closedPnlPct * 100) / 100,
+        closedAt: new Date(parseInt(t.updatedTime)).toISOString(),
       };
     });
 
-    // Sort by close time descending
-    trades.sort((a, b) => new Date(b.closedAt).getTime() - new Date(a.closedAt).getTime());
-
-    const totalPnl = trades.reduce((sum, t) => sum + t.closedPnl, 0);
-    const winCount = trades.filter((t) => t.closedPnl > 0).length;
-    const lossCount = trades.filter((t) => t.closedPnl < 0).length;
-
-    const response: DayDetailResponse = {
-      date: dateParam,
-      tradeCount: trades.length,
-      totalPnl: parseFloat(totalPnl.toFixed(4)),
-      winCount,
-      lossCount,
+    return NextResponse.json({
+      date: dateStr,
+      dailyReturn: Math.round(dailyReturn * 100) / 100,
       trades,
-    };
-
-    return NextResponse.json(response);
+    });
   } catch (error) {
-    console.error("Calendar day-detail error:", error);
-    return NextResponse.json({ error: "Failed to load day detail" }, { status: 500 });
+    console.error("Calendar day detail error:", error);
+    return NextResponse.json(
+      { error: "Failed to load day details" },
+      { status: 500 }
+    );
   }
 }

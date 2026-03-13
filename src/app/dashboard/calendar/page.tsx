@@ -1,66 +1,72 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Header } from "@/components/layout/Header";
-import { cn, formatNumber, formatPnlPercent, getPnlColor } from "@/lib/utils";
-import type { CalendarMonthlyResponse, CalendarDay } from "@/app/api/calendar/monthly/route";
-import type { DayDetailResponse } from "@/app/api/calendar/day-detail/route";
+import { cn, formatPnlPercent } from "@/lib/utils";
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-function formatMonthLabel(year: number, month: number): string {
-  return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(
-    new Date(year, month - 1, 1)
-  );
+interface CalendarDay {
+  date: string;
+  dailyReturn: number;
+  tradeCount: number;
+  positionsOpened: number;
+  positionsClosed: number;
+  topTrade: { symbol: string; pnlPercent: number } | null;
 }
 
-function formatDayReturn(value: number): string {
-  const sign = value >= 0 ? "+" : "";
-  return `${sign}${value.toFixed(2)}%`;
+interface MonthlySummary {
+  totalReturn: number;
+  tradingDays: number;
+  winRate: number;
+  bestDay: { date: string; return: number } | null;
+  worstDay: { date: string; return: number } | null;
 }
 
-function formatTotalReturn(value: number): string {
-  const sign = value >= 0 ? "+" : "";
-  return `${sign}${value.toFixed(2)}%`;
+interface MonthlyData {
+  year: number;
+  month: number;
+  days: CalendarDay[];
+  summary: MonthlySummary;
 }
 
-function formatDate(isoDate: string): string {
-  const [year, month, day] = isoDate.split("-").map(Number);
-  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(
-    new Date(year, month - 1, day)
-  );
+interface DayTrade {
+  symbol: string;
+  side: "Buy" | "Sell";
+  entryPrice: number;
+  exitPrice: number;
+  closedPnlPct: number;
+  closedAt: string;
 }
 
-function formatTime(isoString: string): string {
-  return new Intl.DateTimeFormat("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(new Date(isoString));
+interface DayDetail {
+  date: string;
+  dailyReturn: number;
+  trades: DayTrade[];
 }
 
-/**
- * Returns the day-of-week (0=Mon … 6=Sun) for the 1st of a given month.
- * Uses ISO standard: Monday = 0.
- */
-function getMonthStartDayISO(year: number, month: number): number {
-  const jsDay = new Date(year, month - 1, 1).getDay(); // 0=Sun…6=Sat
-  return jsDay === 0 ? 6 : jsDay - 1; // convert to Mon=0
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const MONTH_NAMES = [
+  "JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE",
+  "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER",
+];
+
+const DAY_LABELS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+
+function getDayCellBg(ret: number): string {
+  if (ret >= 3) return "bg-pnl-positive/30";
+  if (ret >= 1) return "bg-pnl-positive/15";
+  if (ret > 0) return "bg-pnl-positive/5";
+  if (ret === 0) return "bg-bg-elevated";
+  if (ret > -1) return "bg-pnl-negative/5";
+  if (ret > -3) return "bg-pnl-negative/15";
+  return "bg-pnl-negative/30";
 }
 
-function getCellColor(dailyReturn: number): string {
-  if (dailyReturn >= 3) return "bg-pnl-positive/40";
-  if (dailyReturn >= 1) return "bg-pnl-positive/20";
-  if (dailyReturn > 0) return "bg-pnl-positive/10";
-  if (dailyReturn === 0) return "bg-bg-elevated";
-  if (dailyReturn > -1) return "bg-pnl-negative/10";
-  if (dailyReturn > -3) return "bg-pnl-negative/20";
-  return "bg-pnl-negative/40";
-}
-
-function getTodayString(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+function formatDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -73,146 +79,291 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function StatCard({
-  label,
-  value,
-  valueClass,
-}: {
-  label: string;
-  value: React.ReactNode;
-  valueClass?: string;
-}) {
+function ReturnBadge({ value, className }: { value: number; className?: string }) {
+  const isPos = value > 0;
+  const isNeg = value < 0;
   return (
-    <div className="rounded-sm border border-border-subtle bg-bg-card px-4 py-3">
-      <div className="mb-1">
-        <SectionLabel>{label}</SectionLabel>
-      </div>
-      <div
-        className={cn(
-          "font-[family-name:var(--font-mono)] text-lg font-medium",
-          valueClass ?? "text-text-primary"
-        )}
-      >
-        {value}
-      </div>
+    <span
+      className={cn(
+        "font-[family-name:var(--font-mono)] text-[11px]",
+        isPos && "text-pnl-positive",
+        isNeg && "text-pnl-negative",
+        !isPos && !isNeg && "text-text-secondary",
+        className
+      )}
+    >
+      {value > 0 ? "+" : ""}{value.toFixed(2)}%
+    </span>
+  );
+}
+
+// ─── Day Detail Panel ─────────────────────────────────────────────────────────
+
+function DayDetailPanel({
+  detail,
+  loading,
+  onClose,
+}: {
+  detail: DayDetail | null;
+  loading: boolean;
+  onClose: () => void;
+}) {
+  if (!detail && !loading) return null;
+
+  return (
+    <div className="mt-1 rounded-sm border border-border-subtle bg-bg-card p-4 animate-in slide-in-from-top-2 duration-200">
+      {loading ? (
+        <div className="flex h-20 items-center justify-center">
+          <span className="text-[11px] uppercase tracking-[2px] text-text-secondary animate-pulse">
+            Loading...
+          </span>
+        </div>
+      ) : detail ? (
+        <div className="space-y-4">
+          {/* Panel header */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <SectionLabel>{detail.date}</SectionLabel>
+              <ReturnBadge value={detail.dailyReturn} />
+            </div>
+            <button
+              onClick={onClose}
+              className="text-[11px] uppercase tracking-[2px] text-text-secondary hover:text-text-primary transition-colors"
+            >
+              Close
+            </button>
+          </div>
+
+          {/* Trade list */}
+          {detail.trades.length === 0 ? (
+            <p className="text-[12px] text-text-secondary">No closed trades this day.</p>
+          ) : (
+            <div className="space-y-1">
+              {/* Header row */}
+              <div className="grid grid-cols-[1fr_60px_80px_80px_80px] gap-2 pb-1 border-b border-border-subtle">
+                {["SYMBOL", "SIDE", "ENTRY", "EXIT", "PNL %"].map((h) => (
+                  <span key={h} className="text-[10px] uppercase tracking-[2px] text-text-secondary">
+                    {h}
+                  </span>
+                ))}
+              </div>
+
+              {detail.trades.map((trade, i) => (
+                <div
+                  key={i}
+                  className="grid grid-cols-[1fr_60px_80px_80px_80px] gap-2 py-1.5 border-b border-border-subtle/50 last:border-0"
+                >
+                  <span className="font-[family-name:var(--font-mono)] text-[12px] text-text-primary">
+                    {trade.symbol}
+                  </span>
+                  <span
+                    className={cn(
+                      "text-[11px] uppercase tracking-[1px]",
+                      trade.side === "Buy" ? "text-pnl-positive" : "text-pnl-negative"
+                    )}
+                  >
+                    {trade.side}
+                  </span>
+                  <span className="font-[family-name:var(--font-mono)] text-[12px] text-text-secondary">
+                    {trade.entryPrice.toFixed(2)}
+                  </span>
+                  <span className="font-[family-name:var(--font-mono)] text-[12px] text-text-secondary">
+                    {trade.exitPrice.toFixed(2)}
+                  </span>
+                  <span
+                    className={cn(
+                      "font-[family-name:var(--font-mono)] text-[12px]",
+                      trade.closedPnlPct > 0 && "text-pnl-positive",
+                      trade.closedPnlPct < 0 && "text-pnl-negative",
+                      trade.closedPnlPct === 0 && "text-text-secondary"
+                    )}
+                  >
+                    {formatPnlPercent(trade.closedPnlPct / 100)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function LoadingSkeleton() {
+// ─── Monthly Summary Strip ────────────────────────────────────────────────────
+
+function SummaryStrip({ summary }: { summary: MonthlySummary | null }) {
+  if (!summary) return null;
+
+  const items = [
+    {
+      label: "TOTAL RETURN",
+      value: (
+        <ReturnBadge value={summary.totalReturn} className="text-[14px]" />
+      ),
+    },
+    {
+      label: "TRADING DAYS",
+      value: (
+        <span className="font-[family-name:var(--font-mono)] text-[14px] text-text-primary">
+          {summary.tradingDays}
+        </span>
+      ),
+    },
+    {
+      label: "WIN RATE",
+      value: (
+        <span className="font-[family-name:var(--font-mono)] text-[14px] text-gold">
+          {summary.winRate.toFixed(1)}%
+        </span>
+      ),
+    },
+    {
+      label: "BEST DAY",
+      value: summary.bestDay ? (
+        <span className="flex items-center gap-1.5">
+          <span className="text-[11px] text-text-secondary font-[family-name:var(--font-mono)]">
+            {formatDate(summary.bestDay.date)}
+          </span>
+          <ReturnBadge value={summary.bestDay.return} />
+        </span>
+      ) : (
+        <span className="text-text-secondary text-[12px]">—</span>
+      ),
+    },
+    {
+      label: "WORST DAY",
+      value: summary.worstDay ? (
+        <span className="flex items-center gap-1.5">
+          <span className="text-[11px] text-text-secondary font-[family-name:var(--font-mono)]">
+            {formatDate(summary.worstDay.date)}
+          </span>
+          <ReturnBadge value={summary.worstDay.return} />
+        </span>
+      ) : (
+        <span className="text-text-secondary text-[12px]">—</span>
+      ),
+    },
+  ];
+
   return (
-    <div className="space-y-3 p-4">
-      {[1, 2, 3, 4, 5].map((i) => (
-        <div key={i} className="h-20 animate-pulse rounded bg-bg-elevated" />
-      ))}
+    <div className="rounded-sm border border-border-subtle bg-bg-card px-4 py-3">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+        {items.map((item) => (
+          <div key={item.label} className="flex flex-col gap-1">
+            <SectionLabel>{item.label}</SectionLabel>
+            <div className="mt-0.5">{item.value}</div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
 // ─── Calendar Grid ────────────────────────────────────────────────────────────
 
-const DAY_HEADERS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-interface CalendarGridProps {
+function CalendarGrid({
+  year,
+  month,
+  days,
+  selectedDate,
+  onSelectDate,
+}: {
   year: number;
   month: number;
   days: CalendarDay[];
   selectedDate: string | null;
   onSelectDate: (date: string) => void;
-}
+}) {
+  const dayMap = new Map(days.map((d) => [d.date, d]));
 
-function CalendarGrid({ year, month, days, selectedDate, onSelectDate }: CalendarGridProps) {
-  const today = getTodayString();
-  const startDayOffset = getMonthStartDayISO(year, month);
+  // First day of month weekday (0=Sun)
+  const firstDow = new Date(year, month - 1, 1).getDay();
   const daysInMonth = new Date(year, month, 0).getDate();
 
-  // Build grid cells: leading blanks + day cells
-  const cells: Array<{ blank: true } | { date: string; day: number; data: CalendarDay | null }> = [];
+  // Build grid cells: leading blanks + actual days
+  const cells: Array<{ type: "blank" } | { type: "day"; date: string; day: number; data: CalendarDay | null }> = [];
 
-  for (let i = 0; i < startDayOffset; i++) {
-    cells.push({ blank: true });
+  for (let i = 0; i < firstDow; i++) {
+    cells.push({ type: "blank" });
   }
-
   for (let d = 1; d <= daysInMonth; d++) {
-    const date = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    const data = days.find((x) => x.date === date) ?? null;
-    cells.push({ date, day: d, data });
+    const mm = String(month).padStart(2, "0");
+    const dd = String(d).padStart(2, "0");
+    const dateStr = `${year}-${mm}-${dd}`;
+    cells.push({ type: "day", date: dateStr, day: d, data: dayMap.get(dateStr) ?? null });
   }
 
   return (
     <div className="rounded-sm border border-border-subtle bg-bg-card overflow-hidden">
-      {/* Day headers */}
+      {/* Day-of-week header */}
       <div className="grid grid-cols-7 border-b border-border-subtle">
-        {DAY_HEADERS.map((h) => (
-          <div
-            key={h}
-            className="py-2 text-center text-[11px] font-medium uppercase tracking-[2px] text-text-muted"
-          >
-            {h}
+        {DAY_LABELS.map((lbl) => (
+          <div key={lbl} className="py-2 text-center">
+            <span className="text-[10px] uppercase tracking-[2px] text-text-secondary">
+              {lbl}
+            </span>
           </div>
         ))}
       </div>
 
-      {/* Cells */}
+      {/* Calendar cells */}
       <div className="grid grid-cols-7">
         {cells.map((cell, idx) => {
-          if ("blank" in cell) {
+          if (cell.type === "blank") {
             return (
               <div
                 key={`blank-${idx}`}
-                className="aspect-square border-b border-r border-border-subtle bg-bg-primary"
+                className="min-h-[80px] border-b border-r border-border-subtle/40 bg-bg-primary/30"
               />
             );
           }
 
           const { date, day, data } = cell;
-          const isToday = date === today;
           const isSelected = date === selectedDate;
-          const dailyReturn = data?.dailyReturn ?? 0;
-          const hasData = data !== null && (data.tradeCount > 0 || data.dailyReturn !== 0);
+          const isToday = date === new Date().toISOString().split("T")[0];
+          const bgClass = data ? getDayCellBg(data.dailyReturn) : "bg-bg-elevated/20";
 
           return (
             <button
               key={date}
               onClick={() => onSelectDate(date)}
               className={cn(
-                "relative flex aspect-square flex-col items-start justify-start p-2",
-                "border-b border-r border-border-subtle",
-                "transition-all duration-150",
-                hasData ? getCellColor(dailyReturn) : "bg-bg-primary",
+                "min-h-[80px] w-full border-b border-r border-border-subtle/40 p-2 text-left transition-all duration-150",
+                "hover:border-bronze/40 hover:bg-bg-elevated",
+                bgClass,
                 isSelected && "ring-1 ring-inset ring-bronze",
-                isToday && !isSelected && "ring-1 ring-inset ring-bronze/40",
-                hasData && "cursor-pointer hover:opacity-80",
-                !hasData && "cursor-default"
+                !data && "opacity-40 cursor-default"
               )}
+              disabled={!data}
             >
-              {/* Day number */}
-              <span
-                className={cn(
-                  "text-xs font-medium",
-                  isToday ? "text-bronze" : "text-text-secondary"
-                )}
-              >
-                {day}
-              </span>
-
-              {/* Daily return */}
-              {hasData && (
+              {/* Date number */}
+              <div className="flex items-start justify-between">
                 <span
                   className={cn(
-                    "mt-auto font-[family-name:var(--font-mono)] text-[10px] leading-none",
-                    getPnlColor(dailyReturn)
+                    "font-[family-name:var(--font-mono)] text-[12px] leading-none",
+                    isToday ? "text-gold font-semibold" : "text-text-secondary"
                   )}
                 >
-                  {formatDayReturn(dailyReturn)}
+                  {day}
                 </span>
-              )}
+                {data && data.tradeCount > 0 && (
+                  <span className="rounded-full bg-bronze/20 px-1 py-0.5 text-[9px] font-medium text-bronze leading-none">
+                    {data.tradeCount}
+                  </span>
+                )}
+              </div>
 
-              {/* Trade count badge */}
-              {data && data.tradeCount > 0 && (
-                <span className="absolute right-1.5 top-1.5 rounded-full bg-bronze/20 px-1 py-0.5 text-[9px] font-medium text-bronze">
-                  {data.tradeCount}
-                </span>
+              {/* Daily return */}
+              {data && (
+                <div className="mt-2 space-y-0.5">
+                  <ReturnBadge value={data.dailyReturn} className="text-[12px] block" />
+                  {data.topTrade && (
+                    <span className="block truncate text-[10px] text-text-secondary">
+                      {data.topTrade.symbol}
+                    </span>
+                  )}
+                </div>
               )}
             </button>
           );
@@ -222,335 +373,172 @@ function CalendarGrid({ year, month, days, selectedDate, onSelectDate }: Calenda
   );
 }
 
-// ─── Day Detail Panel ─────────────────────────────────────────────────────────
-
-interface DayDetailPanelProps {
-  date: string;
-  data: DayDetailResponse | null;
-  isLoading: boolean;
-  error: string | null;
-  dailyReturn?: number;
-}
-
-function DayDetailPanel({ date, data, isLoading, error, dailyReturn }: DayDetailPanelProps) {
-  return (
-    <div className="rounded-sm border border-border-subtle bg-bg-card">
-      {/* Panel header */}
-      <div className="flex items-center justify-between border-b border-border-subtle px-4 py-3">
-        <SectionLabel>{formatDate(date)}</SectionLabel>
-        {data && (
-          <div className="flex items-center gap-4">
-            <span className="text-xs text-text-muted">
-              {data.tradeCount} trade{data.tradeCount !== 1 ? "s" : ""}
-            </span>
-            <span className="text-xs text-text-muted">
-              {data.winCount}W / {data.lossCount}L
-            </span>
-            <span
-              className={cn(
-                "font-[family-name:var(--font-mono)] text-sm font-medium",
-                getPnlColor(data.totalPnl)
-              )}
-            >
-              {dailyReturn !== undefined
-                ? formatPnlPercent(dailyReturn / 100)
-                : "—"}
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* Content */}
-      {isLoading ? (
-        <LoadingSkeleton />
-      ) : error ? (
-        <div className="flex h-32 items-center justify-center text-sm text-pnl-negative">
-          {error}
-        </div>
-      ) : !data || data.trades.length === 0 ? (
-        <div className="flex h-32 items-center justify-center text-sm text-text-muted">
-          No trades on this day
-        </div>
-      ) : (
-        <div className="overflow-x-auto">
-          {/* Table header */}
-          <div className="grid grid-cols-7 gap-2 border-b border-border-subtle px-4 py-2 text-[11px] uppercase tracking-[1px] text-text-secondary">
-            <span>Time</span>
-            <span>Symbol</span>
-            <span>Side</span>
-            <span className="text-right">Entry</span>
-            <span className="text-right">Exit</span>
-            <span className="text-right">Qty</span>
-            <span className="text-right">PnL</span>
-          </div>
-
-          {/* Table rows */}
-          {data.trades.map((trade, idx) => (
-            <div
-              key={idx}
-              className="grid grid-cols-7 gap-2 border-b border-border-subtle px-4 py-2.5 text-sm transition-colors hover:bg-bg-elevated last:border-0"
-            >
-              <span className="text-xs text-text-muted">
-                {formatTime(trade.closedAt)}
-              </span>
-              <span className="font-[family-name:var(--font-mono)] text-text-primary">
-                {trade.symbol}
-              </span>
-              <span
-                className={cn(
-                  "text-[11px] uppercase tracking-[1px]",
-                  trade.side === "Buy" ? "text-pnl-positive" : "text-pnl-negative"
-                )}
-              >
-                {trade.side}
-              </span>
-              <span className="text-right font-[family-name:var(--font-mono)] text-xs text-text-secondary">
-                {formatNumber(trade.entryPrice)}
-              </span>
-              <span className="text-right font-[family-name:var(--font-mono)] text-xs text-text-secondary">
-                {formatNumber(trade.exitPrice)}
-              </span>
-              <span className="text-right font-[family-name:var(--font-mono)] text-xs text-text-secondary">
-                {formatNumber(trade.qty, 4)}
-              </span>
-              <span
-                className={cn(
-                  "text-right font-[family-name:var(--font-mono)] text-xs",
-                  getPnlColor(trade.closedPnl)
-                )}
-              >
-                {formatPnlPercent(trade.closedPnlPct / 100)}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Monthly Summary ──────────────────────────────────────────────────────────
-
-interface MonthlySummaryProps {
-  summary: CalendarMonthlyResponse["summary"];
-}
-
-function MonthlySummary({ summary }: MonthlySummaryProps) {
-  return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-      <StatCard
-        label="Total Return"
-        value={formatTotalReturn(summary.totalReturn)}
-        valueClass={getPnlColor(summary.totalReturn)}
-      />
-      <StatCard
-        label="Trading Days"
-        value={summary.tradingDays}
-      />
-      <StatCard
-        label="Win Rate"
-        value={`${summary.winRate.toFixed(1)}%`}
-        valueClass={summary.winRate >= 50 ? "text-pnl-positive" : "text-pnl-negative"}
-      />
-      <StatCard
-        label="Best Day"
-        value={
-          summary.bestDay.date ? (
-            <span className="text-pnl-positive">
-              {formatTotalReturn(summary.bestDay.return)}
-            </span>
-          ) : (
-            <span className="text-text-muted">—</span>
-          )
-        }
-      />
-      <StatCard
-        label="Worst Day"
-        value={
-          summary.worstDay.date ? (
-            <span className="text-pnl-negative">
-              {formatTotalReturn(summary.worstDay.return)}
-            </span>
-          ) : (
-            <span className="text-text-muted">—</span>
-          )
-        }
-      />
-    </div>
-  );
-}
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function CalendarPage() {
-  const now = new Date();
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1);
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const today = new Date();
+  const [year, setYear] = useState(today.getFullYear());
+  const [month, setMonth] = useState(today.getMonth() + 1);
 
-  // Monthly data state
-  const [monthlyData, setMonthlyData] = useState<CalendarMonthlyResponse | null>(null);
-  const [monthlyLoading, setMonthlyLoading] = useState(false);
+  const [monthlyData, setMonthlyData] = useState<MonthlyData | null>(null);
+  const [loadingMonthly, setLoadingMonthly] = useState(false);
   const [monthlyError, setMonthlyError] = useState<string | null>(null);
-  const [loadedKey, setLoadedKey] = useState<string>("");
 
-  // Day detail state
-  const [dayDetail, setDayDetail] = useState<DayDetailResponse | null>(null);
-  const [dayDetailLoading, setDayDetailLoading] = useState(false);
-  const [dayDetailError, setDayDetailError] = useState<string | null>(null);
-  const [loadedDayDate, setLoadedDayDate] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [dayDetail, setDayDetail] = useState<DayDetail | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
 
+  // ── Fetch monthly data ──
   const fetchMonthly = useCallback(async (y: number, m: number) => {
-    const key = `${y}-${m}`;
-    if (loadedKey === key && monthlyData) return;
-
-    setMonthlyLoading(true);
+    setLoadingMonthly(true);
     setMonthlyError(null);
-    setMonthlyData(null);
-    setSelectedDate(null);
-    setDayDetail(null);
-
     try {
       const res = await fetch(`/api/calendar/monthly?year=${y}&month=${m}`);
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        setMonthlyError(data.error ?? "Failed to load calendar data");
-      } else {
-        setMonthlyData(data);
-        setLoadedKey(key);
-      }
+      if (!res.ok) throw new Error("Failed to load");
+      const data: MonthlyData = await res.json();
+      setMonthlyData(data);
     } catch {
-      setMonthlyError("Network error");
+      setMonthlyError("데이터를 불러오지 못했습니다.");
     } finally {
-      setMonthlyLoading(false);
+      setLoadingMonthly(false);
     }
-  }, [loadedKey, monthlyData]);
+  }, []);
 
-  // Fetch on mount and when month changes
-  const currentKey = `${year}-${month}`;
-  if (loadedKey !== currentKey && !monthlyLoading) {
+  useEffect(() => {
     fetchMonthly(year, month);
-  }
-
-  const fetchDayDetail = useCallback(async (date: string) => {
-    if (loadedDayDate === date && dayDetail) return;
-
-    setDayDetailLoading(true);
-    setDayDetailError(null);
+    setSelectedDate(null);
     setDayDetail(null);
+  }, [year, month, fetchMonthly]);
 
+  // ── Fetch day detail ──
+  const handleSelectDate = useCallback(async (date: string) => {
+    if (selectedDate === date) {
+      setSelectedDate(null);
+      setDayDetail(null);
+      return;
+    }
+    setSelectedDate(date);
+    setDayDetail(null);
+    setLoadingDetail(true);
     try {
       const res = await fetch(`/api/calendar/day-detail?date=${date}`);
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        setDayDetailError(data.error ?? "Failed to load day detail");
-      } else {
-        setDayDetail(data);
-        setLoadedDayDate(date);
-      }
+      if (!res.ok) throw new Error("Failed to load");
+      const data: DayDetail = await res.json();
+      setDayDetail(data);
     } catch {
-      setDayDetailError("Network error");
+      setDayDetail(null);
     } finally {
-      setDayDetailLoading(false);
+      setLoadingDetail(false);
     }
-  }, [loadedDayDate, dayDetail]);
+  }, [selectedDate]);
 
-  const handleSelectDate = useCallback(
-    (date: string) => {
-      setSelectedDate(date);
-      fetchDayDetail(date);
-    },
-    [fetchDayDetail]
-  );
-
-  const goPrev = () => {
-    if (month === 1) {
-      setYear((y) => y - 1);
-      setMonth(12);
-    } else {
-      setMonth((m) => m - 1);
-    }
-    setSelectedDate(null);
-    setDayDetail(null);
-    setLoadedDayDate(null);
+  // ── Month navigation ──
+  const prevMonth = () => {
+    if (month === 1) { setYear(y => y - 1); setMonth(12); }
+    else setMonth(m => m - 1);
   };
-
-  const goNext = () => {
-    if (month === 12) {
-      setYear((y) => y + 1);
-      setMonth(1);
-    } else {
-      setMonth((m) => m + 1);
-    }
-    setSelectedDate(null);
-    setDayDetail(null);
-    setLoadedDayDate(null);
+  const nextMonth = () => {
+    if (month === 12) { setYear(y => y + 1); setMonth(1); }
+    else setMonth(m => m + 1);
   };
+  const goToday = () => {
+    setYear(today.getFullYear());
+    setMonth(today.getMonth() + 1);
+  };
+  const isCurrentMonth = year === today.getFullYear() && month === today.getMonth() + 1;
 
   return (
-    <div>
-      <Header title="Calendar" />
+    <div className="min-h-screen bg-bg-primary">
+      <Header title="Trading Calendar" />
 
-      <div className="space-y-4 p-6">
-        {/* Month navigation */}
+      <div className="mx-auto max-w-5xl space-y-4 px-6 py-8">
+
+        {/* ── Month Navigation ── */}
         <div className="flex items-center justify-between">
-          <SectionLabel>Trading Calendar</SectionLabel>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             <button
-              onClick={goPrev}
-              className="flex h-8 w-8 items-center justify-center rounded-sm border border-border-subtle text-text-secondary transition-colors hover:border-bronze hover:text-bronze"
+              onClick={prevMonth}
+              className="flex h-8 w-8 items-center justify-center border border-border-subtle text-text-secondary hover:border-bronze hover:text-text-primary transition-colors"
+              aria-label="Previous month"
             >
-              ←
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M8 2L4 6L8 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </button>
-            <span className="min-w-[140px] text-center font-[family-name:var(--font-heading)] text-sm font-light text-text-primary">
-              {formatMonthLabel(year, month)}
-            </span>
+
+            <div className="flex flex-col items-center gap-0.5">
+              <h2 className="font-[family-name:var(--font-heading)] text-xl font-light tracking-[2px] text-text-primary uppercase">
+                {MONTH_NAMES[month - 1]}
+              </h2>
+              <span className="font-[family-name:var(--font-mono)] text-[11px] text-text-secondary">
+                {year}
+              </span>
+            </div>
+
             <button
-              onClick={goNext}
-              className="flex h-8 w-8 items-center justify-center rounded-sm border border-border-subtle text-text-secondary transition-colors hover:border-bronze hover:text-bronze"
+              onClick={nextMonth}
+              className="flex h-8 w-8 items-center justify-center border border-border-subtle text-text-secondary hover:border-bronze hover:text-text-primary transition-colors"
+              aria-label="Next month"
             >
-              →
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M4 2L8 6L4 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </button>
           </div>
+
+          {!isCurrentMonth && (
+            <button
+              onClick={goToday}
+              className="border border-border-subtle px-3 py-1.5 text-[11px] uppercase tracking-[1px] text-text-secondary hover:border-bronze hover:text-text-primary transition-colors"
+            >
+              Today
+            </button>
+          )}
         </div>
 
-        {/* Calendar grid */}
-        {monthlyLoading ? (
-          <div className="rounded-sm border border-border-subtle bg-bg-card">
-            <LoadingSkeleton />
-          </div>
-        ) : monthlyError ? (
-          <div className="flex h-64 items-center justify-center rounded-sm border border-border-subtle bg-bg-card text-sm text-pnl-negative">
-            {monthlyError}
-          </div>
-        ) : monthlyData ? (
-          <CalendarGrid
-            year={year}
-            month={month}
-            days={monthlyData.days}
-            selectedDate={selectedDate}
-            onSelectDate={handleSelectDate}
-          />
-        ) : null}
-
-        {/* Day detail panel */}
-        {selectedDate && (
-          <DayDetailPanel
-            date={selectedDate}
-            data={dayDetail}
-            isLoading={dayDetailLoading}
-            error={dayDetailError}
-            dailyReturn={monthlyData?.days.find((d) => d.date === selectedDate)?.dailyReturn}
-          />
-        )}
-
-        {/* Monthly summary */}
-        {monthlyData && !monthlyLoading && (
-          <div className="space-y-2">
-            <SectionLabel>Monthly Summary</SectionLabel>
-            <MonthlySummary summary={monthlyData.summary} />
+        {/* ── Loading / Error State ── */}
+        {loadingMonthly && (
+          <div className="flex h-64 items-center justify-center rounded-sm border border-border-subtle bg-bg-card">
+            <span className="text-[11px] uppercase tracking-[2px] text-text-secondary animate-pulse">
+              Loading...
+            </span>
           </div>
         )}
+
+        {monthlyError && !loadingMonthly && (
+          <div className="flex h-32 items-center justify-center rounded-sm border border-border-subtle bg-bg-card">
+            <span className="text-[12px] text-pnl-negative">{monthlyError}</span>
+          </div>
+        )}
+
+        {/* ── Calendar Grid ── */}
+        {!loadingMonthly && !monthlyError && (
+          <>
+            <CalendarGrid
+              year={year}
+              month={month}
+              days={monthlyData?.days ?? []}
+              selectedDate={selectedDate}
+              onSelectDate={handleSelectDate}
+            />
+
+            {/* ── Day Detail Panel ── */}
+            {(selectedDate || loadingDetail) && (
+              <DayDetailPanel
+                detail={dayDetail}
+                loading={loadingDetail}
+                onClose={() => {
+                  setSelectedDate(null);
+                  setDayDetail(null);
+                }}
+              />
+            )}
+
+            {/* ── Monthly Summary Strip ── */}
+            <SummaryStrip summary={monthlyData?.summary ?? null} />
+          </>
+        )}
+
       </div>
     </div>
   );

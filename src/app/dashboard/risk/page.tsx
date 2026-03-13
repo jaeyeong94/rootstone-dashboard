@@ -2,61 +2,36 @@
 
 import { Header } from "@/components/layout/Header";
 import { cn } from "@/lib/utils";
-import useSWR from "swr";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  ReferenceLine,
-} from "recharts";
+import { useState, useEffect } from "react";
 
-/* ════════════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════════
    Types
-   ════════════════════════════════════════════════════════════════ */
+   ═══════════════════════════════════════════════════════════════ */
 
 interface RiskMetrics {
   grossExposure: number;
   netExposure: number;
+  maxGrossLimit: number;
   positionCount: number;
   maxPositions: number;
   avgLeverage: number;
   monthlyDrawdown: number;
+  monthlyDrawdownLimit: number;
   longestHoldingHours: number;
-  concentrations: { symbol: string; weight: number }[];
-  limits: {
-    maxGrossExposure: number;
-    maxMonthlyDrawdown: number;
-    maxHoldingHours: number;
-  };
+  maxHoldingHours: number;
+  concentrations: {
+    symbol: string;
+    weight: number;
+    side: "Buy" | "Sell";
+    exposure: number;
+  }[];
 }
 
-interface ExposureHistoryPoint {
-  date: string;
-  grossExposure: number | null;
-  netExposure: number | null;
-}
+type RiskStatus = "SAFE" | "WARNING" | "BREACH";
 
-interface ExposureHistoryResponse {
-  history: ExposureHistoryPoint[];
-  days: number;
-}
-
-/* ════════════════════════════════════════════════════════════════
-   Fetcher
-   ════════════════════════════════════════════════════════════════ */
-
-const fetcher = (url: string) =>
-  fetch(url).then((r) => {
-    if (!r.ok) throw new Error("fetch error");
-    return r.json();
-  });
-
-/* ════════════════════════════════════════════════════════════════
-   Helper Components
-   ════════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════
+   Helpers
+   ═══════════════════════════════════════════════════════════════ */
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -66,150 +41,11 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function SkeletonCard({ className }: { className?: string }) {
-  return (
-    <div
-      className={cn(
-        "animate-pulse rounded-sm border border-border-subtle bg-bg-card p-5",
-        className
-      )}
-    >
-      <div className="h-3 w-20 rounded bg-bg-elevated" />
-      <div className="mt-4 h-8 w-32 rounded bg-bg-elevated" />
-      <div className="mt-2 h-2 w-16 rounded bg-bg-elevated" />
-    </div>
-  );
-}
-
-/* ════════════════════════════════════════════════════════════════
-   Gauge — CSS arc using conic-gradient
-   ════════════════════════════════════════════════════════════════ */
-
-interface GaugeProps {
-  value: number;   // current value
-  max: number;     // max before breach
-  label: string;
-  unit?: string;
-  decimals?: number;
-}
-
-function Gauge({ value, max, label, unit = "x", decimals = 2 }: GaugeProps) {
-  // Arc goes 0 → 180deg (half circle). Fill proportion = value / max, capped at 1.
-  const pct = Math.min(value / max, 1);
-  // 0% → gray, <80% → bronze, 80-100% → gold, >100% → red
-  const fillColor =
-    value === 0
-      ? "#333333"
-      : pct >= 1
-      ? "#EF4444"
-      : pct >= 0.8
-      ? "#C5A049"
-      : "#997B66";
-
-  // Gauge degrees: 0 = left (180deg css), fills clockwise to right (0deg)
-  // We rotate the fill: the arc covers half of a donut (180 deg sweep).
-  // Implementation: use two overlapping divs with border-radius + transform.
-  const fillDeg = Math.round(pct * 180);
-
-  return (
-    <div className="flex flex-col items-center gap-3">
-      {/* Arc container */}
-      <div className="relative" style={{ width: 120, height: 66 }}>
-        {/* Track (gray half-circle) */}
-        <div
-          className="absolute inset-0 overflow-hidden"
-          style={{ borderRadius: "120px 120px 0 0" }}
-        >
-          <div
-            className="absolute bottom-0 left-0 right-0"
-            style={{
-              height: 120,
-              borderRadius: "60px",
-              background: "#222",
-              border: "8px solid #333",
-              borderBottom: "none",
-            }}
-          />
-        </div>
-
-        {/* Fill using conic-gradient on a circle, clipped to top half */}
-        <div
-          className="absolute inset-0 overflow-hidden"
-          style={{ borderRadius: "120px 120px 0 0" }}
-        >
-          <div
-            className="absolute bottom-0 left-0 right-0"
-            style={{
-              height: 120,
-              borderRadius: "60px",
-              background: `conic-gradient(from 180deg at 50% 100%, ${fillColor} ${fillDeg}deg, transparent ${fillDeg}deg)`,
-            }}
-          />
-          {/* Inner mask to create donut */}
-          <div
-            className="absolute"
-            style={{
-              width: 88,
-              height: 88,
-              bottom: -8,
-              left: "50%",
-              transform: "translateX(-50%)",
-              borderRadius: "50%",
-              background: "#161616",
-            }}
-          />
-        </div>
-
-        {/* Needle indicator dot at tip */}
-        <div
-          className="absolute"
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: "50%",
-            background: fillColor,
-            bottom: 0,
-            left: "50%",
-            transformOrigin: "50% calc(100% + 56px)",
-            transform: `translateX(-50%) rotate(${fillDeg - 90}deg)`,
-            transition: "transform 0.6s ease",
-          }}
-        />
-
-        {/* Center value */}
-        <div className="absolute inset-x-0 bottom-0 flex flex-col items-center">
-          <span
-            className="font-[family-name:var(--font-mono)] text-xl font-semibold leading-none"
-            style={{ color: fillColor }}
-          >
-            {value.toFixed(decimals)}
-            <span className="ml-0.5 text-sm font-normal">{unit}</span>
-          </span>
-        </div>
-      </div>
-
-      {/* Label */}
-      <span className="text-[11px] uppercase tracking-[1px] text-text-secondary">
-        {label}
-      </span>
-      <span className="text-[10px] text-text-muted">
-        Limit: {max.toFixed(decimals)}{unit}
-      </span>
-    </div>
-  );
-}
-
-/* ════════════════════════════════════════════════════════════════
-   Risk Status Badge
-   ════════════════════════════════════════════════════════════════ */
-
-type StatusLevel = "SAFE" | "WARNING" | "BREACH";
-
-function StatusBadge({ status }: { status: StatusLevel }) {
+function StatusBadge({ status }: { status: RiskStatus }) {
   return (
     <span
       className={cn(
-        "rounded-sm px-2 py-0.5 text-[10px] font-medium uppercase tracking-[1px]",
+        "inline-block px-2 py-0.5 text-[10px] font-medium uppercase tracking-[1px] rounded-sm",
         status === "SAFE" && "bg-pnl-positive/10 text-pnl-positive",
         status === "WARNING" && "bg-gold/10 text-gold",
         status === "BREACH" && "bg-pnl-negative/10 text-pnl-negative"
@@ -220,583 +56,518 @@ function StatusBadge({ status }: { status: StatusLevel }) {
   );
 }
 
-function getRiskStatus(value: number, limit: number, lowerIsBetter: boolean): StatusLevel {
-  if (lowerIsBetter) {
-    const pct = value / Math.abs(limit);
-    if (pct <= 0.7) return "SAFE";
-    if (pct <= 1.0) return "WARNING";
-    return "BREACH";
-  } else {
-    // higher is better (e.g. position count)
-    const pct = value / limit;
-    if (pct <= 0.5) return "SAFE";
-    if (pct <= 0.75) return "WARNING";
-    return "BREACH";
-  }
+function getGrossExposureStatus(value: number): RiskStatus {
+  if (value < 1) return "SAFE";
+  if (value <= 2) return "WARNING";
+  return "BREACH";
 }
 
-/* ════════════════════════════════════════════════════════════════
-   Exposure History Chart
-   ════════════════════════════════════════════════════════════════ */
-
-interface ExposureChartProps {
-  data: ExposureHistoryPoint[];
-  grossExposure: number;
-  netExposure: number;
+function getDrawdownStatus(value: number): RiskStatus {
+  if (value > -3) return "SAFE";
+  if (value >= -7) return "WARNING";
+  return "BREACH";
 }
 
-function ExposureChart({ data, grossExposure, netExposure }: ExposureChartProps) {
-  // If no historical data with real values, show a placeholder with current point
-  const hasRealData = data.some(
-    (d) => d.grossExposure !== null || d.netExposure !== null
-  );
+function getHoldingStatus(hours: number): RiskStatus {
+  if (hours < 12) return "SAFE";
+  if (hours <= 20) return "WARNING";
+  return "BREACH";
+}
 
-  const today = new Date().toISOString().slice(0, 10);
+function getPositionCountStatus(count: number): RiskStatus {
+  if (count < 3) return "SAFE";
+  if (count === 3) return "WARNING";
+  return "BREACH";
+}
 
-  // Build chart data: use real history where available, fallback to synthetic
-  const chartData = hasRealData
-    ? data.map((d) => ({
-        date: d.date.slice(5), // MM-DD
-        gross: d.grossExposure,
-        net: d.netExposure,
-      }))
-    : [
-        { date: today.slice(5), gross: grossExposure, net: netExposure },
-      ];
+function getGaugeColor(status: RiskStatus): string {
+  if (status === "SAFE") return "#4ade80"; // green
+  if (status === "WARNING") return "#C5A049"; // gold
+  return "#f87171"; // red
+}
 
-  const tooltipStyle = {
-    backgroundColor: "#161616",
-    border: "1px solid #333",
-    borderRadius: 2,
-    fontSize: 11,
-    color: "#e0e0e0",
-  };
+/* ═══════════════════════════════════════════════════════════════
+   Arc Gauge (CSS semicircle)
+   ═══════════════════════════════════════════════════════════════ */
+
+function ArcGauge({
+  value,
+  max,
+  label,
+  unit = "x",
+  status,
+}: {
+  value: number;
+  max: number;
+  label: string;
+  unit?: string;
+  status: RiskStatus;
+}) {
+  // Map value to rotation angle: 0 = -90deg (left), max = +90deg (right)
+  const ratio = Math.min(value / max, 1);
+  // -90deg to +90deg span = 180deg total; start at -90
+  const angle = -90 + ratio * 180;
+  const gaugeColor = getGaugeColor(status);
 
   return (
-    <ResponsiveContainer width="100%" height={160}>
-      <AreaChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-        <defs>
-          <linearGradient id="gradGross" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="#997B66" stopOpacity={0.3} />
-            <stop offset="95%" stopColor="#997B66" stopOpacity={0} />
-          </linearGradient>
-          <linearGradient id="gradNet" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="#C5A049" stopOpacity={0.2} />
-            <stop offset="95%" stopColor="#C5A049" stopOpacity={0} />
-          </linearGradient>
-        </defs>
-        <XAxis
-          dataKey="date"
-          tick={{ fontSize: 10, fill: "#555" }}
-          axisLine={false}
-          tickLine={false}
-          interval="preserveStartEnd"
-        />
-        <YAxis
-          tick={{ fontSize: 10, fill: "#555" }}
-          axisLine={false}
-          tickLine={false}
-          width={32}
-          tickFormatter={(v) => `${v.toFixed(1)}x`}
-        />
-        <ReferenceLine y={3} stroke="#EF4444" strokeDasharray="3 3" strokeOpacity={0.5} />
-        <Tooltip
-          contentStyle={tooltipStyle}
-          formatter={(value) => {
-            const v = value as number | null | undefined;
-            return v != null ? [`${v.toFixed(2)}x`] : ["—"];
+    <div className="flex flex-col items-center gap-2">
+      <div className="relative w-40 h-20 overflow-hidden">
+        {/* Background track */}
+        <div className="absolute inset-0 rounded-t-full border-4 border-border-subtle" />
+        {/* Filled arc */}
+        <div
+          className="absolute inset-0 rounded-t-full border-4 border-transparent"
+          style={{
+            borderTopColor: gaugeColor,
+            borderLeftColor: gaugeColor,
+            borderRightColor: gaugeColor,
+            transform: `rotate(${angle}deg)`,
+            clipPath: "inset(0 0 50% 0)",
+            transition: "transform 0.6s ease",
           }}
         />
-        <Area
-          type="monotone"
-          dataKey="gross"
-          name="Gross"
-          stroke="#997B66"
-          strokeWidth={1.5}
-          fill="url(#gradGross)"
-          connectNulls
-          dot={false}
-        />
-        <Area
-          type="monotone"
-          dataKey="net"
-          name="Net"
-          stroke="#C5A049"
-          strokeWidth={1.5}
-          fill="url(#gradNet)"
-          connectNulls
-          dot={false}
-        />
-      </AreaChart>
-    </ResponsiveContainer>
+        {/* Value display */}
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-center">
+          <span
+            className="font-[family-name:var(--font-mono)] text-2xl font-semibold"
+            style={{ color: gaugeColor }}
+          >
+            {value.toFixed(2)}{unit}
+          </span>
+        </div>
+      </div>
+      <span className="text-[11px] uppercase tracking-[2px] text-text-secondary">
+        {label}
+      </span>
+      <StatusBadge status={status} />
+    </div>
   );
 }
 
-/* ════════════════════════════════════════════════════════════════
-   Page
-   ════════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════
+   Stat Card
+   ═══════════════════════════════════════════════════════════════ */
 
-export default function RiskPage() {
-  const { data: metrics, error: metricsError, isLoading: metricsLoading } =
-    useSWR<RiskMetrics & { limits: RiskMetrics["limits"] }>(
-      "/api/bybit/risk-metrics",
-      fetcher,
-      { refreshInterval: 30_000 }
-    );
+function StatCard({
+  label,
+  value,
+  subValue,
+  status,
+}: {
+  label: string;
+  value: string;
+  subValue?: string;
+  status: RiskStatus;
+}) {
+  return (
+    <div className="rounded-sm border border-border-subtle bg-bg-card p-4 flex flex-col gap-2">
+      <SectionLabel>{label}</SectionLabel>
+      <div className="flex items-end justify-between">
+        <span
+          className="font-[family-name:var(--font-mono)] text-3xl font-semibold"
+          style={{ color: getGaugeColor(status) }}
+        >
+          {value}
+        </span>
+        {subValue && (
+          <span className="font-[family-name:var(--font-mono)] text-xs text-text-muted mb-1">
+            {subValue}
+          </span>
+        )}
+      </div>
+      <StatusBadge status={status} />
+    </div>
+  );
+}
 
-  const { data: historyData, isLoading: historyLoading } =
-    useSWR<ExposureHistoryResponse>(
-      "/api/bybit/exposure-history?days=30",
-      fetcher,
-      { refreshInterval: 60_000 }
-    );
+/* ═══════════════════════════════════════════════════════════════
+   Drawdown Bar
+   ═══════════════════════════════════════════════════════════════ */
 
-  const isLoading = metricsLoading;
+function DrawdownBar({ value, limit }: { value: number; limit: number }) {
+  // value is negative (e.g. -4.2), limit is negative (e.g. -10)
+  const status = getDrawdownStatus(value);
+  const fillPct = Math.min(Math.abs(value) / Math.abs(limit), 1) * 100;
+  const barColor = getGaugeColor(status);
 
-  if (metricsError) {
-    return (
-      <div>
-        <Header title="Risk Monitor" />
-        <div className="flex h-64 items-center justify-center text-sm text-pnl-negative">
-          Failed to load risk data — check API connectivity
+  // Zone markers at -3% and -7% relative to -10% limit
+  const zone1 = (3 / 10) * 100; // 30%
+  const zone2 = (7 / 10) * 100; // 70%
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <SectionLabel>Monthly Drawdown</SectionLabel>
+        <div className="flex items-center gap-3">
+          <span
+            className="font-[family-name:var(--font-mono)] text-xl font-semibold"
+            style={{ color: barColor }}
+          >
+            {value >= 0 ? "+" : ""}{value.toFixed(2)}%
+          </span>
+          <StatusBadge status={status} />
         </div>
+      </div>
+
+      {/* Bar */}
+      <div className="relative h-3 w-full rounded-sm bg-bg-elevated overflow-hidden">
+        <div
+          className="h-full rounded-sm transition-all duration-700"
+          style={{ width: `${fillPct}%`, backgroundColor: barColor }}
+        />
+        {/* Zone markers */}
+        <div
+          className="absolute top-0 bottom-0 w-px bg-gold/50"
+          style={{ left: `${zone1}%` }}
+        />
+        <div
+          className="absolute top-0 bottom-0 w-px bg-pnl-negative/50"
+          style={{ left: `${zone2}%` }}
+        />
+      </div>
+
+      {/* Zone labels */}
+      <div className="relative flex text-[10px] text-text-muted">
+        <span className="absolute" style={{ left: `${zone1}%`, transform: "translateX(-50%)" }}>
+          -3%
+        </span>
+        <span className="absolute" style={{ left: `${zone2}%`, transform: "translateX(-50%)" }}>
+          -7%
+        </span>
+        <span className="absolute right-0">Limit {limit}%</span>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Concentration Bars
+   ═══════════════════════════════════════════════════════════════ */
+
+function ConcentrationBars({
+  concentrations,
+}: {
+  concentrations: RiskMetrics["concentrations"];
+}) {
+  if (concentrations.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-20 text-text-muted text-sm">
+        No open positions
       </div>
     );
   }
+
+  return (
+    <div className="space-y-3">
+      {concentrations.map((c) => {
+        const isLong = c.side === "Buy";
+        const barColor = isLong ? "#C5A049" : "#997B66";
+        return (
+          <div key={c.symbol} className="space-y-1">
+            <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2">
+                <span className="font-[family-name:var(--font-mono)] text-text-primary">
+                  {c.symbol}
+                </span>
+                <span
+                  className={cn(
+                    "text-[10px] uppercase tracking-[1px]",
+                    isLong ? "text-pnl-positive" : "text-pnl-negative"
+                  )}
+                >
+                  {isLong ? "Long" : "Short"}
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="font-[family-name:var(--font-mono)] text-text-secondary">
+                  {(c.exposure * 100).toFixed(1)}% equity
+                </span>
+                <span className="font-[family-name:var(--font-mono)] text-text-muted">
+                  {(c.weight * 100).toFixed(1)}% portfolio
+                </span>
+              </div>
+            </div>
+            <div className="h-1.5 w-full rounded-sm bg-bg-elevated overflow-hidden">
+              <div
+                className="h-full rounded-sm transition-all duration-700"
+                style={{
+                  width: `${Math.min(c.weight * 100, 100)}%`,
+                  backgroundColor: barColor,
+                }}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Risk Parameters Table
+   ═══════════════════════════════════════════════════════════════ */
+
+interface RiskParamRow {
+  label: string;
+  limit: string;
+  current: string;
+  status: RiskStatus;
+}
+
+function RiskParamsTable({ rows }: { rows: RiskParamRow[] }) {
+  return (
+    <div className="overflow-hidden rounded-sm border border-border-subtle bg-bg-card">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-border-subtle bg-bg-elevated">
+            <th className="px-4 py-2.5 text-left text-[11px] uppercase tracking-[1px] text-text-secondary font-normal">
+              Parameter
+            </th>
+            <th className="px-4 py-2.5 text-right text-[11px] uppercase tracking-[1px] text-text-secondary font-normal">
+              Limit
+            </th>
+            <th className="px-4 py-2.5 text-right text-[11px] uppercase tracking-[1px] text-text-secondary font-normal">
+              Current
+            </th>
+            <th className="px-4 py-2.5 text-right text-[11px] uppercase tracking-[1px] text-text-secondary font-normal">
+              Status
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr
+              key={row.label}
+              className="border-b border-border-subtle last:border-0 transition-colors hover:bg-bg-elevated"
+            >
+              <td className="px-4 py-3 text-text-secondary">{row.label}</td>
+              <td className="px-4 py-3 text-right font-[family-name:var(--font-mono)] text-text-muted">
+                {row.limit}
+              </td>
+              <td className="px-4 py-3 text-right font-[family-name:var(--font-mono)] text-text-primary">
+                {row.current}
+              </td>
+              <td className="px-4 py-3 text-right">
+                <StatusBadge status={row.status} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Page
+   ═══════════════════════════════════════════════════════════════ */
+
+export default function RiskPage() {
+  const [data, setData] = useState<RiskMetrics | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    fetch("/api/bybit/risk-metrics")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.error) throw new Error(d.error);
+        setData(d);
+      })
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  // Derive statuses
+  const grossStatus = data ? getGrossExposureStatus(data.grossExposure) : "SAFE";
+  const netStatus = data ? getGrossExposureStatus(Math.abs(data.netExposure)) : "SAFE";
+  const drawdownStatus = data ? getDrawdownStatus(data.monthlyDrawdown) : "SAFE";
+  const holdingStatus = data ? getHoldingStatus(data.longestHoldingHours) : "SAFE";
+  const posCountStatus = data ? getPositionCountStatus(data.positionCount) : "SAFE";
+
+  const riskParamRows: RiskParamRow[] = data
+    ? [
+        {
+          label: "Max Gross Exposure",
+          limit: `×${data.maxGrossLimit.toFixed(1)}`,
+          current: `×${data.grossExposure.toFixed(2)}`,
+          status: grossStatus,
+        },
+        {
+          label: "Monthly Drawdown",
+          limit: `${data.monthlyDrawdownLimit}%`,
+          current: `${data.monthlyDrawdown >= 0 ? "+" : ""}${data.monthlyDrawdown.toFixed(2)}%`,
+          status: drawdownStatus,
+        },
+        {
+          label: "Max Holding Period",
+          limit: `${data.maxHoldingHours}h`,
+          current: `${data.longestHoldingHours.toFixed(1)}h`,
+          status: holdingStatus,
+        },
+        {
+          label: "Position Count",
+          limit: `${data.maxPositions}`,
+          current: `${data.positionCount}`,
+          status: posCountStatus,
+        },
+      ]
+    : [];
 
   return (
     <div>
       <Header title="Risk Monitor" />
-      <div className="space-y-8 p-6">
+      <div className="p-6 space-y-10">
 
-        {/* ── A. Exposure Dashboard ── */}
-        <section>
-          <SectionLabel>Exposure Dashboard</SectionLabel>
-          <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
-            {isLoading ? (
-              <>
-                <SkeletonCard />
-                <SkeletonCard />
-                <SkeletonCard />
-                <SkeletonCard />
-              </>
-            ) : metrics ? (
-              <>
-                {/* Gross Exposure Gauge */}
-                <div className="flex flex-col items-center rounded-sm border border-border-subtle bg-bg-card p-5">
-                  <Gauge
-                    value={metrics.grossExposure}
-                    max={metrics.limits.maxGrossExposure}
+        {loading && (
+          <div className="flex items-center justify-center h-48 text-text-muted text-sm">
+            Calculating risk metrics...
+          </div>
+        )}
+
+        {error && (
+          <div className="flex items-center justify-center h-48 text-pnl-negative text-sm">
+            {error}
+          </div>
+        )}
+
+        {!loading && !error && data && (
+          <>
+            {/* ── A. Exposure Dashboard ── */}
+            <section>
+              <SectionLabel>Exposure Dashboard</SectionLabel>
+              <p className="mt-1 text-xs text-text-muted">
+                Portfolio leverage relative to equity — limit ×{data.maxGrossLimit.toFixed(1)}
+              </p>
+              <div className="mt-4 rounded-sm border border-border-subtle bg-bg-card p-6">
+                <div className="flex flex-wrap items-center justify-center gap-12">
+                  <ArcGauge
+                    value={data.grossExposure}
+                    max={data.maxGrossLimit}
                     label="Gross Exposure"
                     unit="x"
-                    decimals={2}
+                    status={grossStatus}
+                  />
+                  <ArcGauge
+                    value={Math.abs(data.netExposure)}
+                    max={data.maxGrossLimit}
+                    label="Net Exposure"
+                    unit="x"
+                    status={netStatus}
                   />
                 </div>
-
-                {/* Net Exposure */}
-                <div className="rounded-sm border border-border-subtle bg-bg-card p-5">
-                  <div className="text-[11px] uppercase tracking-[1px] text-text-muted">
-                    Net Exposure
-                  </div>
-                  <div
+                {/* Net direction note */}
+                <div className="mt-4 flex items-center justify-center gap-1 text-xs text-text-muted">
+                  <span>Net direction:</span>
+                  <span
                     className={cn(
-                      "mt-3 font-[family-name:var(--font-mono)] text-3xl font-semibold",
-                      metrics.netExposure > 0
-                        ? "text-pnl-positive"
-                        : metrics.netExposure < 0
-                        ? "text-pnl-negative"
-                        : "text-text-secondary"
+                      "font-[family-name:var(--font-mono)] font-medium",
+                      data.netExposure >= 0 ? "text-pnl-positive" : "text-pnl-negative"
                     )}
                   >
-                    {metrics.netExposure >= 0 ? "+" : ""}
-                    {(metrics.netExposure * 100).toFixed(1)}%
-                  </div>
-                  <div className="mt-1 text-[10px] text-text-muted">
-                    Long vs Short imbalance
-                  </div>
+                    {data.netExposure >= 0 ? "Long" : "Short"}{" "}
+                    {(Math.abs(data.netExposure) * 100).toFixed(1)}%
+                  </span>
                 </div>
-
-                {/* Position Count */}
-                <div className="rounded-sm border border-border-subtle bg-bg-card p-5">
-                  <div className="text-[11px] uppercase tracking-[1px] text-text-muted">
-                    Position Count
-                  </div>
-                  <div className="mt-3 flex items-end gap-1">
-                    <span
-                      className={cn(
-                        "font-[family-name:var(--font-mono)] text-3xl font-semibold",
-                        metrics.positionCount >= metrics.maxPositions
-                          ? "text-pnl-negative"
-                          : "text-text-primary"
-                      )}
-                    >
-                      {metrics.positionCount}
-                    </span>
-                    <span className="mb-1 font-[family-name:var(--font-mono)] text-base text-text-muted">
-                      / {metrics.maxPositions}
-                    </span>
-                  </div>
-                  {/* Progress bar */}
-                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-bg-elevated">
-                    <div
-                      className={cn(
-                        "h-full rounded-full transition-all",
-                        metrics.positionCount >= metrics.maxPositions
-                          ? "bg-pnl-negative"
-                          : "bg-bronze"
-                      )}
-                      style={{
-                        width: `${(metrics.positionCount / metrics.maxPositions) * 100}%`,
-                      }}
-                    />
-                  </div>
-                  <div className="mt-1 text-[10px] text-text-muted">
-                    Max {metrics.maxPositions} concurrent
-                  </div>
-                </div>
-
-                {/* Avg Leverage */}
-                <div className="rounded-sm border border-border-subtle bg-bg-card p-5">
-                  <div className="text-[11px] uppercase tracking-[1px] text-text-muted">
-                    Avg Leverage
-                  </div>
-                  <div className="mt-3 font-[family-name:var(--font-mono)] text-3xl font-semibold text-text-primary">
-                    {metrics.avgLeverage > 0
-                      ? `${metrics.avgLeverage.toFixed(1)}x`
-                      : "—"}
-                  </div>
-                  <div className="mt-1 text-[10px] text-text-muted">
-                    Weighted by position size
-                  </div>
-                </div>
-              </>
-            ) : null}
-          </div>
-        </section>
-
-        {/* ── B. Monthly Drawdown Tracker ── */}
-        <section>
-          <SectionLabel>Monthly Drawdown Tracker</SectionLabel>
-          <div className="mt-4 rounded-sm border border-border-subtle bg-bg-card p-5">
-            {isLoading ? (
-              <div className="h-16 animate-pulse rounded bg-bg-elevated" />
-            ) : metrics ? (
-              <MonthlyDrawdownTracker
-                drawdown={metrics.monthlyDrawdown}
-                limit={metrics.limits.maxMonthlyDrawdown}
-              />
-            ) : null}
-          </div>
-        </section>
-
-        {/* ── Exposure History Chart ── */}
-        <section>
-          <div className="flex items-center justify-between">
-            <SectionLabel>Exposure History (30d)</SectionLabel>
-            <div className="flex items-center gap-4 text-[10px]">
-              <span className="flex items-center gap-1.5">
-                <span className="inline-block h-0.5 w-3 bg-bronze" />
-                Gross
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="inline-block h-0.5 w-3 bg-gold" />
-                Net
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="inline-block h-0.5 w-3 border-t border-dashed border-pnl-negative" />
-                x3 Limit
-              </span>
-            </div>
-          </div>
-          <div className="mt-4 rounded-sm border border-border-subtle bg-bg-card p-5">
-            {historyLoading || isLoading ? (
-              <div className="flex h-40 items-center justify-center">
-                <div className="h-40 w-full animate-pulse rounded bg-bg-elevated" />
               </div>
-            ) : metrics ? (
-              <ExposureChart
-                data={historyData?.history ?? []}
-                grossExposure={metrics.grossExposure}
-                netExposure={metrics.netExposure}
-              />
-            ) : null}
-          </div>
-        </section>
+            </section>
 
-        {/* ── C. Position Concentration ── */}
-        <section>
-          <SectionLabel>Position Concentration</SectionLabel>
-          <div className="mt-4 rounded-sm border border-border-subtle bg-bg-card p-5">
-            {isLoading ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-8 animate-pulse rounded bg-bg-elevated" />
-                ))}
+            {/* ── B. Position Count + Avg Leverage ── */}
+            <section>
+              <SectionLabel>Position Metrics</SectionLabel>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <StatCard
+                  label="Position Count"
+                  value={`${data.positionCount} / ${data.maxPositions}`}
+                  status={posCountStatus}
+                />
+                <StatCard
+                  label="Avg Leverage"
+                  value={`×${data.avgLeverage.toFixed(2)}`}
+                  subValue="weighted"
+                  status={
+                    data.avgLeverage < 5
+                      ? "SAFE"
+                      : data.avgLeverage < 8
+                      ? "WARNING"
+                      : "BREACH"
+                  }
+                />
               </div>
-            ) : !metrics || metrics.concentrations.length === 0 ? (
-              <div className="flex h-24 items-center justify-center text-sm text-text-muted">
-                No open positions
+            </section>
+
+            {/* ── C. Monthly Drawdown Tracker ── */}
+            <section>
+              <div className="rounded-sm border border-border-subtle bg-bg-card p-5">
+                <DrawdownBar
+                  value={data.monthlyDrawdown}
+                  limit={data.monthlyDrawdownLimit}
+                />
+                <p className="mt-4 text-xs text-text-muted">
+                  MTD performance vs. month-open equity snapshot.
+                  Strategy halt threshold at {data.monthlyDrawdownLimit}%.
+                </p>
               </div>
-            ) : (
-              <div className="space-y-3">
-                {metrics.concentrations.map((c) => (
-                  <ConcentrationBar key={c.symbol} symbol={c.symbol} weight={c.weight} />
-                ))}
+            </section>
+
+            {/* ── D. Position Concentration ── */}
+            <section>
+              <SectionLabel>Position Concentration</SectionLabel>
+              <p className="mt-1 text-xs text-text-muted">
+                Weight within gross portfolio and equity exposure per symbol
+              </p>
+              <div className="mt-3 rounded-sm border border-border-subtle bg-bg-card p-5">
+                <ConcentrationBars concentrations={data.concentrations} />
               </div>
-            )}
-          </div>
-        </section>
+            </section>
 
-        {/* ── D. Risk Parameters Status ── */}
-        <section>
-          <SectionLabel>Risk Parameters Status</SectionLabel>
-          <div className="mt-4 overflow-hidden rounded-sm border border-border-subtle bg-bg-card">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border-subtle bg-bg-elevated">
-                  <th className="px-4 py-3 text-left text-[11px] font-normal uppercase tracking-[1px] text-text-secondary">
-                    Parameter
-                  </th>
-                  <th className="px-4 py-3 text-right text-[11px] font-normal uppercase tracking-[1px] text-text-secondary">
-                    Limit
-                  </th>
-                  <th className="px-4 py-3 text-right text-[11px] font-normal uppercase tracking-[1px] text-text-secondary">
-                    Current
-                  </th>
-                  <th className="px-4 py-3 text-right text-[11px] font-normal uppercase tracking-[1px] text-text-secondary">
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {isLoading ? (
-                  <tr>
-                    <td colSpan={4} className="px-4 py-6">
-                      <div className="h-24 animate-pulse rounded bg-bg-elevated" />
-                    </td>
-                  </tr>
-                ) : metrics ? (
-                  <>
-                    {/* Max Gross Exposure */}
-                    <RiskParamRow
-                      name="Max Gross Exposure"
-                      limit={`x${metrics.limits.maxGrossExposure.toFixed(1)}`}
-                      current={`x${metrics.grossExposure.toFixed(2)}`}
-                      status={getRiskStatus(
-                        metrics.grossExposure,
-                        metrics.limits.maxGrossExposure,
-                        true
-                      )}
-                    />
-                    {/* Monthly Drawdown */}
-                    <RiskParamRow
-                      name="Monthly Drawdown"
-                      limit={`${(metrics.limits.maxMonthlyDrawdown * 100).toFixed(0)}%`}
-                      current={`${(metrics.monthlyDrawdown * 100).toFixed(2)}%`}
-                      status={
-                        metrics.monthlyDrawdown <= metrics.limits.maxMonthlyDrawdown
-                          ? "BREACH"
-                          : metrics.monthlyDrawdown <= metrics.limits.maxMonthlyDrawdown * 0.7
-                          ? "WARNING"
-                          : "SAFE"
-                      }
-                    />
-                    {/* Max Holding Time */}
-                    <RiskParamRow
-                      name="Longest Holding Time"
-                      limit={`${metrics.limits.maxHoldingHours}h`}
-                      current={
-                        metrics.longestHoldingHours > 0
-                          ? `${metrics.longestHoldingHours.toFixed(1)}h`
-                          : "—"
-                      }
-                      status={
-                        metrics.longestHoldingHours === 0
-                          ? "SAFE"
-                          : metrics.longestHoldingHours >= metrics.limits.maxHoldingHours
-                          ? "BREACH"
-                          : metrics.longestHoldingHours >= metrics.limits.maxHoldingHours * 0.75
-                          ? "WARNING"
-                          : "SAFE"
-                      }
-                      isLast
-                    />
-                  </>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-        </section>
+            {/* ── E. Risk Parameters Status ── */}
+            <section>
+              <SectionLabel>Risk Parameters Status</SectionLabel>
+              <div className="mt-3">
+                <RiskParamsTable rows={riskParamRows} />
+              </div>
 
-      </div>
-    </div>
-  );
-}
-
-/* ════════════════════════════════════════════════════════════════
-   Sub-components
-   ════════════════════════════════════════════════════════════════ */
-
-function MonthlyDrawdownTracker({
-  drawdown,
-  limit,
-}: {
-  drawdown: number;
-  limit: number; // negative number e.g. -0.10
-}) {
-  // drawdown is negative for loss; limit is negative threshold
-  const dd = drawdown * 100; // as percentage
-  const lim = limit * 100;   // as percentage, negative
-
-  // pct filled = how far into the limit we are (0 to 1)
-  // dd is 0 or negative; lim is negative
-  const pct = dd <= 0 ? Math.min(Math.abs(dd) / Math.abs(lim), 1) : 0;
-
-  const isBreached = drawdown <= limit;
-  const isWarning = !isBreached && pct >= 0.7;
-
-  const barColor = isBreached
-    ? "bg-pnl-negative"
-    : isWarning
-    ? "bg-gold"
-    : "bg-bronze";
-
-  return (
-    <div>
-      <div className="flex items-center justify-between">
-        <div>
-          <span
-            className={cn(
-              "font-[family-name:var(--font-mono)] text-2xl font-semibold",
-              isBreached
-                ? "text-pnl-negative"
-                : isWarning
-                ? "text-gold"
-                : dd < 0
-                ? "text-text-primary"
-                : "text-pnl-positive"
-            )}
-          >
-            {dd >= 0 ? "+" : ""}{dd.toFixed(2)}%
-          </span>
-          <span className="ml-2 text-[11px] text-text-muted">this month</span>
-        </div>
-        <div className="text-right">
-          <span className="text-[11px] uppercase tracking-[1px] text-text-muted">
-            Limit
-          </span>
-          <div className="font-[family-name:var(--font-mono)] text-sm text-text-secondary">
-            {lim.toFixed(0)}%
-          </div>
-        </div>
-      </div>
-
-      {/* Progress bar */}
-      <div className="relative mt-4">
-        <div className="h-2 overflow-hidden rounded-full bg-bg-elevated">
-          <div
-            className={cn("h-full rounded-full transition-all duration-500", barColor)}
-            style={{ width: `${pct * 100}%` }}
-          />
-        </div>
-        {/* Tick marks at 25%, 50%, 75%, 100% */}
-        <div className="pointer-events-none absolute inset-0 flex items-center">
-          {[0.25, 0.5, 0.75].map((t) => (
-            <div
-              key={t}
-              className="absolute h-3 w-px bg-bg-primary"
-              style={{ left: `${t * 100}%` }}
-            />
-          ))}
-        </div>
-      </div>
-
-      <div className="mt-2 flex items-center justify-between text-[10px] text-text-muted">
-        <span>0%</span>
-        <span>{(lim / 2).toFixed(0)}%</span>
-        <span>{lim.toFixed(0)}%</span>
-      </div>
-
-      {isBreached && (
-        <div className="mt-3 flex items-center gap-2 rounded-sm border border-pnl-negative/30 bg-pnl-negative/5 px-3 py-2">
-          <span className="h-1.5 w-1.5 rounded-full bg-pnl-negative" />
-          <span className="text-[11px] text-pnl-negative">
-            Monthly drawdown limit breached — review strategy exposure
-          </span>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ConcentrationBar({
-  symbol,
-  weight,
-}: {
-  symbol: string;
-  weight: number;
-}) {
-  const pct = weight * 100;
-  const isConcentrated = pct > 50;
-
-  return (
-    <div className="flex items-center gap-3">
-      <span className="w-16 shrink-0 font-[family-name:var(--font-mono)] text-xs font-medium text-text-primary">
-        {symbol}
-      </span>
-      <div className="flex-1">
-        <div className="h-5 overflow-hidden rounded-sm bg-bg-elevated">
-          <div
-            className={cn(
-              "h-full rounded-sm transition-all duration-500",
-              isConcentrated ? "bg-gold/60" : "bg-bronze/60"
-            )}
-            style={{ width: `${pct}%` }}
-          />
-        </div>
-      </div>
-      <span
-        className={cn(
-          "w-12 text-right font-[family-name:var(--font-mono)] text-xs",
-          isConcentrated ? "text-gold" : "text-text-secondary"
+              {/* Overall status banner */}
+              {(() => {
+                const statuses = riskParamRows.map((r) => r.status);
+                const hasBreach = statuses.includes("BREACH");
+                const hasWarning = statuses.includes("WARNING");
+                const overall: RiskStatus = hasBreach
+                  ? "BREACH"
+                  : hasWarning
+                  ? "WARNING"
+                  : "SAFE";
+                const messages: Record<RiskStatus, string> = {
+                  SAFE: "All risk parameters within acceptable bounds.",
+                  WARNING: "One or more parameters approaching limit — monitor closely.",
+                  BREACH: "Risk limit breached — review and reduce exposure immediately.",
+                };
+                const borderColors: Record<RiskStatus, string> = {
+                  SAFE: "border-pnl-positive",
+                  WARNING: "border-gold",
+                  BREACH: "border-pnl-negative",
+                };
+                return (
+                  <div
+                    className={cn(
+                      "mt-3 rounded-sm border-l-2 bg-bg-elevated px-5 py-4",
+                      borderColors[overall]
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <StatusBadge status={overall} />
+                      <p className="text-xs text-text-secondary">{messages[overall]}</p>
+                    </div>
+                  </div>
+                );
+              })()}
+            </section>
+          </>
         )}
-      >
-        {pct.toFixed(1)}%
-      </span>
+      </div>
     </div>
-  );
-}
-
-function RiskParamRow({
-  name,
-  limit,
-  current,
-  status,
-  isLast = false,
-}: {
-  name: string;
-  limit: string;
-  current: string;
-  status: StatusLevel;
-  isLast?: boolean;
-}) {
-  return (
-    <tr
-      className={cn(
-        "transition-colors hover:bg-bg-elevated",
-        !isLast && "border-b border-border-subtle"
-      )}
-    >
-      <td className="px-4 py-3 text-sm text-text-secondary">{name}</td>
-      <td className="px-4 py-3 text-right font-[family-name:var(--font-mono)] text-sm text-text-muted">
-        {limit}
-      </td>
-      <td className="px-4 py-3 text-right font-[family-name:var(--font-mono)] text-sm text-text-primary">
-        {current}
-      </td>
-      <td className="px-4 py-3 text-right">
-        <StatusBadge status={status} />
-      </td>
-    </tr>
   );
 }
