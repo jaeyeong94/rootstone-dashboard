@@ -45,6 +45,7 @@ export function PerformanceChart() {
     >["addLineSeries"]
   > | null>(null);
   const [period, setPeriod] = useState<Period>("ALL");
+  const [chartReady, setChartReady] = useState(false);
 
   const { data: curveData, isLoading: curveLoading } = useSWR(
     "/api/bybit/equity-curve",
@@ -115,6 +116,7 @@ export function PerformanceChart() {
       chartRef.current = chart;
       strategySeriesRef.current = strategySeries;
       benchmarkSeriesRef.current = benchmarkSeries;
+      setChartReady(true);
 
       const handleResize = () => {
         if (chartContainerRef.current) {
@@ -131,13 +133,14 @@ export function PerformanceChart() {
         chartRef.current = null;
         strategySeriesRef.current = null;
         benchmarkSeriesRef.current = null;
+        setChartReady(false);
       }
     };
   }, []);
 
   // Update data when data or period changes
   useEffect(() => {
-    if (!strategySeriesRef.current) return;
+    if (!chartReady || !strategySeriesRef.current) return;
 
     const curve: EquityCurvePoint[] = curveData?.curve ?? [];
     const benchmark: BenchmarkPoint[] = benchmarkData?.series ?? [];
@@ -154,7 +157,7 @@ export function PerformanceChart() {
     );
 
     chartRef.current?.timeScale().fitContent();
-  }, [curveData, benchmarkData, period]);
+  }, [curveData, benchmarkData, period, chartReady]);
 
   return (
     <div className="rounded-sm border border-border-subtle bg-bg-card p-6">

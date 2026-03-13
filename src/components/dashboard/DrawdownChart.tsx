@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 import type { DrawdownPoint } from "@/types";
 
@@ -10,6 +10,7 @@ export function DrawdownChart() {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ReturnType<typeof import("lightweight-charts").createChart> | null>(null);
   const seriesRef = useRef<ReturnType<ReturnType<typeof import("lightweight-charts").createChart>["addAreaSeries"]> | null>(null);
+  const [chartReady, setChartReady] = useState(false);
 
   const { data, isLoading } = useSWR("/api/bybit/drawdown", fetcher, {
     refreshInterval: 300000,
@@ -59,6 +60,7 @@ export function DrawdownChart() {
 
       chartRef.current = chart;
       seriesRef.current = series;
+      setChartReady(true);
 
       const handleResize = () => {
         if (chartContainerRef.current) {
@@ -74,12 +76,13 @@ export function DrawdownChart() {
         chartRef.current.remove();
         chartRef.current = null;
         seriesRef.current = null;
+        setChartReady(false);
       }
     };
   }, []);
 
   useEffect(() => {
-    if (!seriesRef.current || !data?.series?.length) return;
+    if (!chartReady || !seriesRef.current || !data?.series?.length) return;
 
     const series: DrawdownPoint[] = data.series;
     seriesRef.current.setData(
@@ -104,7 +107,7 @@ export function DrawdownChart() {
     }
 
     chartRef.current?.timeScale().fitContent();
-  }, [data]);
+  }, [data, chartReady]);
 
   return (
     <div className="rounded-sm border border-border-subtle bg-bg-card p-5">
