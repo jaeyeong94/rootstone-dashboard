@@ -47,6 +47,12 @@ next-env.d.ts
 
 # OMC state
 .omc/
+.agents/
+.playwright-mcp/
+
+# screenshots
+*.png
+*.jpg
 
 # reference files
 /ref/
