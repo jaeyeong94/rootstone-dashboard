@@ -186,3 +186,19 @@ body {
 .heatmap-cell:hover {
   opacity: 0.8;
 }
+
+/* Section reveal animation */
+.section-hidden {
+  opacity: 0;
+  transform: translateY(20px);
+}
+.section-visible {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
