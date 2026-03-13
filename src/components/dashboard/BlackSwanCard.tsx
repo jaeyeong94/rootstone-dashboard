@@ -18,7 +18,7 @@ function EventRow({ e }: { e: BlackSwanEvent }) {
         <p className="text-sm text-text-primary">{e.event}</p>
         <p className="text-[10px] text-text-muted">{e.period}</p>
       </div>
-      <div className="shrink-0 text-right">
+      <div className="w-16 shrink-0 text-center">
         <span
           className={cn(
             "font-[family-name:var(--font-mono)] text-xs",
@@ -28,7 +28,7 @@ function EventRow({ e }: { e: BlackSwanEvent }) {
           {e.rebeta}
         </span>
       </div>
-      <div className="shrink-0 text-right">
+      <div className="w-16 shrink-0 text-center">
         <span
           className={cn(
             "font-[family-name:var(--font-mono)] text-xs",
@@ -38,7 +38,7 @@ function EventRow({ e }: { e: BlackSwanEvent }) {
           {e.btc}
         </span>
       </div>
-      <div className="shrink-0 text-right">
+      <div className="w-20 shrink-0 text-center">
         <span className="font-[family-name:var(--font-mono)] text-xs font-semibold text-text-primary">
           {e.alpha}
         </span>
@@ -79,13 +79,13 @@ export function BlackSwanCard() {
         <div className="min-w-0 flex-1 text-[10px] uppercase tracking-[1px] text-text-secondary">
           Event
         </div>
-        <div className="shrink-0 text-right text-[10px] uppercase tracking-[1px] text-text-secondary">
+        <div className="w-16 shrink-0 text-center text-[10px] uppercase tracking-[1px] text-text-secondary">
           Rebeta
         </div>
-        <div className="shrink-0 text-right text-[10px] uppercase tracking-[1px] text-text-secondary">
+        <div className="w-16 shrink-0 text-center text-[10px] uppercase tracking-[1px] text-text-secondary">
           BTC
         </div>
-        <div className="shrink-0 text-right text-[10px] uppercase tracking-[1px] text-text-secondary">
+        <div className="w-20 shrink-0 text-center text-[10px] uppercase tracking-[1px] text-text-secondary">
           Alpha
         </div>
       </div>
