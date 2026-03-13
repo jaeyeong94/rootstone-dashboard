@@ -82,7 +82,7 @@ export function HeroZone() {
         }}
       />
 
-      <div className="relative z-10 flex flex-1 flex-col justify-center px-6 pt-6 lg:px-12">
+      <div className="relative z-10 flex flex-1 flex-col justify-center px-6 pt-6 xl:px-12">
         {/* 서브타이틀 */}
         <p className="text-[11px] uppercase tracking-[2px] text-bronze/70">
           Rebeta v1~v3.1 · Algorithmic Strategy
@@ -92,7 +92,7 @@ export function HeroZone() {
         <div className="mt-4">
           <span
             className={cn(
-              "font-[family-name:var(--font-mono)] text-5xl font-medium leading-none lg:text-6xl",
+              "font-[family-name:var(--font-mono)] text-5xl font-medium leading-none xl:text-6xl",
               curve.length > 0 ? getPnlColor(lastValue) : "text-text-muted",
               "glow-gold"
             )}
@@ -106,7 +106,7 @@ export function HeroZone() {
         </div>
 
         {/* KPI 카드 */}
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="mt-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
           {kpis.map((kpi, i) => (
             <div
               key={kpi.label}

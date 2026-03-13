@@ -326,7 +326,7 @@ export default function ReportsPage() {
               <p className="mt-1 text-xs text-text-muted font-[family-name:var(--font-mono)]">
                 {report.period.start} — {report.period.end}
               </p>
-              <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+              <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
                 <MetricCard
                   label="Period Return"
                   value={`${report.totalReturn >= 0 ? "+" : ""}${report.totalReturn.toFixed(2)}%`}
@@ -485,7 +485,7 @@ export default function ReportsPage() {
             {(report.topWins.length > 0 || report.topLosses.length > 0) && (
               <div>
                 <SectionLabel>Trade Highlights</SectionLabel>
-                <div className="mt-3 grid gap-4 lg:grid-cols-2">
+                <div className="mt-3 grid gap-4 xl:grid-cols-2">
                   {/* Top Wins */}
                   <div>
                     <div className="mb-2 text-[11px] uppercase tracking-[1px] text-pnl-positive">

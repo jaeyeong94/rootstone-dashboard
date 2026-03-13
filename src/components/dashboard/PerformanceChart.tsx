@@ -66,26 +66,31 @@ export function PerformanceChart() {
     []
   );
 
-  // Split static data into v1 portion, and merge v3.1 live data
+  // Split static data into v1 portion, and merge v3.1 with live extension
   const { v1Data, v31Data } = useMemo(() => {
     const typed = staticCurve as { time: string; value: number }[];
     const v1 = typed.filter((p) => p.time < V31_START);
+    const v31Static = typed.filter((p) => p.time >= V31_START);
 
-    // v3.1: prefer live DB data, fall back to static if unavailable
+    // Use static tearsheet data as primary, extend with live data for newer dates
     const liveCurve: EquityCurvePoint[] = curveData?.curve ?? [];
-    if (liveCurve.length > 0) {
-      // Live data is relative to its own start (0%). Rebase to continue from v1's end.
-      const v1EndValue = v1.length > 0 ? v1[v1.length - 1].value : 0;
-      const liveStart = liveCurve[0].value;
-      const rebased = liveCurve.map((p) => ({
+    const staticEndDate = v31Static.length > 0 ? v31Static[v31Static.length - 1].time : "";
+    const liveAfterStatic = liveCurve.filter((p) => p.time > staticEndDate);
+
+    if (liveAfterStatic.length > 0) {
+      // Rebase live extension to continue from static data's end using compound returns
+      const staticEndValue = v31Static[v31Static.length - 1].value;
+      const staticEndMultiplier = 1 + staticEndValue / 100;
+      // Find the live data point closest to static end to use as the live baseline
+      const liveAtStaticEnd = liveCurve.find((p) => p.time >= staticEndDate);
+      const liveBaseline = liveAtStaticEnd?.value ?? liveAfterStatic[0].value;
+      const extension = liveAfterStatic.map((p) => ({
         time: p.time,
-        value: v1EndValue + (p.value - liveStart),
+        value: (staticEndMultiplier * (1 + (p.value - liveBaseline) / 100) - 1) * 100,
       }));
-      return { v1Data: v1, v31Data: rebased };
+      return { v1Data: v1, v31Data: [...v31Static, ...extension] };
     }
 
-    // Fallback: use static data for v3.1 portion
-    const v31Static = typed.filter((p) => p.time >= V31_START);
     return { v1Data: v1, v31Data: v31Static };
   }, [curveData]);
 

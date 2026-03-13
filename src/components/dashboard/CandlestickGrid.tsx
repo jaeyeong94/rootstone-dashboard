@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import { useTickerStore } from "@/stores/useTickerStore";
+import { useOrdersStore } from "@/stores/useOrdersStore";
 import { cn, formatNumber, getPnlColor } from "@/lib/utils";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -77,15 +78,14 @@ function SingleCandleChart({
     { refreshInterval: 300000 }
   );
 
-  const { data: ordersData } = useSWR(
-    `/api/bybit/orders?symbol=${symbol}`,
-    fetcher,
-    { refreshInterval: 30000 }
-  );
+  const allOrders = useOrdersStore((s) => s.orders);
 
   const livePrice = useTickerStore((s) => s.getPrice(symbol));
   const points: KlinePoint[] = useMemo(() => data?.points ?? [], [data]);
-  const orders: OpenOrder[] = useMemo(() => ordersData?.orders ?? [], [ordersData]);
+  const orders: OpenOrder[] = useMemo(
+    () => allOrders.filter((o) => o.symbol === symbol),
+    [allOrders, symbol]
+  );
 
   const firstClose = points.length > 0 ? points[0].close : 0;
   const lastClose = livePrice

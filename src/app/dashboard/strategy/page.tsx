@@ -203,7 +203,7 @@ export default function StrategyPage() {
           </p>
 
           {/* Hero Metric Strip */}
-          <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
             {getHeroMetrics().map((m) => (
               <div key={m.label} className="rounded-sm border border-border-subtle bg-bg-card p-4">
                 <div className="font-[family-name:var(--font-mono)] text-2xl font-semibold text-text-primary">
@@ -311,7 +311,7 @@ export default function StrategyPage() {
           </div>
 
           {/* Crisis Summary Stats */}
-          <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="mt-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
             {crisisStats.map((s) => (
               <div key={s.label} className="rounded-sm border border-border-subtle bg-bg-card p-4 text-center">
                 <div className="font-[family-name:var(--font-mono)] text-xl font-semibold text-text-primary">
@@ -374,7 +374,7 @@ export default function StrategyPage() {
             Independently Optimized, Independently Validated
           </p>
 
-          <div className="mt-6 grid gap-3 lg:grid-cols-2">
+          <div className="mt-6 grid gap-3 xl:grid-cols-2">
             {architectureStages.map((s) => (
               <div
                 key={s.stage}
@@ -418,7 +418,7 @@ export default function StrategyPage() {
             Three Market States, Three Strategy Profiles
           </h3>
 
-          <div className="mt-6 grid gap-3 lg:grid-cols-3">
+          <div className="mt-6 grid gap-3 xl:grid-cols-3">
             {regimes.map((r) => (
               <div
                 key={r.name}
@@ -576,7 +576,7 @@ export default function StrategyPage() {
             How We Manage Infrastructure
           </h3>
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {infra.map((i) => (
               <div key={i.title} className="rounded-sm border border-border-subtle bg-bg-card p-5">
                 <h4 className="text-sm font-medium text-text-primary">{i.title}</h4>
@@ -590,7 +590,7 @@ export default function StrategyPage() {
         <div>
           <SectionLabel>Strategy Details</SectionLabel>
           <div className="mt-4 rounded-sm border border-border-subtle bg-bg-card p-6">
-            <div className="grid gap-6 lg:grid-cols-3">
+            <div className="grid gap-6 xl:grid-cols-3">
               {operationDetails.map((d) => (
                 <div key={d.label}>
                   <h4 className="text-[11px] uppercase tracking-[1px] text-text-secondary">{d.label}</h4>

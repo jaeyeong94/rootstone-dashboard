@@ -125,7 +125,7 @@ function MiniChart({ symbol, label }: { symbol: string; label: string }) {
 
 export function MarketMiniCharts() {
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
       {SYMBOLS.map((s) => (
         <MiniChart key={s.symbol} symbol={s.symbol} label={s.label} />
       ))}

@@ -17,7 +17,7 @@ export default function DashboardLayout({
         <PositionsProvider>
           <div className="flex h-screen bg-bg-primary">
             <Sidebar />
-            <main className="flex-1 overflow-auto">{children}</main>
+            <main className="flex-1 overflow-auto pt-12 xl:pt-0">{children}</main>
           </div>
           {process.env.NODE_ENV === "development" && <Agentation />}
         </PositionsProvider>

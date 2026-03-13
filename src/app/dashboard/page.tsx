@@ -7,37 +7,33 @@ import { RollingMetrics } from "@/components/dashboard/RollingMetrics";
 import { PnLDistribution } from "@/components/dashboard/PnLDistribution";
 import { ScrollSection } from "@/components/dashboard/ScrollSection";
 import { RightFixedPanel } from "@/components/dashboard/RightFixedPanel";
-import { GrowthSimulator } from "@/components/dashboard/GrowthSimulator";
 import { BlackSwanCard } from "@/components/dashboard/BlackSwanCard";
 import { YearlyReturnsChart } from "@/components/dashboard/YearlyReturnsChart";
 import { AlphaBetaCards } from "@/components/dashboard/AlphaBetaCards";
+import { CandlestickGrid } from "@/components/dashboard/CandlestickGrid";
 
 export default function OverviewPage() {
   return (
-    <div className="min-h-screen lg:pr-[280px]">
+    <div className="min-h-screen xl:pr-[280px]">
       <RightFixedPanel />
       {/* ─── Zone 1: Hero ─── */}
       <HeroZone />
 
       {/* ─── Zone 2: Intelligence Feed ─── */}
-      <div className="space-y-12 px-6 py-12 lg:px-12">
+      <div className="space-y-12 px-6 py-12 xl:px-12">
 
         {/* Section 2: Performance */}
         <ScrollSection label="Performance" delay={100}>
-          <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+          <div className="space-y-4">
             <PerformanceChart />
+            <CandlestickGrid />
             <MonthlyReturnsHeatmap />
           </div>
         </ScrollSection>
 
-        {/* Section 3: Growth Simulation */}
-        <ScrollSection label="Growth Simulation" delay={100}>
-          <GrowthSimulator />
-        </ScrollSection>
-
-        {/* Section 4: Strategy Highlights */}
+        {/* Section 3: Strategy Highlights */}
         <ScrollSection label="Strategy Highlights" delay={100}>
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid gap-4 xl:grid-cols-2">
             <BlackSwanCard />
             <YearlyReturnsChart />
           </div>
@@ -50,7 +46,7 @@ export default function OverviewPage() {
 
         {/* Section 6: Market Context */}
         <ScrollSection label="Market Context" delay={100}>
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid gap-4 xl:grid-cols-2">
             <BenchmarkCompare />
             <DrawdownChart />
           </div>

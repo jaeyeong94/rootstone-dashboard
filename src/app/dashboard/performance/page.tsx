@@ -707,7 +707,7 @@ function RiskTab() {
       {/* Risk Summary Cards */}
       <div>
         <SectionLabel>Risk Summary</SectionLabel>
-        <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="mt-3 grid grid-cols-2 gap-3 xl:grid-cols-4">
           {[
             { label: "Max Drawdown", rebeta: "-22.0%", btc: "-76.7%" },
             { label: "Longest DD", rebeta: "121 days", btc: "846 days" },
@@ -762,7 +762,7 @@ function BenchmarkTab() {
       {/* Comparison Cards */}
       <div>
         <SectionLabel>Strategy vs Benchmark Comparison</SectionLabel>
-        <div className="mt-3 grid gap-3 lg:grid-cols-2">
+        <div className="mt-3 grid gap-3 xl:grid-cols-2">
           {/* Rebeta */}
           <div className="rounded-sm border border-gold/30 bg-bg-card p-5">
             <span className="text-[10px] font-medium uppercase tracking-[2px] text-gold">Rebeta v1~v3.1</span>

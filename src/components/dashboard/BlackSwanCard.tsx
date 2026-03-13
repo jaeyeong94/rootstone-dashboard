@@ -61,7 +61,7 @@ export function BlackSwanCard() {
       </div>
 
       {/* Crisis Summary Stats */}
-      <div className="grid grid-cols-4 gap-px border-b border-border-subtle bg-border-subtle">
+      <div className="grid grid-cols-2 gap-px border-b border-border-subtle bg-border-subtle xl:grid-cols-4">
         {crisisStats.map((s) => (
           <div key={s.label} className="bg-bg-card px-3 py-3 text-center">
             <p className="font-[family-name:var(--font-mono)] text-base font-semibold text-text-primary">

@@ -46,7 +46,7 @@ export function MetricsGrid() {
     : "-";
 
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
       <MetricCard
         label="24h Change"
         value={

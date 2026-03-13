@@ -40,7 +40,7 @@ export function GrowthSimulator() {
         Growth simulation based on live Rebeta v3.1 performance
       </p>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_auto_1fr]">
+      <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_auto_1fr]">
         {/* Left: Input */}
         <div>
           <p className="text-[10px] uppercase tracking-[1px] text-text-muted">
@@ -82,7 +82,7 @@ export function GrowthSimulator() {
         </div>
 
         {/* Arrow */}
-        <div className="hidden items-center lg:flex">
+        <div className="hidden items-center xl:flex">
           <div className="text-2xl text-text-muted">&rarr;</div>
         </div>
 

@@ -30,7 +30,7 @@ export function AlphaBetaCards() {
         Near-zero market exposure confirms structurally independent alpha
       </p>
 
-      <div className="mt-5 grid gap-3 lg:grid-cols-3">
+      <div className="mt-5 grid gap-3 xl:grid-cols-3">
         {DISPLAY_METRICS.map((m) => {
           const data = benchmarkMetrics.find((b) => b.metric === m.key);
           if (!data) return null;
