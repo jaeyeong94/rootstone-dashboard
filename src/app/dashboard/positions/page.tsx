@@ -16,6 +16,7 @@ interface ClosedPnlRecord {
   avgEntryPrice: string;
   closedPnl: string;
   leverage: string;
+  execType: string;
   createdTime: string;
   updatedTime: string;
 }
@@ -296,7 +297,7 @@ function TradeHistory() {
           </div>
         ) : (
           <>
-            {records.map((rec) => {
+            {records.map((rec, idx) => {
               const entry = parseFloat(rec.avgEntryPrice || "0");
               const qty = parseFloat(rec.qty || "0");
               const lev = parseFloat(rec.leverage || "1");
@@ -305,7 +306,7 @@ function TradeHistory() {
               const pnlPercent = margin > 0 ? (pnlUsdt / margin) * 100 : 0;
               return (
                 <div
-                  key={rec.orderId + rec.updatedTime}
+                  key={`${rec.orderId}-${rec.updatedTime}-${idx}`}
                   className="grid grid-cols-6 gap-4 border-b border-border-subtle px-4 py-3 transition-colors hover:bg-bg-elevated"
                 >
                   <span className="text-xs text-text-secondary">
@@ -323,10 +324,22 @@ function TradeHistory() {
                   <span
                     className={cn(
                       "text-[11px] uppercase tracking-[1px]",
-                      rec.side === "Buy" ? "text-pnl-positive" : "text-pnl-negative"
+                      rec.execType === "Funding"
+                        ? "text-text-muted"
+                        : rec.side === "Buy"
+                          ? "text-pnl-positive"
+                          : "text-pnl-negative"
                     )}
                   >
-                    {rec.side === "Buy" ? "LONG" : "SHORT"}
+                    {rec.execType === "Funding"
+                      ? "FUNDING"
+                      : rec.execType === "AdlTrade"
+                        ? "ADL"
+                        : rec.execType === "BustTrade"
+                          ? "LIQUID"
+                          : rec.side === "Buy"
+                            ? "OPEN"
+                            : "CLOSE"}
                   </span>
                   <span className="text-right font-[family-name:var(--font-mono)] text-sm text-text-muted">
                     ***

@@ -213,7 +213,7 @@ function SummaryStrip({ summary }: { summary: MonthlySummary | null }) {
     {
       label: "WIN RATE",
       value: (
-        <span className="font-[family-name:var(--font-mono)] text-[14px] text-gold">
+        <span className="font-[family-name:var(--font-mono)] text-[14px] text-pnl-positive">
           {summary.winRate.toFixed(1)}%
         </span>
       ),

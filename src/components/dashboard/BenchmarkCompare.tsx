@@ -60,7 +60,7 @@ export function BenchmarkCompare() {
           <p
             className={cn(
               "mt-1 font-[family-name:var(--font-mono)] text-2xl font-medium",
-              rebetaLast >= 0 ? "text-gold" : "text-pnl-negative"
+              rebetaLast >= 0 ? "text-pnl-positive" : "text-pnl-negative"
             )}
           >
             {rebetaLast >= 0 ? "+" : ""}
@@ -86,7 +86,7 @@ export function BenchmarkCompare() {
         <span
           className={cn(
             "font-[family-name:var(--font-mono)] text-xs font-medium",
-            alpha >= 0 ? "text-gold" : "text-pnl-negative"
+            alpha >= 0 ? "text-pnl-positive" : "text-pnl-negative"
           )}
         >
           {alpha >= 0 ? "+" : ""}

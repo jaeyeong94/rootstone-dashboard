@@ -101,7 +101,7 @@ function MetricCard({
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 function monthReturnColor(v: number): string {
-  if (v >= 8) return "text-gold bg-pnl-positive/40";
+  if (v >= 8) return "text-pnl-positive bg-pnl-positive/40";
   if (v >= 3) return "text-pnl-positive bg-pnl-positive/20";
   if (v > 0) return "text-pnl-positive/80 bg-pnl-positive/10";
   if (v === 0) return "text-text-muted bg-bg-elevated";
@@ -330,7 +330,7 @@ export default function ReportsPage() {
                 <MetricCard
                   label="Period Return"
                   value={`${report.totalReturn >= 0 ? "+" : ""}${report.totalReturn.toFixed(2)}%`}
-                  colorClass={report.totalReturn >= 0 ? "text-gold" : "text-pnl-negative"}
+                  colorClass={report.totalReturn >= 0 ? "text-pnl-positive" : "text-pnl-negative"}
                 />
                 <MetricCard
                   label="Sharpe Ratio"
@@ -355,7 +355,7 @@ export default function ReportsPage() {
                   label="Alpha vs BTC"
                   value={`${report.alpha >= 0 ? "+" : ""}${report.alpha.toFixed(2)}%`}
                   sub={`BTC: ${report.btcReturn >= 0 ? "+" : ""}${report.btcReturn.toFixed(2)}%`}
-                  colorClass={report.alpha >= 0 ? "text-gold" : "text-pnl-negative"}
+                  colorClass={report.alpha >= 0 ? "text-pnl-positive" : "text-pnl-negative"}
                 />
               </div>
             </div>
@@ -518,7 +518,7 @@ export default function ReportsPage() {
                                     {t.side}
                                   </span>
                                 </td>
-                                <td className="px-3 py-2 text-right font-[family-name:var(--font-mono)] text-gold">
+                                <td className="px-3 py-2 text-right font-[family-name:var(--font-mono)] text-pnl-positive">
                                   {formatPnlPercent(t.pnlPercent / 100)}
                                 </td>
                                 <td className="px-3 py-2 text-right font-[family-name:var(--font-mono)] text-text-secondary">

@@ -93,7 +93,7 @@ export function GrowthSimulator() {
           </p>
           <p
             data-testid="current-value"
-            className="mt-2 font-[family-name:var(--font-mono)] text-3xl font-semibold text-gold"
+            className="mt-2 font-[family-name:var(--font-mono)] text-3xl font-semibold text-pnl-positive"
           >
             {formatUSD(currentValue)}
           </p>
