@@ -22,8 +22,8 @@ export function createSignature(
  * Build authenticated headers for Bybit API
  */
 export function getAuthHeaders(): Record<string, string> {
-  const apiKey = process.env.BYBIT_API_KEY;
-  const apiSecret = process.env.BYBIT_API_SECRET;
+  const apiKey = process.env.BYBIT_API_KEY?.trim();
+  const apiSecret = process.env.BYBIT_API_SECRET?.trim();
 
   if (!apiKey || !apiSecret) {
     throw new Error("BYBIT_API_KEY and BYBIT_API_SECRET must be set");
@@ -48,8 +48,8 @@ export function getAuthHeaders(): Record<string, string> {
 export function getAuthHeadersWithQuery(
   queryString: string
 ): Record<string, string> {
-  const apiKey = process.env.BYBIT_API_KEY;
-  const apiSecret = process.env.BYBIT_API_SECRET;
+  const apiKey = process.env.BYBIT_API_KEY?.trim();
+  const apiSecret = process.env.BYBIT_API_SECRET?.trim();
 
   if (!apiKey || !apiSecret) {
     throw new Error("BYBIT_API_KEY and BYBIT_API_SECRET must be set");
