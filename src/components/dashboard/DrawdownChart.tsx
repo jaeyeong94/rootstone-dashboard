@@ -2,7 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import useSWR from "swr";
-import type { DrawdownPoint } from "@/types";
+import type { UTCTimestamp } from "lightweight-charts";
+
+interface DrawdownDataPoint {
+  time: number; // UTCTimestamp (seconds since epoch)
+  value: number;
+}
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -40,7 +45,11 @@ export function DrawdownChart() {
           borderColor: "#333333",
           scaleMargins: { top: 0.05, bottom: 0.05 },
         },
-        timeScale: { borderColor: "#333333", timeVisible: false },
+        timeScale: {
+          borderColor: "#333333",
+          timeVisible: true,
+          secondsVisible: false,
+        },
         crosshair: {
           vertLine: { color: "#997B66", width: 1, style: LineStyle.Dashed },
           horzLine: { color: "#997B66", width: 1, style: LineStyle.Dashed },
@@ -84,9 +93,12 @@ export function DrawdownChart() {
   useEffect(() => {
     if (!chartReady || !seriesRef.current || !data?.series?.length) return;
 
-    const series: DrawdownPoint[] = data.series;
+    const series: DrawdownDataPoint[] = data.series;
     seriesRef.current.setData(
-      series.map((p) => ({ time: p.time, value: p.value }))
+      series.map((p) => ({
+        time: p.time as UTCTimestamp,
+        value: p.value,
+      }))
     );
 
     const minPoint = series.reduce(
@@ -97,7 +109,7 @@ export function DrawdownChart() {
     if (minPoint) {
       seriesRef.current.setMarkers([
         {
-          time: minPoint.time,
+          time: minPoint.time as UTCTimestamp,
           position: "belowBar",
           color: "#EF4444",
           shape: "arrowUp",

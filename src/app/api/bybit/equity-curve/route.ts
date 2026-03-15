@@ -1,52 +1,37 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { db as getDb } from "@/lib/db";
-import { balanceSnapshots } from "@/lib/db/schema";
-import { asc } from "drizzle-orm";
+import { getCumulativeCurve } from "@/lib/daily-returns";
 import type { EquityCurvePoint } from "@/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    // Get balance snapshots from DB
-    const snapshots = await getDb()
-      .select({
-        snapshotAt: balanceSnapshots.snapshotAt,
-        totalEquity: balanceSnapshots.totalEquity,
-      })
-      .from(balanceSnapshots)
-      .orderBy(asc(balanceSnapshots.snapshotAt));
+    const { searchParams } = new URL(request.url);
+    const from = searchParams.get("from") ?? undefined;
+    const to = searchParams.get("to") ?? undefined;
 
-    if (snapshots.length === 0) {
+    const points = await getCumulativeCurve({ from, to });
+
+    if (points.length === 0) {
       return NextResponse.json({ curve: [], startDate: null });
     }
 
-    // Deduplicate: keep last snapshot per day
-    const byDay = new Map<string, number>();
-    for (const s of snapshots) {
-      const day = new Date(s.snapshotAt).toISOString().split("T")[0];
-      byDay.set(day, s.totalEquity);
-    }
-
-    const firstEquity = snapshots[0].totalEquity;
-    const curve: EquityCurvePoint[] = Array.from(byDay.entries()).map(
-      ([day, equity]) => ({
-        time: day,
-        value: ((equity - firstEquity) / firstEquity) * 100,
-      })
-    );
+    const curve: EquityCurvePoint[] = points.map((p) => ({
+      time: p.date,
+      value: parseFloat(p.value.toFixed(2)),
+    }));
 
     return NextResponse.json({
       curve,
-      startDate: snapshots[0]?.snapshotAt.toISOString().split("T")[0] ?? null,
+      startDate: points[0].date,
     });
   } catch (error) {
     console.error("Equity curve error:", error);

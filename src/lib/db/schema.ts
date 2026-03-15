@@ -1,4 +1,4 @@
-import { pgTable, text, serial, doublePrecision, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, doublePrecision, timestamp, date, index, uniqueIndex } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
   id: text("id").primaryKey(),
@@ -34,5 +34,19 @@ export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type BalanceSnapshot = typeof balanceSnapshots.$inferSelect;
 export type NewBalanceSnapshot = typeof balanceSnapshots.$inferInsert;
+export const dailyReturns = pgTable("daily_returns", {
+  id: serial("id").primaryKey(),
+  date: date("date").notNull(),
+  navIndex: doublePrecision("nav_index").notNull(),
+  dailyReturn: doublePrecision("daily_return").notNull(),
+  rawNav: doublePrecision("raw_nav"),
+  source: text("source", { enum: ["tearsheet", "snapshot_backfill", "cron"] }).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_daily_returns_date").on(table.date),
+]);
+
 export type Visitor = typeof visitors.$inferSelect;
 export type NewVisitor = typeof visitors.$inferInsert;
+export type DailyReturn = typeof dailyReturns.$inferSelect;
+export type NewDailyReturn = typeof dailyReturns.$inferInsert;

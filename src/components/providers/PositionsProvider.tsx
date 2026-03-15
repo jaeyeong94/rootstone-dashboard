@@ -20,7 +20,7 @@ export function PositionsProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (data) {
-      setPositions(data.positions ?? [], data.count ?? 0);
+      setPositions(data.positions ?? [], data.count ?? 0, data.totalEquity);
     }
   }, [data, setPositions]);
 

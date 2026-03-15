@@ -60,8 +60,9 @@ export function HeroZone() {
     return typed;
   }, [curveData]);
 
+  const liveReady = !!curveData;
   const lastValue = curve.length > 0 ? curve[curve.length - 1].value / 100 : 0;
-  const animatedReturn = useCountUp(lastValue, 2000);
+  const animatedReturn = useCountUp(liveReady ? lastValue : 0, 2000);
 
   const kpis = [
     {
@@ -114,11 +115,11 @@ export function HeroZone() {
           <span
             className={cn(
               "font-[family-name:var(--font-mono)] text-5xl font-medium leading-none xl:text-6xl",
-              curve.length > 0 ? getPnlColor(lastValue) : "text-text-muted",
+              liveReady ? getPnlColor(lastValue) : "text-text-muted",
               "glow-gold"
             )}
           >
-            {curve.length > 0 ? formatPnlPercent(animatedReturn) : "--"}
+            {liveReady ? formatPnlPercent(animatedReturn) : formatPnlPercent(0)}
           </span>
           <p className="mt-3 font-[family-name:var(--font-mono)] text-sm text-text-muted">
             Cumulative Return · Since Mar 2021 ·{" "}

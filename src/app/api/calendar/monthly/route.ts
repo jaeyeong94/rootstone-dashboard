@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { db as getDb } from "@/lib/db";
-import { balanceSnapshots } from "@/lib/db/schema";
-import { asc, and, gte, lte } from "drizzle-orm";
+import { getDailyReturns } from "@/lib/daily-returns";
 import { getClosedPnl } from "@/lib/bybit/client";
 
 export const runtime = "nodejs";
@@ -20,34 +18,21 @@ export async function GET(request: Request) {
   const month = parseInt(searchParams.get("month") ?? String(new Date().getMonth() + 1));
 
   try {
+    const from = `${year}-${String(month).padStart(2, "0")}-01`;
+    const lastDay = new Date(year, month, 0).getDate();
+    const to = `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0, 23, 59, 59, 999);
 
-    const [snapshots, pnlData] = await Promise.all([
-      getDb()
-        .select({
-          snapshotAt: balanceSnapshots.snapshotAt,
-          totalEquity: balanceSnapshots.totalEquity,
-        })
-        .from(balanceSnapshots)
-        .where(and(
-          gte(balanceSnapshots.snapshotAt, startDate),
-          lte(balanceSnapshots.snapshotAt, endDate)
-        ))
-        .orderBy(asc(balanceSnapshots.snapshotAt)),
+    const [rows, pnlData] = await Promise.all([
+      getDailyReturns({ from, to }),
       getClosedPnl({
         startTime: String(startDate.getTime()),
         endTime: String(endDate.getTime()),
         limit: "100",
       }),
     ]);
-
-    // Build daily equity map
-    const equityByDay = new Map<string, number>();
-    for (const s of snapshots) {
-      const day = new Date(s.snapshotAt).toISOString().split("T")[0];
-      equityByDay.set(day, s.totalEquity);
-    }
 
     // Group trades by day
     const tradesByDay = new Map<string, typeof pnlData.list>();
@@ -67,16 +52,9 @@ export async function GET(request: Request) {
       topTrade: { symbol: string; pnlPercent: number } | null;
     }[] = [];
 
-    const equityDays = Array.from(equityByDay.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    for (const row of rows) {
+      const dayTrades = tradesByDay.get(row.date) ?? [];
 
-    for (let i = 0; i < equityDays.length; i++) {
-      const [date, equity] = equityDays[i];
-      const prevEquity = i > 0 ? equityDays[i - 1][1] : equity;
-      const dailyReturn = prevEquity > 0 ? ((equity - prevEquity) / prevEquity) * 100 : 0;
-
-      const dayTrades = tradesByDay.get(date) ?? [];
-
-      // Find top trade by PnL %
       let topTrade: { symbol: string; pnlPercent: number } | null = null;
       for (const t of dayTrades) {
         const entry = parseFloat(t.avgEntryPrice);
@@ -91,8 +69,8 @@ export async function GET(request: Request) {
       }
 
       days.push({
-        date,
-        dailyReturn: Math.round(dailyReturn * 100) / 100,
+        date: row.date,
+        dailyReturn: Math.round(row.dailyReturn * 10000) / 100, // decimal → %
         tradeCount: dayTrades.length,
         positionsOpened: dayTrades.filter((t) => t.side === "Buy").length,
         positionsClosed: dayTrades.filter((t) => t.side === "Sell").length,

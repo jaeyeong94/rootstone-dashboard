@@ -1,16 +1,10 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { db as getDb } from "@/lib/db";
-import { balanceSnapshots } from "@/lib/db/schema";
-import { asc, gte } from "drizzle-orm";
-import { calcDrawdownSeries } from "@/lib/utils";
+import { getDailyReturnsSinceV31 } from "@/lib/daily-returns";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-// v3.1 운용 시작일 — 이전 데이터는 포지션 정리로 인해 왜곡됨
-const V31_START = new Date("2024-11-17");
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -19,28 +13,18 @@ export async function GET() {
   }
 
   try {
-    const snapshots = await getDb()
-      .select()
-      .from(balanceSnapshots)
-      .where(gte(balanceSnapshots.snapshotAt, V31_START))
-      .orderBy(asc(balanceSnapshots.snapshotAt));
+    const rows = await getDailyReturnsSinceV31();
 
-    if (snapshots.length === 0) {
+    if (rows.length === 0) {
       return NextResponse.json({ series: [] });
     }
 
-    // Deduplicate: keep last snapshot per day
-    const byDay = new Map<string, number>();
-    for (const s of snapshots) {
-      const day = new Date(s.snapshotAt).toISOString().split("T")[0];
-      byDay.set(day, s.totalEquity);
-    }
-    const equitySeries = Array.from(byDay.entries()).map(([day, equity]) => ({
-      time: day,
-      equity,
-    }));
-
-    const series = calcDrawdownSeries(equitySeries);
+    let peak = rows[0].navIndex;
+    const series = rows.map((r) => {
+      if (r.navIndex > peak) peak = r.navIndex;
+      const ts = Math.floor(new Date(r.date + "T00:00:00Z").getTime() / 1000);
+      return { time: ts, value: ((r.navIndex - peak) / peak) * 100 };
+    });
 
     return NextResponse.json({ series });
   } catch (error) {

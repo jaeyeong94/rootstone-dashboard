@@ -96,7 +96,7 @@ export function BenchmarkCompare() {
 
       {chartData.length > 1 && (
         <div className="mt-4 h-32">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
             <LineChart data={chartData}>
               <XAxis dataKey="time" hide />
               <Tooltip

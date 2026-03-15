@@ -1,14 +1,8 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { db as getDb } from "@/lib/db";
-import { balanceSnapshots } from "@/lib/db/schema";
-import { asc } from "drizzle-orm";
-import {
-  calcDailyReturns,
-  calcSharpeRatio,
-  calcRollingValues,
-} from "@/lib/utils";
+import { getDailyReturns } from "@/lib/daily-returns";
+import { calcSharpeRatio, calcRollingValues } from "@/lib/utils";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,42 +26,17 @@ export async function GET(request: Request) {
   const window = parseInt(searchParams.get("window") || "30");
 
   try {
-    const snapshots = await getDb()
-      .select({
-        snapshotAt: balanceSnapshots.snapshotAt,
-        totalEquity: balanceSnapshots.totalEquity,
-      })
-      .from(balanceSnapshots)
-      .orderBy(asc(balanceSnapshots.snapshotAt));
+    const rows = await getDailyReturns();
 
-    // Deduplicate: keep last snapshot per day
-    const byDay = new Map<string, number>();
-    for (const s of snapshots) {
-      const day = new Date(s.snapshotAt).toISOString().split("T")[0];
-      byDay.set(day, s.totalEquity);
-    }
-
-    if (byDay.size < window + 1) {
+    if (rows.length < window + 1) {
       return NextResponse.json({ sharpe: [], volatility: [] });
     }
 
-    const equities = Array.from(byDay.values());
-    const times = Array.from(byDay.keys());
-    const dailyReturns = calcDailyReturns(equities);
-    const returnTimes = times.slice(1);
+    const returns = rows.map((r) => r.dailyReturn);
+    const times = rows.map((r) => r.date);
 
-    const sharpe = calcRollingValues(
-      dailyReturns,
-      returnTimes,
-      window,
-      calcSharpeRatio
-    );
-    const volatility = calcRollingValues(
-      dailyReturns,
-      returnTimes,
-      window,
-      calcVolatility
-    );
+    const sharpe = calcRollingValues(returns, times, window, calcSharpeRatio);
+    const volatility = calcRollingValues(returns, times, window, calcVolatility);
 
     return NextResponse.json({ sharpe, volatility });
   } catch (error) {

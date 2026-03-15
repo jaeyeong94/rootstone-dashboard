@@ -78,7 +78,7 @@ function MiniChart({ symbol, label }: { symbol: string; label: string }) {
         {isLoading ? (
           <div className="h-full animate-pulse rounded bg-bg-elevated" />
         ) : chartData.length > 1 ? (
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
             <AreaChart data={chartData}>
               <defs>
                 <linearGradient

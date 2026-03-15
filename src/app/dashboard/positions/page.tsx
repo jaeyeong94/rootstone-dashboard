@@ -1,7 +1,6 @@
 "use client";
 
 import { Header } from "@/components/layout/Header";
-import { useTickerStore } from "@/stores/useTickerStore";
 import { usePositionStore } from "@/stores/usePositionStore";
 import { cn, getPnlColor, formatPnlPercent } from "@/lib/utils";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -19,6 +18,7 @@ interface ClosedPnlRecord {
   execType: string;
   createdTime: string;
   updatedTime: string;
+  totalEquityAtTime: number;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -62,7 +62,7 @@ function OpenPositions() {
         <div className="grid grid-cols-5 gap-4 border-b border-border-subtle px-4 py-3 text-[11px] uppercase tracking-[1px] text-text-secondary">
           <span>Symbol</span>
           <span>Side</span>
-          <span className="text-right">ROI (%)</span>
+          <span className="text-right">PnL / NAV</span>
           <span className="text-right">Leverage</span>
           <span className="text-right">Holding</span>
         </div>
@@ -88,15 +88,9 @@ function OpenPositions() {
 }
 
 function PositionRow({ position }: { position: Position }) {
-  const livePrice = useTickerStore((s) => s.getPrice(position.symbol));
-  const currentPrice = livePrice || position.markPrice;
-  const entry = parseFloat(position.entryPrice);
-  const mark = parseFloat(currentPrice);
-  const lev = parseFloat(position.leverage) || 1;
-  const pnlPercent =
-    position.side === "Buy"
-      ? ((mark - entry) / entry) * lev
-      : ((entry - mark) / entry) * lev;
+  const totalEquity = usePositionStore((s) => s.totalEquity);
+  const unrealisedPnl = parseFloat(position.unrealisedPnl);
+  const pnlPercent = totalEquity > 0 ? unrealisedPnl / totalEquity : 0;
 
   const holdingTime = position.createdTime
     ? Math.floor(
@@ -125,7 +119,7 @@ function PositionRow({ position }: { position: Position }) {
           getPnlColor(pnlPercent)
         )}
       >
-        {formatPnlPercent(pnlPercent)}
+        {formatPnlPercent(pnlPercent, 6)}
       </span>
 
       <span className="text-right font-[family-name:var(--font-mono)] text-sm text-text-secondary">
@@ -278,7 +272,7 @@ function TradeHistory() {
           <span>Side</span>
           <span className="text-right">Price</span>
           <span className="text-right">Qty</span>
-          <span className="text-right">ROI (%)</span>
+          <span className="text-right">PnL / NAV</span>
         </div>
 
         {isLoading ? (
@@ -298,12 +292,9 @@ function TradeHistory() {
         ) : (
           <>
             {records.map((rec, idx) => {
-              const entry = parseFloat(rec.avgEntryPrice || "0");
-              const qty = parseFloat(rec.qty || "0");
-              const lev = parseFloat(rec.leverage || "1");
               const pnlUsdt = parseFloat(rec.closedPnl || "0");
-              const margin = entry * qty / lev;
-              const pnlPercent = margin > 0 ? (pnlUsdt / margin) * 100 : 0;
+              const equity = rec.totalEquityAtTime || 0;
+              const pnlPercent = equity > 0 ? (pnlUsdt / equity) * 100 : 0;
               return (
                 <div
                   key={`${rec.orderId}-${rec.updatedTime}-${idx}`}
@@ -353,7 +344,7 @@ function TradeHistory() {
                       getPnlColor(pnlPercent)
                     )}
                   >
-                    {formatPnlPercent(pnlPercent / 100, 4)}
+                    {formatPnlPercent(pnlPercent / 100, 6)}
                   </span>
                 </div>
               );

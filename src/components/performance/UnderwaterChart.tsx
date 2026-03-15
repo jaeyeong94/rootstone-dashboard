@@ -16,7 +16,7 @@ export function UnderwaterChart() {
       const chart = createChart(containerRef.current!, {
         layout: {
           background: { type: ColorType.Solid, color: "transparent" },
-          textColor: "#888888",
+          textColor: "#BBBBBB",
           fontFamily: "JetBrains Mono, monospace",
           fontSize: 11,
         },
@@ -27,6 +27,7 @@ export function UnderwaterChart() {
         width: containerRef.current!.clientWidth,
         height: 240,
         rightPriceScale: { borderColor: "#333333" },
+        leftPriceScale: { visible: true, borderColor: "#333333" },
         timeScale: { borderColor: "#333333", timeVisible: false },
         crosshair: {
           vertLine: { color: "#997B66", width: 1, style: LineStyle.Dashed },
@@ -39,11 +40,12 @@ export function UnderwaterChart() {
       if (rebetaSeries) {
         const area = chart.addAreaSeries({
           lineColor: "#EF4444",
-          lineWidth: 1,
+          lineWidth: 2,
           topColor: "rgba(239, 68, 68, 0)",
           bottomColor: "rgba(239, 68, 68, 0.3)",
           priceFormat: { type: "custom", formatter: (p: number) => `${(p * 100).toFixed(1)}%` },
           title: "Rebeta DD",
+          priceScaleId: "right",
         });
         area.setData(
           rebetaSeries.x.map((date: string, i: number) => ({
@@ -63,6 +65,7 @@ export function UnderwaterChart() {
           bottomColor: "rgba(85, 85, 85, 0.15)",
           priceFormat: { type: "custom", formatter: (p: number) => `${(p * 100).toFixed(1)}%` },
           title: "BTC DD",
+          priceScaleId: "left",
         });
         area2.setData(
           btcSeries.x.map((date: string, i: number) => ({

@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getClosedPnl } from "@/lib/bybit/client";
+import { db as getDb } from "@/lib/db";
+import { balanceSnapshots } from "@/lib/db/schema";
+import { asc, gte } from "drizzle-orm";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -58,8 +61,39 @@ export async function GET(request: Request) {
     const nextEndTime =
       !nextCursor && startTime > V31_START_MS ? startTime : null;
 
+    // Attach closest snapshot equity to each record for portfolio-based ROI
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let enrichedList: any[] = list;
+    if (list.length > 0) {
+      const db = getDb();
+      const timestamps = list.map((r) => parseInt(r.updatedTime));
+      const windowStart = new Date(Math.min(...timestamps) - 86400000);
+
+      const snapshots = await db
+        .select({ snapshotAt: balanceSnapshots.snapshotAt, totalEquity: balanceSnapshots.totalEquity })
+        .from(balanceSnapshots)
+        .where(gte(balanceSnapshots.snapshotAt, windowStart))
+        .orderBy(asc(balanceSnapshots.snapshotAt));
+
+      enrichedList = list.map((rec) => {
+        const tradeTime = parseInt(rec.updatedTime);
+        let closestEquity = 0;
+        for (const snap of snapshots) {
+          if (snap.snapshotAt.getTime() <= tradeTime) {
+            closestEquity = snap.totalEquity;
+          } else {
+            break;
+          }
+        }
+        if (closestEquity === 0 && snapshots.length > 0) {
+          closestEquity = snapshots[0].totalEquity;
+        }
+        return { ...rec, totalEquityAtTime: closestEquity };
+      });
+    }
+
     return NextResponse.json({
-      list,
+      list: enrichedList,
       nextPageCursor: nextCursor,
       nextEndTime,
     });

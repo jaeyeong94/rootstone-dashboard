@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getPositions } from "@/lib/bybit/client";
+import { getPositions, getWalletBalance } from "@/lib/bybit/client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,12 +13,17 @@ export async function GET() {
   }
 
   try {
-    const result = await getPositions();
+    const [result, walletResult] = await Promise.all([
+      getPositions(),
+      getWalletBalance(),
+    ]);
 
     // Filter out zero-size positions
     const openPositions = result.list.filter(
       (p) => parseFloat(p.size) > 0
     );
+
+    const totalEquity = parseFloat(walletResult.list?.[0]?.totalEquity ?? "0");
 
     return NextResponse.json({
       positions: openPositions.map((p) => ({
@@ -35,6 +40,7 @@ export async function GET() {
         updatedTime: p.updatedTime,
       })),
       count: openPositions.length,
+      totalEquity,
     });
   } catch (error) {
     console.error("Bybit positions error:", error);

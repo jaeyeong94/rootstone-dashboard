@@ -1,15 +1,12 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { db as getDb } from "@/lib/db";
-import { balanceSnapshots } from "@/lib/db/schema";
-import { asc } from "drizzle-orm";
 import { getClosedPnl } from "@/lib/bybit/client";
+import { getDailyReturnsSinceV31 } from "@/lib/daily-returns";
 import {
   calcSharpeRatio,
   calcSortinoRatio,
   calcMaxDrawdown,
-  calcDailyReturns,
 } from "@/lib/utils";
 import type { StrategyMetrics } from "@/types";
 
@@ -23,23 +20,17 @@ export async function GET() {
   }
 
   try {
-    const snapshots = await getDb()
-      .select({
-        snapshotAt: balanceSnapshots.snapshotAt,
-        totalEquity: balanceSnapshots.totalEquity,
-      })
-      .from(balanceSnapshots)
-      .orderBy(asc(balanceSnapshots.snapshotAt));
+    const rows = await getDailyReturnsSinceV31();
 
-    const equities = snapshots.map((s) => s.totalEquity);
-    const dailyReturns = calcDailyReturns(equities);
+    const returns = rows.map((r) => r.dailyReturn);
+    const navSeries = rows.map((r) => r.navIndex);
 
-    const sharpeRatio = calcSharpeRatio(dailyReturns);
-    const sortinoRatio = calcSortinoRatio(dailyReturns);
-    const maxDrawdown = calcMaxDrawdown(equities);
+    const sharpeRatio = calcSharpeRatio(returns);
+    const sortinoRatio = calcSortinoRatio(returns);
+    const maxDrawdown = calcMaxDrawdown(navSeries);
     const totalReturn =
-      equities.length >= 2
-        ? (equities[equities.length - 1] - equities[0]) / equities[0]
+      navSeries.length >= 2
+        ? (navSeries[navSeries.length - 1] - navSeries[0]) / navSeries[0]
         : 0;
 
     let winRate = 0;
@@ -47,13 +38,10 @@ export async function GET() {
     let avgHoldingHours = 0;
 
     try {
-      // 첫 스냅샷 날짜를 startTime으로 사용해 전체 기간 데이터 수집
-      const startTime =
-        snapshots.length > 0
-          ? String(new Date(snapshots[0].snapshotAt).getTime())
-          : undefined;
+      const startTime = rows.length > 0
+        ? String(new Date(rows[0].date + "T00:00:00Z").getTime())
+        : undefined;
 
-      // 전체 페이지 순회 (cursor 기반 페이지네이션)
       const allFills: import("@/types").BybitClosedPnl[] = [];
       let cursor: string | undefined;
       do {
@@ -69,8 +57,6 @@ export async function GET() {
       totalTrades = allFills.length;
 
       if (totalTrades > 0) {
-        // fill 단위 → 포지션(close event) 단위로 집계
-        // 같은 symbol + 1분 버킷 = 동일 포지션 close event
         const posMap = new Map<string, { pnl: number; created: number; updated: number }>();
         for (const t of allFills) {
           const minuteBucket = Math.floor(parseInt(t.updatedTime) / 60000);

@@ -118,6 +118,92 @@ export async function getOpenOrders(
 }
 
 /**
+ * Get kline (candlestick) data from public API.
+ * No authentication required.
+ * Returns candles as [startTime, open, high, low, close, volume, turnover].
+ */
+export async function getKline(
+  symbol: string,
+  interval: string = "D",
+  limit: number = 1
+): Promise<{ list: string[][] }> {
+  const qs = new URLSearchParams({
+    category: "linear",
+    symbol,
+    interval,
+    limit: String(limit),
+  }).toString();
+  const url = `${BASE_URL}/v5/market/kline?${qs}`;
+  const res = await fetch(url, { next: { revalidate: 0 } });
+  if (!res.ok) {
+    throw new Error(`Bybit kline API error: ${res.status}`);
+  }
+  const data = await res.json();
+  if (data.retCode !== 0) {
+    throw new Error(`Bybit kline API error: ${data.retCode} - ${data.retMsg}`);
+  }
+  return data.result;
+}
+
+/**
+ * Calculate NAV using Factsheet methodology:
+ * NAV(open) = Cash + Unrealized PnL (using kline open price)
+ */
+export async function calcFactsheetNAV(): Promise<{
+  nav: number;
+  cash: number;
+  unrealisedPnl: number;
+  positions: Array<{
+    symbol: string;
+    side: string;
+    size: number;
+    avgEntry: number;
+    openPrice: number;
+    upl: number;
+  }>;
+}> {
+  const [balResult, posResult] = await Promise.all([
+    getWalletBalance(),
+    getPositions(),
+  ]);
+
+  const cash = parseFloat(balResult.list[0].totalWalletBalance);
+  const activePositions = posResult.list.filter((p) => parseFloat(p.size) > 0);
+
+  // Fetch kline open prices for all active positions in parallel
+  const positionDetails = await Promise.all(
+    activePositions.map(async (p) => {
+      const kline = await getKline(p.symbol, "D", 1);
+      const candle = kline.list[0];
+      const openPrice = candle ? parseFloat(candle[1]) : parseFloat(p.markPrice);
+
+      const size = parseFloat(p.size);
+      const avgEntry = parseFloat(p.avgPrice);
+      const side = p.side === "Buy" ? 1 : -1;
+      const upl = side * size * (openPrice - avgEntry);
+
+      return {
+        symbol: p.symbol,
+        side: p.side,
+        size,
+        avgEntry,
+        openPrice,
+        upl,
+      };
+    })
+  );
+
+  const unrealisedPnl = positionDetails.reduce((sum, p) => sum + p.upl, 0);
+
+  return {
+    nav: cash + unrealisedPnl,
+    cash,
+    unrealisedPnl,
+    positions: positionDetails,
+  };
+}
+
+/**
  * Get transaction log for equity curve calculation
  */
 export async function getTransactionLog(

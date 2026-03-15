@@ -2,9 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getClosedPnl } from "@/lib/bybit/client";
-import { db as getDb } from "@/lib/db";
-import { balanceSnapshots } from "@/lib/db/schema";
-import { asc, and, gte, lte } from "drizzle-orm";
+import { getDailyReturns } from "@/lib/daily-returns";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,45 +21,22 @@ export async function GET(request: Request) {
   }
 
   try {
-    const dayStart = new Date(dateStr);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(dateStr);
-    dayEnd.setHours(23, 59, 59, 999);
+    const dayStart = new Date(dateStr + "T00:00:00Z");
+    const dayEnd = new Date(dateStr + "T23:59:59.999Z");
 
-    const [pnlData, snapshots] = await Promise.all([
+    const [pnlData, rows] = await Promise.all([
       getClosedPnl({
         startTime: String(dayStart.getTime()),
         endTime: String(dayEnd.getTime()),
         limit: "50",
       }),
-      getDb()
-        .select({
-          snapshotAt: balanceSnapshots.snapshotAt,
-          totalEquity: balanceSnapshots.totalEquity,
-        })
-        .from(balanceSnapshots)
-        .where(and(
-          gte(balanceSnapshots.snapshotAt, new Date(dayStart.getTime() - 86400000)),
-          lte(balanceSnapshots.snapshotAt, dayEnd)
-        ))
-        .orderBy(asc(balanceSnapshots.snapshotAt)),
+      getDailyReturns({ from: dateStr, to: dateStr }),
     ]);
 
-    // Calculate daily return from snapshots
-    const equityByDay = new Map<string, number>();
-    for (const s of snapshots) {
-      const day = new Date(s.snapshotAt).toISOString().split("T")[0];
-      equityByDay.set(day, s.totalEquity);
-    }
-    const prevDay = new Date(dayStart.getTime() - 86400000).toISOString().split("T")[0];
-    const todayEquity = equityByDay.get(dateStr);
-    const prevEquity = equityByDay.get(prevDay);
-    const dailyReturn =
-      todayEquity && prevEquity && prevEquity > 0
-        ? ((todayEquity - prevEquity) / prevEquity) * 100
-        : 0;
+    const dailyReturn = rows.length > 0
+      ? Math.round(rows[0].dailyReturn * 10000) / 100 // decimal → %
+      : 0;
 
-    // Format trades - ONLY showing percentages, no absolute amounts
     const trades = pnlData.list.map((t) => {
       const entry = parseFloat(t.avgEntryPrice);
       const exit = parseFloat(t.avgExitPrice);
@@ -79,7 +54,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       date: dateStr,
-      dailyReturn: Math.round(dailyReturn * 100) / 100,
+      dailyReturn,
       trades,
     });
   } catch (error) {

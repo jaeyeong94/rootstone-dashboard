@@ -51,13 +51,11 @@ export function PositionCard() {
 }
 
 function PositionRow({ position }: { position: Position }) {
+  const totalEquity = usePositionStore((s) => s.totalEquity);
+  const unrealisedPnl = parseFloat(position.unrealisedPnl);
+  const pnlPercent = totalEquity > 0 ? unrealisedPnl / totalEquity : 0;
   const livePrice = useTickerStore((s) => s.getPrice(position.symbol));
   const currentPrice = livePrice || position.markPrice;
-  const entryPrice = parseFloat(position.entryPrice);
-  const pnlPercent =
-    position.side === "Buy"
-      ? (parseFloat(currentPrice) - entryPrice) / entryPrice
-      : (entryPrice - parseFloat(currentPrice)) / entryPrice;
 
   return (
     <div className="flex items-center justify-between rounded-sm bg-bg-elevated px-4 py-3">
