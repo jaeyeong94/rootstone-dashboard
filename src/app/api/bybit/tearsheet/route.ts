@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getDailyReturns, getMonthlyReturns } from "@/lib/daily-returns";
+import { getDailyClosePrices } from "@/lib/bybit/kline";
+import { pricesToReturns } from "@/lib/math/correlation";
 import {
   calcSharpeRatio,
   calcSortinoRatio,
@@ -75,6 +77,53 @@ export async function GET() {
       }
     }
     if (inDrawdown) maxDDDuration = Math.max(maxDDDuration, currentDDDuration);
+
+    // ── BTC Benchmark (same period, Bybit kline — third-party reproducible) ──
+    const btcData = await getDailyClosePrices("BTCUSDT", totalDays + 10);
+    const btcByDate = new Map(btcData.map((d) => [d.time, d.close]));
+    const btcPricesAligned: number[] = [];
+    for (const day of dates) {
+      const btcClose = btcByDate.get(day);
+      if (btcClose !== undefined) btcPricesAligned.push(btcClose);
+    }
+    const btcReturns = pricesToReturns(btcPricesAligned);
+    const btcNav = [1.0];
+    for (const r of btcReturns) btcNav.push(btcNav[btcNav.length - 1] * (1 + r));
+
+    const btcN = btcReturns.length;
+    const btcTotalReturn = btcN > 0 ? (btcNav[btcN] / btcNav[0] - 1) * 100 : 0;
+    const btcYears = btcN / CALENDAR_DAYS_PER_YEAR;
+    const btcCagr = btcN > 0 ? (Math.pow(btcNav[btcN] / btcNav[0], 1 / btcYears) - 1) * 100 : 0;
+    const btcSharpe = calcSharpeRatio(btcReturns);
+    const btcSortino = calcSortinoRatio(btcReturns);
+    const btcMaxDD = calcMaxDrawdown(btcNav) * 100;
+    const btcVol = realizedVolatility(btcReturns) * 100;
+    const btcCalmar = btcMaxDD !== 0 ? btcCagr / Math.abs(btcMaxDD) : 0;
+
+    // BTC max drawdown duration
+    let btcPeak = btcNav[0];
+    let btcInDD = false;
+    let btcMaxDDDuration = 0;
+    let btcCurrentDDDuration = 0;
+    for (let i = 0; i <= btcN; i++) {
+      if (btcNav[i] > btcPeak) {
+        btcPeak = btcNav[i];
+        if (btcInDD) {
+          btcMaxDDDuration = Math.max(btcMaxDDDuration, btcCurrentDDDuration);
+          btcInDD = false;
+        }
+        btcCurrentDDDuration = 0;
+      } else {
+        if (!btcInDD) btcInDD = true;
+        btcCurrentDDDuration++;
+      }
+    }
+    if (btcInDD) btcMaxDDDuration = Math.max(btcMaxDDDuration, btcCurrentDDDuration);
+
+    // BTC risk metrics
+    const btcVar95 = historicalVaR(btcReturns, 0.95) * 100;
+    const btcCvar95 = conditionalVaR(btcReturns, 0.95) * 100;
+    const btcCvar99 = conditionalVaR(btcReturns, 0.99) * 100;
 
     // ── Risk Metrics ──
     const var95 = historicalVaR(returns, 0.95) * 100;
@@ -231,6 +280,16 @@ export async function GET() {
         maxDrawdown: parseFloat(maxDrawdown.toFixed(1)),
         maxDrawdownDuration: maxDDDuration,
       },
+      btcMetrics: {
+        cumulativeReturn: parseFloat(btcTotalReturn.toFixed(1)),
+        cagr: parseFloat(btcCagr.toFixed(1)),
+        volatility: parseFloat(btcVol.toFixed(1)),
+        sharpe: parseFloat(btcSharpe.toFixed(4)),
+        sortino: parseFloat(btcSortino.toFixed(4)),
+        calmar: parseFloat(btcCalmar.toFixed(4)),
+        maxDrawdown: parseFloat(btcMaxDD.toFixed(1)),
+        maxDrawdownDuration: btcMaxDDDuration,
+      },
       riskMetrics: {
         var95: parseFloat(var95.toFixed(2)),
         var99: parseFloat(var99.toFixed(2)),
@@ -238,6 +297,11 @@ export async function GET() {
         cvar99: parseFloat(cvar99.toFixed(2)),
         omega: parseFloat(omega.toFixed(4)),
         tailRatio: parseFloat(tailRatio.toFixed(4)),
+      },
+      btcRiskMetrics: {
+        var95: parseFloat(btcVar95.toFixed(2)),
+        cvar95: parseFloat(btcCvar95.toFixed(2)),
+        cvar99: parseFloat(btcCvar99.toFixed(2)),
       },
       periodReturns: {
         mtd: parseFloat(mtdReturn.toFixed(1)),

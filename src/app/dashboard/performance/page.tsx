@@ -32,25 +32,27 @@ let currentDisplay: any = {};
  */
 function useTearsheetDisplayData(ts: TearsheetData | undefined, monthlyData: MonthlyReturnData | undefined) {
   const m = ts?.mainMetrics;
+  const b = ts?.btcMetrics;
   const risk = ts?.riskMetrics;
+  const bRisk = ts?.btcRiskMetrics;
   const periods = ts?.periodReturns;
   const mStats = ts?.monthlyStats;
 
   const mainMetrics = m ? [
-    { metric: "Cumulative Return", rebeta: `${m.cumulativeReturn}%`, btc: "—" },
-    { metric: "CAGR", rebeta: `${m.cagr}%`, btc: "—" },
-    { metric: "Volatility", rebeta: `${m.volatility}%`, btc: "—" },
-    { metric: "Sharpe", rebeta: m.sharpe.toFixed(4), btc: "—" },
-    { metric: "Sortino", rebeta: m.sortino.toFixed(4), btc: "—" },
-    { metric: "Calmar", rebeta: m.calmar.toFixed(4), btc: "—" },
-    { metric: "Max Drawdown", rebeta: `${m.maxDrawdown}%`, btc: "—" },
-    { metric: "Duration of MD", rebeta: `${m.maxDrawdownDuration} days`, btc: "—" },
+    { metric: "Cumulative Return", rebeta: `${m.cumulativeReturn}%`, btc: b ? `${b.cumulativeReturn}%` : "—" },
+    { metric: "CAGR", rebeta: `${m.cagr}%`, btc: b ? `${b.cagr}%` : "—" },
+    { metric: "Volatility", rebeta: `${m.volatility}%`, btc: b ? `${b.volatility}%` : "—" },
+    { metric: "Sharpe", rebeta: m.sharpe.toFixed(4), btc: b ? b.sharpe.toFixed(4) : "—" },
+    { metric: "Sortino", rebeta: m.sortino.toFixed(4), btc: b ? b.sortino.toFixed(4) : "—" },
+    { metric: "Calmar", rebeta: m.calmar.toFixed(4), btc: b ? b.calmar.toFixed(4) : "—" },
+    { metric: "Max Drawdown", rebeta: `${m.maxDrawdown}%`, btc: b ? `${b.maxDrawdown}%` : "—" },
+    { metric: "Duration of MD", rebeta: `${m.maxDrawdownDuration} days`, btc: b ? `${b.maxDrawdownDuration} days` : "—" },
   ] : [];
 
   const returnsMetrics = risk ? [
-    { metric: "1-day VaR (95%)", rebeta: `${risk.var95}%`, btc: "—" },
-    { metric: "CVaR (95%)", rebeta: `${risk.cvar95}%`, btc: "—" },
-    { metric: "CVaR (99%)", rebeta: `${risk.cvar99}%`, btc: "—" },
+    { metric: "1-day VaR (95%)", rebeta: `${risk.var95}%`, btc: bRisk ? `${bRisk.var95}%` : "—" },
+    { metric: "CVaR (95%)", rebeta: `${risk.cvar95}%`, btc: bRisk ? `${bRisk.cvar95}%` : "—" },
+    { metric: "CVaR (99%)", rebeta: `${risk.cvar99}%`, btc: bRisk ? `${bRisk.cvar99}%` : "—" },
     { metric: "Omega Ratio", rebeta: risk.omega.toFixed(4), btc: "—" },
     { metric: "Tail Ratio", rebeta: risk.tailRatio.toFixed(4), btc: "—" },
   ] : [];
@@ -745,6 +747,18 @@ function BenchmarkTab() {
                 <div key={row.metric} className="flex items-center justify-between">
                   <span className="text-xs text-text-secondary">{row.metric}</span>
                   <span className="font-[family-name:var(--font-mono)] text-sm font-medium text-text-primary">{row.rebeta}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* BTC */}
+          <div className="rounded-sm border border-border-subtle bg-bg-card p-5">
+            <span className="text-[10px] font-medium uppercase tracking-[2px] text-text-muted">BTC (Benchmark)</span>
+            <div className="mt-4 space-y-3">
+              {(currentDisplay.mainMetrics ?? []).slice(0, 6).map((row: { metric: string; btc: string }) => (
+                <div key={row.metric} className="flex items-center justify-between">
+                  <span className="text-xs text-text-secondary">{row.metric}</span>
+                  <span className="font-[family-name:var(--font-mono)] text-sm text-text-muted">{row.btc}</span>
                 </div>
               ))}
             </div>
