@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { ANNUALIZATION_DAYS, RISK_FREE_RATE } from "@/lib/constants";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -55,19 +56,19 @@ export function formatRelativeTime(date: Date): string {
  * Calculate Sharpe Ratio from daily returns
  * Sharpe = (mean(returns) - riskFreeRate) / std(returns) * sqrt(365)
  */
-export function calcSharpeRatio(dailyReturns: number[], riskFreeRate = 0): number {
+export function calcSharpeRatio(dailyReturns: number[], riskFreeRate = RISK_FREE_RATE): number {
   if (dailyReturns.length < 2) return 0;
   const mean = dailyReturns.reduce((a, b) => a + b, 0) / dailyReturns.length;
   const variance = dailyReturns.reduce((sum, r) => sum + (r - mean) ** 2, 0) / (dailyReturns.length - 1);
   const std = Math.sqrt(variance);
   if (std === 0) return 0;
-  return ((mean - riskFreeRate) / std) * Math.sqrt(365);
+  return ((mean - riskFreeRate) / std) * Math.sqrt(ANNUALIZATION_DAYS);
 }
 
 /**
  * Calculate Sortino Ratio (only downside deviation)
  */
-export function calcSortinoRatio(dailyReturns: number[], riskFreeRate = 0): number {
+export function calcSortinoRatio(dailyReturns: number[], riskFreeRate = RISK_FREE_RATE): number {
   if (dailyReturns.length < 2) return 0;
   const mean = dailyReturns.reduce((a, b) => a + b, 0) / dailyReturns.length;
   // semi-deviation: 전체 N을 분모로 사용 (표준 Sortino 공식)
@@ -76,7 +77,7 @@ export function calcSortinoRatio(dailyReturns: number[], riskFreeRate = 0): numb
     dailyReturns.length;
   const downsideStd = Math.sqrt(downsideVariance);
   if (downsideStd === 0) return 0;
-  return ((mean - riskFreeRate) / downsideStd) * Math.sqrt(365);
+  return ((mean - riskFreeRate) / downsideStd) * Math.sqrt(ANNUALIZATION_DAYS);
 }
 
 /**

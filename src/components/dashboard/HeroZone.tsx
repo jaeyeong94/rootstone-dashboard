@@ -7,21 +7,15 @@ import { useCountUp } from "@/hooks/useCountUp";
 import { AnimatedSparkline } from "./AnimatedSparkline";
 import staticCurve from "@/data/cumulative-returns.json";
 import type { EquityCurvePoint } from "@/types";
+import { STRATEGY_INCEPTION_DATE, COMPOSITE_TEARSHEET } from "@/lib/constants";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-const INCEPTION_DATE = new Date("2021-03-02");
+const INCEPTION_DATE = new Date(STRATEGY_INCEPTION_DATE);
 
 function daysLive(): number {
   return Math.floor((Date.now() - INCEPTION_DATE.getTime()) / 86400000);
 }
-
-// Tearsheet composite metrics (v1~v3.1, 2021.03.02 ~ 2026.02.16)
-const COMPOSITE = {
-  sharpe: "1.91",
-  sortino: "3.22",
-  maxDrawdown: "-22.0%",
-};
 
 export function HeroZone() {
   const { data: balanceData } = useSWR<{ changePercent: number }>(
@@ -67,15 +61,15 @@ export function HeroZone() {
   const kpis = [
     {
       label: "Sharpe Ratio",
-      value: COMPOSITE.sharpe,
+      value: COMPOSITE_TEARSHEET.sharpe.toFixed(2),
     },
     {
       label: "Sortino Ratio",
-      value: COMPOSITE.sortino,
+      value: COMPOSITE_TEARSHEET.sortino.toFixed(2),
     },
     {
       label: "Max Drawdown",
-      value: COMPOSITE.maxDrawdown,
+      value: `${COMPOSITE_TEARSHEET.maxDrawdown.toFixed(1)}%`,
     },
     {
       label: "30D Return",

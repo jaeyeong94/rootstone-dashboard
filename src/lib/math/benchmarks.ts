@@ -4,6 +4,7 @@
  */
 
 import benchmarkData from "@/data/benchmarks.json";
+import { ANNUALIZATION_DAYS, CALENDAR_DAYS_PER_YEAR, RISK_FREE_RATE } from "@/lib/constants";
 
 type BenchmarkEntry = {
   name: string;
@@ -99,18 +100,18 @@ export function calcAssetMetrics(
   const cumulativeReturn = cumProduct - 1;
 
   // CAGR
-  const years = totalDays / 365.25;
+  const years = totalDays / CALENDAR_DAYS_PER_YEAR;
   const cagr = years > 0 ? Math.pow(cumProduct, 1 / years) - 1 : 0;
 
-  // Annualized volatility (365 calendar days — crypto trades 24/7)
+  // Annualized volatility (crypto trades 24/7)
   const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
   const variance =
     returns.reduce((sum, r) => sum + (r - mean) ** 2, 0) /
     (returns.length - 1);
-  const volatility = Math.sqrt(variance) * Math.sqrt(365);
+  const volatility = Math.sqrt(variance) * Math.sqrt(ANNUALIZATION_DAYS);
 
-  // Sharpe ratio (assuming risk-free rate ~0 for simplicity)
-  const annualizedReturn = cagr;
+  // Sharpe ratio (rf from constants)
+  const annualizedReturn = cagr - RISK_FREE_RATE;
   const sharpe = volatility > 0 ? annualizedReturn / volatility : 0;
 
   // Max drawdown

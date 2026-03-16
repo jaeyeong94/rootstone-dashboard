@@ -6,19 +6,14 @@ import { cn } from "@/lib/utils";
 import staticCurve from "@/data/cumulative-returns.json";
 import staticBtc from "@/data/cumulative-returns-btc.json";
 import type { EquityCurvePoint } from "@/types";
+import { V31_START_DATE, PERIOD_DAYS as PERIOD_DAYS_CONST } from "@/lib/constants";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
-
-const V31_START = "2024-11-17";
 
 type Period = "1M" | "3M" | "6M" | "1Y" | "3Y" | "ALL";
 
 const PERIOD_DAYS: Record<Period, number> = {
-  "1M": 30,
-  "3M": 90,
-  "6M": 180,
-  "1Y": 365,
-  "3Y": 1095,
+  ...PERIOD_DAYS_CONST,
   ALL: 99999,
 };
 
@@ -69,8 +64,8 @@ export function PerformanceChart() {
   // Split static data into v1 portion, and merge v3.1 with live extension
   const { v1Data, v31Data } = useMemo(() => {
     const typed = staticCurve as { time: string; value: number }[];
-    const v1 = typed.filter((p) => p.time < V31_START);
-    const v31Static = typed.filter((p) => p.time >= V31_START);
+    const v1 = typed.filter((p) => p.time < V31_START_DATE);
+    const v31Static = typed.filter((p) => p.time >= V31_START_DATE);
 
     // Use static tearsheet data as primary, extend with live data for newer dates
     const liveCurve: EquityCurvePoint[] = curveData?.curve ?? [];

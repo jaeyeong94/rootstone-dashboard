@@ -3,8 +3,7 @@
 import { useEffect, useRef } from "react";
 import rebetaData from "@/data/cumulative-returns.json";
 import btcData from "@/data/cumulative-returns-btc.json";
-
-const V31_START = "2024-11-17";
+import { V31_START_DATE } from "@/lib/constants";
 
 export function CumulativeReturnsChart() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -45,7 +44,7 @@ export function CumulativeReturnsChart() {
       const typed = rebetaData as { time: string; value: number }[];
 
       // v1 series (bronze)
-      const v1 = typed.filter((p) => p.time < V31_START);
+      const v1 = typed.filter((p) => p.time < V31_START_DATE);
       const v1Area = chart.addAreaSeries({
         lineColor: "#997B66",
         lineWidth: 2,
@@ -57,7 +56,7 @@ export function CumulativeReturnsChart() {
       v1Area.setData(v1.map((p) => ({ time: p.time, value: p.value })));
 
       // v3.1 series (gold)
-      const v31 = typed.filter((p) => p.time >= V31_START);
+      const v31 = typed.filter((p) => p.time >= V31_START_DATE);
       const v31Area = chart.addAreaSeries({
         lineColor: "#C5A049",
         lineWidth: 2,

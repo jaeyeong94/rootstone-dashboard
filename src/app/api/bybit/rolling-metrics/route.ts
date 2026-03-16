@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getDailyReturns } from "@/lib/daily-returns";
 import { calcSharpeRatio, calcRollingValues } from "@/lib/utils";
+import { ANNUALIZATION_DAYS } from "@/lib/constants";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,7 +14,7 @@ function calcVolatility(returns: number[]): number {
   const variance =
     returns.reduce((sum, r) => sum + (r - mean) ** 2, 0) /
     (returns.length - 1);
-  return Math.sqrt(variance) * Math.sqrt(365) * 100;
+  return Math.sqrt(variance) * Math.sqrt(ANNUALIZATION_DAYS) * 100;
 }
 
 export async function GET(request: Request) {

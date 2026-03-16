@@ -1,6 +1,7 @@
 import { db as getDb } from "@/lib/db";
 import { dailyReturns } from "@/lib/db/schema";
 import { asc, gte, lte, and, desc } from "drizzle-orm";
+import { V31_START_DATE } from "@/lib/constants";
 
 export interface DailyReturnRow {
   date: string;
@@ -34,14 +35,11 @@ export async function getDailyReturns(opts?: {
   return rows;
 }
 
-/** v3.1 전략 시작일 */
-const V31_START = "2024-11-17";
-
 /**
  * Get daily returns since v3.1 strategy start.
  */
 export async function getDailyReturnsSinceV31(): Promise<DailyReturnRow[]> {
-  return getDailyReturns({ from: V31_START });
+  return getDailyReturns({ from: V31_START_DATE });
 }
 
 /**

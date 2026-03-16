@@ -3,6 +3,7 @@
 import { Header } from "@/components/layout/Header";
 import { usePositionStore } from "@/stores/usePositionStore";
 import { cn, getPnlColor, formatPnlPercent } from "@/lib/utils";
+import { V31_START_DATE } from "@/lib/constants";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Position } from "@/types";
 
@@ -136,7 +137,7 @@ function PositionRow({ position }: { position: Position }) {
 /* ─── Trade History (Closed PnL, time-windowed infinite scroll) ─── */
 
 // v3.1 inception — stop fetching beyond this date
-const V31_START_MS = new Date("2024-11-17").getTime();
+const V31_START_MS = new Date(V31_START_DATE).getTime();
 
 function TradeHistory() {
   const [records, setRecords] = useState<ClosedPnlRecord[]>([]);

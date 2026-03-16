@@ -5,6 +5,7 @@ import { getClosedPnl } from "@/lib/bybit/client";
 import { db as getDb } from "@/lib/db";
 import { balanceSnapshots } from "@/lib/db/schema";
 import { asc, gte } from "drizzle-orm";
+import { V31_START_DATE } from "@/lib/constants";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -57,7 +58,7 @@ export async function GET(request: Request) {
     const nextCursor = result.nextPageCursor || "";
 
     // When cursor exhausted, always advance to next window if we haven't reached v3.1 start
-    const V31_START_MS = new Date("2024-11-17").getTime();
+    const V31_START_MS = new Date(V31_START_DATE).getTime();
     const nextEndTime =
       !nextCursor && startTime > V31_START_MS ? startTime : null;
 

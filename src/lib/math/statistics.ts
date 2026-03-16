@@ -5,6 +5,8 @@
  * - CAGR
  */
 
+import { ANNUALIZATION_DAYS, CALENDAR_DAYS_PER_YEAR } from "@/lib/constants";
+
 /**
  * Calculate annualized realized volatility
  * @param dailyReturns Array of daily returns (decimal form)
@@ -18,7 +20,7 @@ export function realizedVolatility(dailyReturns: number[]): number {
     dailyReturns.reduce((sum, r) => sum + (r - mean) ** 2, 0) /
     (dailyReturns.length - 1);
 
-  return Math.sqrt(variance) * Math.sqrt(365);
+  return Math.sqrt(variance) * Math.sqrt(ANNUALIZATION_DAYS);
 }
 
 /**
@@ -69,7 +71,7 @@ export function calcCAGR(
   days: number
 ): number {
   if (startValue <= 0 || days <= 0) return 0;
-  const years = days / 365.25;
+  const years = days / CALENDAR_DAYS_PER_YEAR;
   return Math.pow(endValue / startValue, 1 / years) - 1;
 }
 
