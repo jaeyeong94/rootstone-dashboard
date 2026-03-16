@@ -622,14 +622,15 @@ function ReturnsTab() {
         <div className="mt-3 rounded-sm border border-border-subtle bg-bg-card p-5">
           {(() => {
             const wins = monthlyReturns.filter((m) => m.value > 0).length;
-            const losses = monthlyReturns.filter((m) => m.value < 0).length;
+            const losses = monthlyReturns.filter((m) => m.value < 0 || Object.is(m.value, -0)).length;
             const total = monthlyReturns.length;
             const winPct = ((wins / total) * 100).toFixed(1);
+            const lossPct = ((losses / total) * 100).toFixed(1);
             return (
               <div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-pnl-positive">{wins} wins ({winPct}%)</span>
-                  <span className="text-pnl-negative">{losses} losses ({((losses / total) * 100).toFixed(1)}%)</span>
+                  <span className="text-pnl-negative">{losses} losses ({lossPct}%)</span>
                 </div>
                 <div className="mt-2 flex h-4 overflow-hidden rounded-full">
                   <div
@@ -638,7 +639,7 @@ function ReturnsTab() {
                   />
                   <div
                     className="bg-pnl-negative/60"
-                    style={{ width: `${100 - parseFloat(winPct)}%` }}
+                    style={{ width: `${lossPct}%` }}
                   />
                 </div>
                 <div className="mt-2 text-center font-[family-name:var(--font-mono)] text-xs text-text-muted">
