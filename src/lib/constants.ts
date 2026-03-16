@@ -19,13 +19,31 @@ export const CALENDAR_DAYS_PER_YEAR = 365.25;
 /** 무위험이자율 가정 (크립토 시장 관행: 0%) */
 export const RISK_FREE_RATE = 0;
 
-// ── Composite Tearsheet Metrics ──
-/** v1~v3.1 전체 기간 통합 지표 (2021.03.02 ~ 2026.02.16) */
+// ── Composite Tearsheet Metrics (Single Source of Truth) ──
+/** v1~v3.1 전체 기간 통합 지표 (qstats v0.1.33 · 2021.03.02 ~ 2026.02.16) */
 export const COMPOSITE_TEARSHEET = {
-  sharpe: 1.91,
-  sortino: 3.22,
-  maxDrawdown: -22.0,
   period: { start: "2021-03-02", end: "2026-02-16" },
+  rebeta: {
+    cumulativeReturn: 872.2,
+    cagr: 58.1,
+    sharpe: 1.9096,
+    sortino: 3.2160,
+    calmar: 2.6374,
+    maxDrawdown: -22.0,
+    maxDrawdownPrecise: -22.03,
+    maxDrawdownDuration: 121,
+    volatility: 25.7,
+  },
+  btc: {
+    cumulativeReturn: 40.6,
+    cagr: 7.1,
+    sharpe: 0.4050,
+    sortino: 0.5850,
+    calmar: 0.0927,
+    maxDrawdown: -76.7,
+    maxDrawdownDuration: 846,
+    volatility: 56.7,
+  },
 };
 
 // ── Period Filters ──

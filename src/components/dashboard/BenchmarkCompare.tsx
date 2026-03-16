@@ -50,9 +50,16 @@ export function BenchmarkCompare() {
 
   return (
     <div className="rounded-sm border border-border-subtle bg-bg-card p-5">
-      <span className="text-[11px] uppercase tracking-[1px] text-text-secondary">
-        vs BTC Benchmark
-      </span>
+      <div className="flex items-baseline justify-between">
+        <span className="text-[11px] uppercase tracking-[1px] text-text-secondary">
+          vs BTC Benchmark
+        </span>
+        {startDate && (
+          <span className="text-[10px] text-text-muted">
+            Since {startDate}
+          </span>
+        )}
+      </div>
 
       <div className="mt-4 grid grid-cols-2 gap-4">
         <div>
@@ -130,6 +137,7 @@ export function BenchmarkCompare() {
                 strokeWidth={1}
                 strokeDasharray="3 3"
                 dot={false}
+                connectNulls
                 name="BTC"
               />
             </LineChart>

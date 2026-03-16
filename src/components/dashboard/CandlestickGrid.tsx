@@ -81,20 +81,15 @@ function SingleCandleChart({
   const allOrders = useOrdersStore((s) => s.orders);
 
   const livePrice = useTickerStore((s) => s.getPrice(symbol));
+  const change24h = useTickerStore((s) => s.getChange24h(symbol));
   const points: KlinePoint[] = useMemo(() => data?.points ?? [], [data]);
   const orders: OpenOrder[] = useMemo(
     () => allOrders.filter((o) => o.symbol === symbol),
     [allOrders, symbol]
   );
 
-  const firstClose = points.length > 0 ? points[0].close : 0;
-  const lastClose = livePrice
-    ? parseFloat(livePrice)
-    : points.length > 0
-      ? points[points.length - 1].close
-      : 0;
-  const changePercent =
-    firstClose > 0 ? ((lastClose - firstClose) / firstClose) * 100 : 0;
+  // 24h 변동률: WebSocket ticker 데이터 (표준 24h 기준)
+  const changePercent = change24h ? parseFloat(change24h) * 100 : 0;
 
   // Initialize chart
   useEffect(() => {
@@ -213,24 +208,22 @@ function SingleCandleChart({
 
   return (
     <div className="rounded-sm border border-border-subtle bg-bg-card p-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="font-[family-name:var(--font-mono)] text-sm font-medium text-text-primary">
-            {label}
-          </span>
-          <span
-            className={cn(
-              "font-[family-name:var(--font-mono)] text-xs",
-              getPnlColor(changePercent)
-            )}
-          >
-            {changePercent >= 0 ? "+" : ""}
-            {changePercent.toFixed(2)}%
-          </span>
-        </div>
+      {/* Header: Symbol · Price · Change% */}
+      <div className="flex items-center gap-2">
+        <span className="font-[family-name:var(--font-mono)] text-sm font-medium text-text-primary">
+          {label}
+        </span>
         <span className="font-[family-name:var(--font-mono)] text-sm text-text-secondary">
           {livePrice ? formatNumber(parseFloat(livePrice)) : "--"}
+        </span>
+        <span
+          className={cn(
+            "font-[family-name:var(--font-mono)] text-xs",
+            getPnlColor(changePercent)
+          )}
+        >
+          {changePercent >= 0 ? "+" : ""}
+          {changePercent.toFixed(2)}%
         </span>
       </div>
 

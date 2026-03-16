@@ -6,21 +6,27 @@ import { useState } from "react";
 import { CumulativeReturnsChart } from "@/components/performance/CumulativeReturnsChart";
 import { UnderwaterChart } from "@/components/performance/UnderwaterChart";
 import { RollingSharpeChart } from "@/components/performance/RollingSharpeChart";
+import { COMPOSITE_TEARSHEET } from "@/lib/constants";
+import { benchmarkMetrics as sharedBenchmarkMetrics } from "@/lib/strategy-data";
 
 /* ═══════════════════════════════════════════════════════════════
    Rebeta v1~v3.1 Composite Tearsheet Data
    Source: qstats v0.1.33 · 2021.03.02 ~ 2026.02.16
+   주요 지표는 COMPOSITE_TEARSHEET (constants.ts)에서 가져옴
    ═══════════════════════════════════════════════════════════════ */
 
+const R = COMPOSITE_TEARSHEET.rebeta;
+const B = COMPOSITE_TEARSHEET.btc;
+
 const mainMetrics = [
-  { metric: "Cumulative Return", rebeta: "872.2%", btc: "40.6%", tooltip: "Total percentage change of initial capital" },
-  { metric: "CAGR", rebeta: "58.1%", btc: "7.1%", tooltip: "Annualized growth rate" },
-  { metric: "Volatility", rebeta: "25.7%", btc: "56.7%", tooltip: "Annualized std deviation of returns" },
-  { metric: "Sharpe", rebeta: "1.9096", btc: "0.4050", tooltip: "Risk-adjusted return (rf=0%)" },
-  { metric: "Sortino", rebeta: "3.2160", btc: "0.5850", tooltip: "Downside risk-adjusted return" },
-  { metric: "Calmar", rebeta: "2.6374", btc: "0.0927", tooltip: "CAGR / Max Drawdown" },
-  { metric: "Max Drawdown", rebeta: "-22.0%", btc: "-76.7%", tooltip: "Maximum peak-to-trough decline" },
-  { metric: "Duration of MD", rebeta: "121 days", btc: "846 days", tooltip: "Duration of max drawdown" },
+  { metric: "Cumulative Return", rebeta: `${R.cumulativeReturn}%`, btc: `${B.cumulativeReturn}%`, tooltip: "Total percentage change of initial capital" },
+  { metric: "CAGR", rebeta: `${R.cagr}%`, btc: `${B.cagr}%`, tooltip: "Annualized growth rate" },
+  { metric: "Volatility", rebeta: `${R.volatility}%`, btc: `${B.volatility}%`, tooltip: "Annualized std deviation of returns" },
+  { metric: "Sharpe", rebeta: R.sharpe.toFixed(4), btc: B.sharpe.toFixed(4), tooltip: "Risk-adjusted return (rf=0%)" },
+  { metric: "Sortino", rebeta: R.sortino.toFixed(4), btc: B.sortino.toFixed(4), tooltip: "Downside risk-adjusted return" },
+  { metric: "Calmar", rebeta: R.calmar.toFixed(4), btc: B.calmar.toFixed(4), tooltip: "CAGR / Max Drawdown" },
+  { metric: "Max Drawdown", rebeta: `${R.maxDrawdown}%`, btc: `${B.maxDrawdown}%`, tooltip: "Maximum peak-to-trough decline" },
+  { metric: "Duration of MD", rebeta: `${R.maxDrawdownDuration} days`, btc: `${B.maxDrawdownDuration} days`, tooltip: "Duration of max drawdown" },
 ];
 
 const returnsMetrics = [
@@ -57,13 +63,7 @@ const cumulativeMetrics = [
   { metric: "Worst Year", rebeta: "12.5%", btc: "-64.2%" },
 ];
 
-const benchmarkMetrics = [
-  { metric: "Alpha", rebeta: "0.0249", btc: "0.0000", tooltip: "Annualized excess return vs benchmark" },
-  { metric: "Beta", rebeta: "0.0637", btc: "1.0000", tooltip: "Market sensitivity" },
-  { metric: "Information Ratio", rebeta: "0.4444", btc: "0.0000", tooltip: "Risk-adjusted active return" },
-  { metric: "Treynor Ratio", rebeta: "0.40", btc: "0.01", tooltip: "Return per unit of systematic risk" },
-  { metric: "Correlation", rebeta: "0.14", btc: "1.00", tooltip: "Pearson correlation with BTC" },
-];
+const benchmarkMetrics = sharedBenchmarkMetrics;
 
 const worstDrawdowns = [
   { rank: 1, started: "2022-11-03", recovered: "2023-03-04", dd: -22.03, days: 121 },
@@ -412,10 +412,10 @@ export default function PerformancePage() {
         {/* Hero Stats */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[
-            { value: "872.2%", label: "Cumulative", sub: "vs BTC 40.6%" },
-            { value: "58.1%", label: "CAGR", sub: "vs BTC 7.1%" },
-            { value: "1.91", label: "Sharpe", sub: "vs BTC 0.41" },
-            { value: "-22.0%", label: "Max DD", sub: "vs BTC -76.7%" },
+            { value: `${R.cumulativeReturn}%`, label: "Cumulative", sub: `vs BTC ${B.cumulativeReturn}%` },
+            { value: `${R.cagr}%`, label: "CAGR", sub: `vs BTC ${B.cagr}%` },
+            { value: R.sharpe.toFixed(2), label: "Sharpe", sub: `vs BTC ${B.sharpe.toFixed(2)}` },
+            { value: `${R.maxDrawdown}%`, label: "Max DD", sub: `vs BTC ${B.maxDrawdown}%` },
           ].map((s) => (
             <div key={s.label} className="rounded-sm border border-border-subtle bg-bg-card p-4">
               <div className="font-[family-name:var(--font-mono)] text-2xl font-semibold text-text-primary">
@@ -710,8 +710,8 @@ function RiskTab() {
         <SectionLabel>Risk Summary</SectionLabel>
         <div className="mt-3 grid grid-cols-2 gap-3 xl:grid-cols-4">
           {[
-            { label: "Max Drawdown", rebeta: "-22.0%", btc: "-76.7%" },
-            { label: "Longest DD", rebeta: "121 days", btc: "846 days" },
+            { label: "Max Drawdown", rebeta: `${R.maxDrawdown}%`, btc: `${B.maxDrawdown}%` },
+            { label: "Longest DD", rebeta: `${R.maxDrawdownDuration} days`, btc: `${B.maxDrawdownDuration} days` },
             { label: "Daily VaR (95%)", rebeta: "-0.65%", btc: "-4.63%" },
             { label: "CVaR (99%)", rebeta: "-3.45%", btc: "-7.84%" },
           ].map((s) => (
@@ -769,12 +769,12 @@ function BenchmarkTab() {
             <span className="text-[10px] font-medium uppercase tracking-[2px] text-gold">Rebeta v1~v3.1</span>
             <div className="mt-4 space-y-3">
               {[
-                { label: "Cumulative", value: "872.2%" },
-                { label: "CAGR", value: "58.1%" },
-                { label: "Sharpe", value: "1.91" },
-                { label: "Sortino", value: "3.22" },
-                { label: "Max DD", value: "-22.0%" },
-                { label: "Volatility", value: "25.7%" },
+                { label: "Cumulative", value: `${R.cumulativeReturn}%` },
+                { label: "CAGR", value: `${R.cagr}%` },
+                { label: "Sharpe", value: R.sharpe.toFixed(2) },
+                { label: "Sortino", value: R.sortino.toFixed(2) },
+                { label: "Max DD", value: `${R.maxDrawdown}%` },
+                { label: "Volatility", value: `${R.volatility}%` },
               ].map((m) => (
                 <div key={m.label} className="flex items-center justify-between">
                   <span className="text-xs text-text-secondary">{m.label}</span>
@@ -788,12 +788,12 @@ function BenchmarkTab() {
             <span className="text-[10px] font-medium uppercase tracking-[2px] text-text-muted">BTC (Benchmark)</span>
             <div className="mt-4 space-y-3">
               {[
-                { label: "Cumulative", value: "40.6%" },
-                { label: "CAGR", value: "7.1%" },
-                { label: "Sharpe", value: "0.41" },
-                { label: "Sortino", value: "0.59" },
-                { label: "Max DD", value: "-76.7%" },
-                { label: "Volatility", value: "56.7%" },
+                { label: "Cumulative", value: `${B.cumulativeReturn}%` },
+                { label: "CAGR", value: `${B.cagr}%` },
+                { label: "Sharpe", value: B.sharpe.toFixed(2) },
+                { label: "Sortino", value: B.sortino.toFixed(2) },
+                { label: "Max DD", value: `${B.maxDrawdown}%` },
+                { label: "Volatility", value: `${B.volatility}%` },
               ].map((m) => (
                 <div key={m.label} className="flex items-center justify-between">
                   <span className="text-xs text-text-secondary">{m.label}</span>

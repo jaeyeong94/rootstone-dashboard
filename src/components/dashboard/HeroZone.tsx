@@ -61,15 +61,15 @@ export function HeroZone() {
   const kpis = [
     {
       label: "Sharpe Ratio",
-      value: COMPOSITE_TEARSHEET.sharpe.toFixed(2),
+      value: COMPOSITE_TEARSHEET.rebeta.sharpe.toFixed(2),
     },
     {
       label: "Sortino Ratio",
-      value: COMPOSITE_TEARSHEET.sortino.toFixed(2),
+      value: COMPOSITE_TEARSHEET.rebeta.sortino.toFixed(2),
     },
     {
       label: "Max Drawdown",
-      value: `${COMPOSITE_TEARSHEET.maxDrawdown.toFixed(1)}%`,
+      value: `${COMPOSITE_TEARSHEET.rebeta.maxDrawdown.toFixed(1)}%`,
     },
     {
       label: "30D Return",
