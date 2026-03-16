@@ -100,6 +100,25 @@ describe("efficientFrontier", () => {
   });
 });
 
+describe("efficientFrontier edge cases", () => {
+  it("returns empty array when steps < 2", () => {
+    const returnsA = Array(100).fill(0.001);
+    const returnsB = Array(100).fill(0.002);
+    expect(efficientFrontier(returnsA, returnsB, 100, 1)).toEqual([]);
+    expect(efficientFrontier(returnsA, returnsB, 100, 0)).toEqual([]);
+  });
+
+  it("steps=2 produces only 0% and 100% weights", () => {
+    const returnsA = Array(50).fill(0.001);
+    const returnsB = Array(50).fill(0.002);
+    const frontier = efficientFrontier(returnsA, returnsB, 50, 2);
+
+    expect(frontier).toHaveLength(2);
+    expect(frontier[0].btcWeight).toBe(0);
+    expect(frontier[1].btcWeight).toBe(100);
+  });
+});
+
 describe("optimalSharpePortfolio", () => {
   it("finds the portfolio with highest Sharpe", () => {
     const frontier = [

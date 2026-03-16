@@ -14,6 +14,7 @@ export function useBybitWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
   const pingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const connectRef = useRef<(() => void) | null>(null);
 
   const updateTicker = useTickerStore((s) => s.updateTicker);
 
@@ -30,18 +31,6 @@ export function useBybitWebSocket() {
       wsRef.current.close();
       wsRef.current = null;
     }
-  }, []);
-
-  const scheduleReconnect = useCallback(() => {
-    // Use getState() to avoid stale closure on reconnectCount
-    const store = useConnectionStore.getState();
-    store.incrementReconnect();
-    const count = useConnectionStore.getState().reconnectCount;
-    const delay = Math.min(1000 * Math.pow(2, count), MAX_RECONNECT_DELAY);
-
-    reconnectTimeoutRef.current = setTimeout(() => {
-      connect();
-    }, delay);
   }, []);
 
   const connect = useCallback(() => {
@@ -87,13 +76,23 @@ export function useBybitWebSocket() {
 
     ws.onclose = () => {
       useConnectionStore.getState().setStatus("reconnecting");
-      scheduleReconnect();
+      // Schedule reconnect via ref to avoid circular dependency
+      const store = useConnectionStore.getState();
+      store.incrementReconnect();
+      const count = useConnectionStore.getState().reconnectCount;
+      const delay = Math.min(1000 * Math.pow(2, count), MAX_RECONNECT_DELAY);
+      reconnectTimeoutRef.current = setTimeout(() => {
+        connectRef.current?.();
+      }, delay);
     };
 
     ws.onerror = () => {
       ws.close();
     };
-  }, [cleanup, updateTicker, scheduleReconnect]);
+  }, [cleanup, updateTicker]);
+
+  // Keep ref in sync for reconnection
+  connectRef.current = connect;
 
   useEffect(() => {
     connect();

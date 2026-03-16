@@ -174,37 +174,7 @@ function CorrelationCell({
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   Custom Tooltip for Recharts
-   ═══════════════════════════════════════════════════════════════ */
 
-function RollingTooltip({
-  active,
-  payload,
-  label,
-}: {
-  active?: boolean;
-  payload?: { name: string; value: number; color: string }[];
-  label?: string;
-}) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-sm border border-border-subtle bg-bg-card px-3 py-2 text-xs shadow-lg">
-      <p className="mb-1 font-[family-name:var(--font-mono)] text-text-muted">
-        {label}
-      </p>
-      {payload.map((p) => (
-        <p key={p.name} style={{ color: p.color }}>
-          {p.name}:{" "}
-          <span className="font-[family-name:var(--font-mono)]">
-            {p.value >= 0 ? "+" : ""}
-            {p.value.toFixed(3)}
-          </span>
-        </p>
-      ))}
-    </div>
-  );
-}
 
 function EquityTooltip({
   active,

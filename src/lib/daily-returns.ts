@@ -85,7 +85,9 @@ export async function getMonthlyReturns(opts?: {
   for (const [key, monthRows] of Array.from(byMonth.entries()).sort()) {
     const first = monthRows[0];
     const last = monthRows[monthRows.length - 1];
-    const returnPct = ((last.navIndex / first.navIndex) - 1) * 100;
+    const returnPct = first.navIndex > 0
+      ? ((last.navIndex / first.navIndex) - 1) * 100
+      : 0;
     const [year, month] = key.split("-").map(Number);
     result.push({ year, month, returnPct });
   }

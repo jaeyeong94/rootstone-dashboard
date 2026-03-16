@@ -7,7 +7,6 @@ import { signOut } from "next-auth/react";
 import {
   LayoutDashboard,
   BarChart3,
-  BookOpen,
   TrendingUp,
   GitCompareArrows,
   LogOut,
@@ -21,7 +20,6 @@ const navigation = [
   { name: "PERFORMANCE", href: "/dashboard/performance", icon: TrendingUp },
   { name: "TRADES", href: "/dashboard/positions", icon: BarChart3 },
   { name: "CORRELATION", href: "/dashboard/correlation", icon: GitCompareArrows },
-  // { name: "STRATEGY", href: "/dashboard/strategy", icon: BookOpen },
 ];
 
 export function Sidebar() {

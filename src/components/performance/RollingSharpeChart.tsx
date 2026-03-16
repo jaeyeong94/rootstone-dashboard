@@ -74,7 +74,7 @@ export function RollingSharpeChart() {
         lastValueVisible: false,
       });
       const rebeta = chartData.find((s) => s.name === "daily_return");
-      if (rebeta) {
+      if (rebeta && rebeta.x.length > 0) {
         zeroLine.setData([
           { time: rebeta.x[0], value: 0 },
           { time: rebeta.x[rebeta.x.length - 1], value: 0 },

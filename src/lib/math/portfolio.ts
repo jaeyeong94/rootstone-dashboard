@@ -5,7 +5,7 @@
  * - Portfolio metrics
  */
 
-import { calcSharpeRatio, calcMaxDrawdown, calcDailyReturns } from "@/lib/utils";
+import { calcSharpeRatio, calcSortinoRatio, calcMaxDrawdown, calcDailyReturns } from "@/lib/utils";
 import { realizedVolatility, calcCAGR } from "./statistics";
 
 export interface PortfolioMetrics {
@@ -67,24 +67,10 @@ export function calcPortfolioMetrics(
     cumulativeReturn: (end - start) / start,
     cagr: calcCAGR(start, end, days),
     sharpe: calcSharpeRatio(dailyReturns),
-    sortino: calcSortinoFromReturns(dailyReturns),
+    sortino: calcSortinoRatio(dailyReturns),
     maxDrawdown: calcMaxDrawdown(equityCurve),
     volatility: realizedVolatility(dailyReturns),
   };
-}
-
-/**
- * Sortino from daily returns (duplicated here to avoid circular dep)
- */
-function calcSortinoFromReturns(dailyReturns: number[]): number {
-  if (dailyReturns.length < 2) return 0;
-  const avg = dailyReturns.reduce((a, b) => a + b, 0) / dailyReturns.length;
-  const downsideVariance =
-    dailyReturns.reduce((sum, r) => sum + Math.min(r, 0) ** 2, 0) /
-    dailyReturns.length;
-  const downsideStd = Math.sqrt(downsideVariance);
-  if (downsideStd === 0) return 0;
-  return (avg / downsideStd) * Math.sqrt(365);
 }
 
 /**
@@ -103,6 +89,8 @@ export function efficientFrontier(
   volatility: number;
   sharpe: number;
 }[] {
+  if (steps < 2) return [];
+
   const points: {
     btcWeight: number;
     rebetaWeight: number;

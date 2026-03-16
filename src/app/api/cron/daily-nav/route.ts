@@ -77,7 +77,7 @@ export async function GET(request: Request) {
         .from(balanceSnapshots)
         .where(and(
           gte(balanceSnapshots.snapshotAt, new Date(yesterdayStr + "T00:00:00Z")),
-          lte(balanceSnapshots.snapshotAt, new Date(today + "T00:30:00Z"))
+          lte(balanceSnapshots.snapshotAt, new Date(yesterdayStr + "T23:59:59Z"))
         ))
         .orderBy(asc(balanceSnapshots.snapshotAt));
 
@@ -110,7 +110,7 @@ export async function GET(request: Request) {
       dailyReturn,
       rawNav: todayNAV,
       source: "cron",
-    });
+    }).onConflictDoNothing({ target: dailyReturns.date });
 
     return NextResponse.json({
       ok: true,

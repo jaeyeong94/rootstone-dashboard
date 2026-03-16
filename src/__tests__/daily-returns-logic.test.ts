@@ -312,4 +312,14 @@ describe("edge cases", () => {
     const expected = 9.721657 * (1.001) * (0.998) * (1.003) * (1.0005);
     expect(nav).toBeCloseTo(expected, 6);
   });
+
+  it("monthly return with zero navIndex returns 0 (no NaN)", () => {
+    const first = 0;
+    const last = 1.05;
+    const returnPct = first > 0 ? ((last / first) - 1) * 100 : 0;
+
+    expect(returnPct).toBe(0);
+    expect(Number.isNaN(returnPct)).toBe(false);
+    expect(Number.isFinite(returnPct)).toBe(true);
+  });
 });

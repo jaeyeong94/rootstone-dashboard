@@ -31,7 +31,7 @@ export function PnLDistribution() {
   for (let i = 1; i < curve.length; i++) {
     dailyBars.push({
       date: curve[i].time,
-      value: parseFloat((curve[i].value - curve[i - 1].value).toFixed(3)),
+      value: Math.round((curve[i].value - curve[i - 1].value) * 1000) / 1000,
     });
   }
 

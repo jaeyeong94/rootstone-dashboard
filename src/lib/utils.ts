@@ -96,18 +96,6 @@ export function calcMaxDrawdown(equitySeries: number[]): number {
 }
 
 /**
- * Calculate drawdown series from equity series
- */
-export function calcDrawdownSeries(equitySeries: { time: string; equity: number }[]): { time: string; value: number }[] {
-  if (equitySeries.length === 0) return [];
-  let peak = equitySeries[0].equity;
-  return equitySeries.map((point) => {
-    if (point.equity > peak) peak = point.equity;
-    return { time: point.time, value: ((point.equity - peak) / peak) * 100 };
-  });
-}
-
-/**
  * Calculate daily returns from equity series
  */
 export function calcDailyReturns(equitySeries: number[]): number[] {

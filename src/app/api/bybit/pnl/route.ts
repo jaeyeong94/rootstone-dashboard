@@ -75,19 +75,23 @@ export async function GET(request: Request) {
         .where(gte(balanceSnapshots.snapshotAt, windowStart))
         .orderBy(asc(balanceSnapshots.snapshotAt));
 
+      // Pre-extract snapshot timestamps for binary search
+      const snapTimes = snapshots.map((s) => s.snapshotAt.getTime());
+
       enrichedList = list.map((rec) => {
         const tradeTime = parseInt(rec.updatedTime);
-        let closestEquity = 0;
-        for (const snap of snapshots) {
-          if (snap.snapshotAt.getTime() <= tradeTime) {
-            closestEquity = snap.totalEquity;
+        // Binary search: find last snapshot <= tradeTime
+        let lo = 0, hi = snapTimes.length - 1, best = -1;
+        while (lo <= hi) {
+          const mid = (lo + hi) >>> 1;
+          if (snapTimes[mid] <= tradeTime) {
+            best = mid;
+            lo = mid + 1;
           } else {
-            break;
+            hi = mid - 1;
           }
         }
-        if (closestEquity === 0 && snapshots.length > 0) {
-          closestEquity = snapshots[0].totalEquity;
-        }
+        const closestEquity = best >= 0 ? snapshots[best].totalEquity : (snapshots[0]?.totalEquity ?? 0);
         return { ...rec, totalEquityAtTime: closestEquity };
       });
     }

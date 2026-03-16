@@ -6,6 +6,9 @@ export function useInView(options?: IntersectionObserverInit): [React.RefObject<
   const ref = useRef<HTMLDivElement>(null);
   const [inView, setInView] = useState(false);
 
+  const threshold = options?.threshold;
+  const rootMargin = options?.rootMargin;
+
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -16,11 +19,11 @@ export function useInView(options?: IntersectionObserverInit): [React.RefObject<
           observer.disconnect(); // 한 번만 실행
         }
       },
-      { threshold: 0.1, ...options }
+      { threshold: threshold ?? 0.1, rootMargin }
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [threshold, rootMargin]);
 
   return [ref, inView];
 }

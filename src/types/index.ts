@@ -109,13 +109,6 @@ export interface EquityCurvePoint {
   value: number; // cumulative return %
 }
 
-export interface DashboardMetrics {
-  todayPnl: number;
-  weekPnl: number;
-  openPositionCount: number;
-  lastRebalanceTime: string | null;
-}
-
 // Strategy metrics
 export interface StrategyMetrics {
   sharpeRatio: number;
@@ -134,33 +127,16 @@ export interface MonthlyReturn {
   return: number;
 }
 
-// Drawdown series
-export interface DrawdownPoint {
-  time: string; // YYYY-MM-DD
-  value: number; // negative percentage
-}
-
 // Rolling metrics
 export interface RollingMetricPoint {
   time: string;
   value: number;
 }
 
-export interface RollingMetricsData {
-  sharpe: RollingMetricPoint[];
-  volatility: RollingMetricPoint[];
-}
-
 // Benchmark
 export interface BenchmarkPoint {
   time: string;
   value: number; // cumulative return %
-}
-
-// PnL distribution
-export interface DailyPnL {
-  time: string;
-  value: number; // daily return %
 }
 
 // Normalized position (from /api/bybit/positions response)

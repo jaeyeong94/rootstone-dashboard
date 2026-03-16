@@ -101,4 +101,16 @@ describe("calcAssetMetrics", () => {
     expect(metrics.sharpe).toBeGreaterThan(-1);
     expect(metrics.sharpe).toBeLessThan(5);
   });
+
+  it("uses sqrt(365) annualization consistent with strategy metrics", () => {
+    // Known daily returns with known std dev
+    const returns = [0.01, -0.01, 0.01, -0.01, 0.01, -0.01];
+    const metrics = calcAssetMetrics(returns, returns.length);
+
+    // Manual: mean=0, variance of [0.01,-0.01,...] = 0.0001, std=0.01
+    // Annualized vol = 0.01 * sqrt(365) ≈ 0.19105
+    const expectedVol = 0.01 * Math.sqrt(365);
+    // Allow sample variance difference (N-1 vs N)
+    expect(metrics.volatility).toBeCloseTo(expectedVol, 1);
+  });
 });

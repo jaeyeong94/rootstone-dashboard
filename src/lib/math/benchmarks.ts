@@ -102,12 +102,12 @@ export function calcAssetMetrics(
   const years = totalDays / 365.25;
   const cagr = years > 0 ? Math.pow(cumProduct, 1 / years) - 1 : 0;
 
-  // Annualized volatility (using 252 trading days)
+  // Annualized volatility (365 calendar days — crypto trades 24/7)
   const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
   const variance =
     returns.reduce((sum, r) => sum + (r - mean) ** 2, 0) /
     (returns.length - 1);
-  const volatility = Math.sqrt(variance) * Math.sqrt(252);
+  const volatility = Math.sqrt(variance) * Math.sqrt(365);
 
   // Sharpe ratio (assuming risk-free rate ~0 for simplicity)
   const annualizedReturn = cagr;

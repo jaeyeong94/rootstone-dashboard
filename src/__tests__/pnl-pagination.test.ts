@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 
 /**
  * Test the time-windowed pagination logic for Bybit Closed PnL API.

@@ -13,7 +13,6 @@ export async function POST() {
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  // Admin routes are protected by session check only
 
   try {
     const result = await getWalletBalance();

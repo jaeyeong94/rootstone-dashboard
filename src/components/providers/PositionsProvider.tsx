@@ -9,6 +9,7 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 export function PositionsProvider({ children }: { children: React.ReactNode }) {
   const { data, isLoading } = useSWR("/api/bybit/positions", fetcher, {
     refreshInterval: 5000,
+    dedupingInterval: 5000,
   });
 
   const setPositions = usePositionStore((s) => s.setPositions);

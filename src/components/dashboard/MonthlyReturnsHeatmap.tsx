@@ -11,11 +11,6 @@ const MONTHS = [
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
-const MONTH_INDEX: Record<string, number> = {
-  Jan: 1, Feb: 2, Mar: 3, Apr: 4, May: 5, Jun: 6,
-  Jul: 7, Aug: 8, Sep: 9, Oct: 10, Nov: 11, Dec: 12,
-};
-
 // Static tearsheet data (v1~v3.1): 2021.03 ~ 2026.02
 const STATIC_MONTHLY: MonthlyReturn[] = [
   // 2021

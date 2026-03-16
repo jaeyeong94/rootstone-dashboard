@@ -1,7 +1,7 @@
 "use client";
 
 import useSWR from "swr";
-import { cn, formatNumber, formatPnlPercent, getPnlColor } from "@/lib/utils";
+import { cn, formatPnlPercent, getPnlColor } from "@/lib/utils";
 import type { BybitExecution } from "@/types";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
