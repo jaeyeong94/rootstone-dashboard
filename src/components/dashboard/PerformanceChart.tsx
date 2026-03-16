@@ -3,9 +3,7 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import useSWR from "swr";
 import { cn } from "@/lib/utils";
-import staticCurve from "@/data/cumulative-returns.json";
-import staticBtc from "@/data/cumulative-returns-btc.json";
-import type { EquityCurvePoint } from "@/types";
+import type { EquityCurvePoint, BenchmarkPoint } from "@/types";
 import { V31_START_DATE, PERIOD_DAYS as PERIOD_DAYS_CONST } from "@/lib/constants";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -51,45 +49,27 @@ export function PerformanceChart() {
   const [period, setPeriod] = useState<Period>("ALL");
   const [chartReady, setChartReady] = useState(false);
 
-  const { data: curveData, isLoading: curveLoading } = useSWR(
+  const { data: curveData, isLoading: curveLoading } = useSWR<{ curve: EquityCurvePoint[] }>(
     "/api/bybit/equity-curve",
     fetcher,
     { refreshInterval: 300000 }
   );
-  const btcBenchmark = useMemo(
-    () => (staticBtc as { time: string; value: number }[]),
-    []
+
+  const { data: btcData, isLoading: btcLoading } = useSWR<{ series: BenchmarkPoint[] }>(
+    "/api/bybit/benchmark?symbol=BTCUSDT&limit=2000&startDate=2021-03-02",
+    fetcher,
+    { refreshInterval: 300000 }
   );
 
-  // Split static data into v1 portion, and merge v3.1 with live extension
+  const rebetaCurve = useMemo(() => curveData?.curve ?? [], [curveData]);
+  const btcBenchmark = useMemo(() => btcData?.series ?? [], [btcData]);
+
+  // Split into v1 and v3.1
   const { v1Data, v31Data } = useMemo(() => {
-    const typed = staticCurve as { time: string; value: number }[];
-    const v1 = typed.filter((p) => p.time < V31_START_DATE);
-    const v31Static = typed.filter((p) => p.time >= V31_START_DATE);
-
-    // Use static tearsheet data as primary, extend with live data for newer dates
-    const liveCurve: EquityCurvePoint[] = curveData?.curve ?? [];
-    const staticEndDate = v31Static.length > 0 ? v31Static[v31Static.length - 1].time : "";
-    const liveAfterStatic = liveCurve.filter((p) => p.time > staticEndDate);
-
-    if (liveAfterStatic.length > 0) {
-      // Rebase live extension using compound return ratio
-      // Live API returns: ((equity - firstEquity) / firstEquity) * 100
-      // Actual compound return from base to point: (1 + p.value/100) / (1 + baseline/100) - 1
-      const staticEndValue = v31Static[v31Static.length - 1].value;
-      const staticEndMultiplier = 1 + staticEndValue / 100;
-      const liveAtStaticEnd = liveCurve.find((p) => p.time >= staticEndDate);
-      const liveBaseline = liveAtStaticEnd?.value ?? liveAfterStatic[0].value;
-      const liveBaselineMultiplier = 1 + liveBaseline / 100;
-      const extension = liveAfterStatic.map((p) => ({
-        time: p.time,
-        value: (staticEndMultiplier * ((1 + p.value / 100) / liveBaselineMultiplier) - 1) * 100,
-      }));
-      return { v1Data: v1, v31Data: [...v31Static, ...extension] };
-    }
-
-    return { v1Data: v1, v31Data: v31Static };
-  }, [curveData]);
+    const v1 = rebetaCurve.filter((p) => p.time < V31_START_DATE);
+    const v31 = rebetaCurve.filter((p) => p.time >= V31_START_DATE);
+    return { v1Data: v1, v31Data: v31 };
+  }, [rebetaCurve]);
 
   // Initialize chart once
   useEffect(() => {
@@ -249,7 +229,7 @@ export function PerformanceChart() {
       </div>
 
       <div className="relative mt-4">
-        {curveLoading && (
+        {(curveLoading || btcLoading) && (
           <div className="absolute inset-0 z-10 h-[420px] animate-pulse rounded bg-bg-elevated" />
         )}
         <div ref={chartContainerRef} className="h-[420px]" />

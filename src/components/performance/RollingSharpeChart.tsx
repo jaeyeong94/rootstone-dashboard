@@ -1,14 +1,28 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import chartData from "@/data/rolling-sharpe.json";
+import { useEffect, useRef, useMemo } from "react";
+import useSWR from "swr";
+import type { RollingMetricPoint } from "@/types";
+
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function RollingSharpeChart() {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ReturnType<typeof import("lightweight-charts").createChart> | null>(null);
 
+  const { data: metricsData, isLoading } = useSWR<{
+    sharpe: RollingMetricPoint[];
+    volatility: RollingMetricPoint[];
+  }>(
+    "/api/bybit/rolling-metrics?window=365",
+    fetcher,
+    { refreshInterval: 300000 }
+  );
+
+  const sharpeData = useMemo(() => metricsData?.sharpe ?? [], [metricsData]);
+
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || sharpeData.length === 0) return;
 
     import("lightweight-charts").then(({ createChart, ColorType, LineStyle }) => {
       if (chartRef.current) chartRef.current.remove();
@@ -34,50 +48,31 @@ export function RollingSharpeChart() {
         },
       });
 
-      // Helper to filter out null values
-      function toValidData(series: { x: string[]; y: (number | null)[] }) {
-        return series.x
-          .map((date: string, i: number) => ({ time: date, value: series.y[i] }))
-          .filter((d): d is { time: string; value: number } => d.value !== null && d.value !== undefined);
-      }
-
       // Rebeta Rolling Sharpe
-      const rebetaSeries = chartData.find((s) => s.name === "daily_return");
-      if (rebetaSeries) {
-        const line = chart.addLineSeries({
-          color: "#C5A049",
-          lineWidth: 2,
-          priceFormat: { type: "custom", formatter: (p: number) => p.toFixed(2) },
-          title: "Rebeta",
-        });
-        line.setData(toValidData(rebetaSeries));
-      }
-
-      // BTC Rolling Sharpe
-      const btcSeries = chartData.find((s) => s.name === "BTC");
-      if (btcSeries) {
-        const line2 = chart.addLineSeries({
-          color: "#555555",
-          lineWidth: 1,
-          priceFormat: { type: "custom", formatter: (p: number) => p.toFixed(2) },
-          title: "BTC",
-        });
-        line2.setData(toValidData(btcSeries));
-      }
+      const line = chart.addLineSeries({
+        color: "#C5A049",
+        lineWidth: 2,
+        priceFormat: { type: "custom", formatter: (p: number) => p.toFixed(2) },
+        title: "Rebeta",
+      });
+      line.setData(
+        sharpeData
+          .filter((d) => d.value !== null && d.value !== undefined)
+          .map((d) => ({ time: d.time, value: d.value }))
+      );
 
       // Zero line
-      const zeroLine = chart.addLineSeries({
-        color: "#333333",
-        lineWidth: 1,
-        lineStyle: LineStyle.Dashed,
-        priceLineVisible: false,
-        lastValueVisible: false,
-      });
-      const rebeta = chartData.find((s) => s.name === "daily_return");
-      if (rebeta && rebeta.x.length > 0) {
+      if (sharpeData.length > 0) {
+        const zeroLine = chart.addLineSeries({
+          color: "#333333",
+          lineWidth: 1,
+          lineStyle: LineStyle.Dashed,
+          priceLineVisible: false,
+          lastValueVisible: false,
+        });
         zeroLine.setData([
-          { time: rebeta.x[0], value: 0 },
-          { time: rebeta.x[rebeta.x.length - 1], value: 0 },
+          { time: sharpeData[0].time, value: 0 },
+          { time: sharpeData[sharpeData.length - 1].time, value: 0 },
         ]);
       }
 
@@ -99,7 +94,11 @@ export function RollingSharpeChart() {
         chartRef.current = null;
       }
     };
-  }, []);
+  }, [sharpeData]);
+
+  if (isLoading) {
+    return <div className="h-[280px] animate-pulse rounded bg-bg-elevated" />;
+  }
 
   return <div ref={containerRef} />;
 }

@@ -1,14 +1,48 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import chartData from "@/data/underwater.json";
+import { useEffect, useRef, useMemo } from "react";
+import useSWR from "swr";
+import type { EquityCurvePoint, BenchmarkPoint } from "@/types";
+
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
+
+/** Compute drawdown series from a cumulative return curve.
+ *  Input: [{time, value}] where value is cumulative return %.
+ *  Output: [{time, value}] where value is drawdown as a decimal (e.g. -0.15 = -15%).
+ */
+function computeDrawdown(curve: { time: string; value: number }[]): { time: string; value: number }[] {
+  if (curve.length === 0) return [];
+
+  let peakNav = 1 + curve[0].value / 100;
+  return curve.map((p) => {
+    const nav = 1 + p.value / 100;
+    if (nav > peakNav) peakNav = nav;
+    const dd = (nav - peakNav) / peakNav;
+    return { time: p.time, value: dd };
+  });
+}
 
 export function UnderwaterChart() {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ReturnType<typeof import("lightweight-charts").createChart> | null>(null);
 
+  const { data: curveData, isLoading: curveLoading } = useSWR<{ curve: EquityCurvePoint[] }>(
+    "/api/bybit/equity-curve",
+    fetcher,
+    { refreshInterval: 300000 }
+  );
+
+  const { data: btcData, isLoading: btcLoading } = useSWR<{ series: BenchmarkPoint[] }>(
+    "/api/bybit/benchmark?symbol=BTCUSDT&limit=2000&startDate=2021-03-02",
+    fetcher,
+    { refreshInterval: 300000 }
+  );
+
+  const rebetaDD = useMemo(() => computeDrawdown(curveData?.curve ?? []), [curveData]);
+  const btcDD = useMemo(() => computeDrawdown(btcData?.series ?? []), [btcData]);
+
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || rebetaDD.length === 0) return;
 
     import("lightweight-charts").then(({ createChart, ColorType, LineStyle }) => {
       if (chartRef.current) chartRef.current.remove();
@@ -36,29 +70,20 @@ export function UnderwaterChart() {
       });
 
       // Rebeta drawdown
-      const rebetaSeries = chartData.find((s) => s.name === "daily_return");
-      if (rebetaSeries) {
-        const area = chart.addAreaSeries({
-          lineColor: "#EF4444",
-          lineWidth: 2,
-          topColor: "rgba(239, 68, 68, 0)",
-          bottomColor: "rgba(239, 68, 68, 0.3)",
-          invertFilledArea: true,
-          priceFormat: { type: "custom", formatter: (p: number) => `${(p * 100).toFixed(1)}%` },
-          title: "Rebeta DD",
-          priceScaleId: "right",
-        });
-        area.setData(
-          rebetaSeries.x.map((date: string, i: number) => ({
-            time: date,
-            value: rebetaSeries.y[i],
-          }))
-        );
-      }
+      const area = chart.addAreaSeries({
+        lineColor: "#EF4444",
+        lineWidth: 2,
+        topColor: "rgba(239, 68, 68, 0)",
+        bottomColor: "rgba(239, 68, 68, 0.3)",
+        invertFilledArea: true,
+        priceFormat: { type: "custom", formatter: (p: number) => `${(p * 100).toFixed(1)}%` },
+        title: "Rebeta DD",
+        priceScaleId: "right",
+      });
+      area.setData(rebetaDD.map((p) => ({ time: p.time, value: p.value })));
 
       // BTC drawdown
-      const btcSeries = chartData.find((s) => s.name === "BTC");
-      if (btcSeries) {
+      if (btcDD.length > 0) {
         const area2 = chart.addAreaSeries({
           lineColor: "#555555",
           lineWidth: 1,
@@ -68,12 +93,7 @@ export function UnderwaterChart() {
           title: "BTC DD",
           priceScaleId: "left",
         });
-        area2.setData(
-          btcSeries.x.map((date: string, i: number) => ({
-            time: date,
-            value: btcSeries.y[i],
-          }))
-        );
+        area2.setData(btcDD.map((p) => ({ time: p.time, value: p.value })));
       }
 
       chart.timeScale().fitContent();
@@ -94,7 +114,11 @@ export function UnderwaterChart() {
         chartRef.current = null;
       }
     };
-  }, []);
+  }, [rebetaDD, btcDD]);
+
+  if (curveLoading || btcLoading) {
+    return <div className="h-[240px] animate-pulse rounded bg-bg-elevated" />;
+  }
 
   return <div ref={containerRef} />;
 }

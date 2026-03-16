@@ -5,7 +5,6 @@ import useSWR from "swr";
 import { cn, formatPnlPercent, getPnlColor } from "@/lib/utils";
 import { useCountUp } from "@/hooks/useCountUp";
 import { AnimatedSparkline } from "./AnimatedSparkline";
-import staticCurve from "@/data/cumulative-returns.json";
 import type { EquityCurvePoint } from "@/types";
 import { STRATEGY_INCEPTION_DATE } from "@/lib/constants";
 
@@ -41,30 +40,11 @@ export function HeroZone() {
     { refreshInterval: 300000 }
   );
 
-  // Static tearsheet + live compound extension
   const curve = useMemo(() => {
-    const typed = staticCurve as { time: string; value: number }[];
-    const liveCurve: EquityCurvePoint[] = curveData?.curve ?? [];
-    const staticEndDate = typed.length > 0 ? typed[typed.length - 1].time : "";
-    const liveAfterStatic = liveCurve.filter((p) => p.time > staticEndDate);
-
-    if (liveAfterStatic.length > 0) {
-      const staticEndValue = typed[typed.length - 1].value;
-      const staticEndMultiplier = 1 + staticEndValue / 100;
-      const liveAtStaticEnd = liveCurve.find((p) => p.time >= staticEndDate);
-      const liveBaseline = liveAtStaticEnd?.value ?? liveAfterStatic[0].value;
-      const liveBaselineMultiplier = 1 + liveBaseline / 100;
-      const extension = liveAfterStatic.map((p) => ({
-        time: p.time,
-        value: (staticEndMultiplier * ((1 + p.value / 100) / liveBaselineMultiplier) - 1) * 100,
-      }));
-      return [...typed, ...extension];
-    }
-
-    return typed;
+    return curveData?.curve ?? [];
   }, [curveData]);
 
-  const liveReady = !!curveData;
+  const liveReady = !!curveData && curve.length > 0;
   const lastValue = curve.length > 0 ? curve[curve.length - 1].value / 100 : 0;
   const animatedReturn = useCountUp(liveReady ? lastValue : 0, 2000);
 

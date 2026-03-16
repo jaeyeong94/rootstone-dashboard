@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getDailyReturnsSinceV31 } from "@/lib/daily-returns";
+import { getDailyReturns } from "@/lib/daily-returns";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,7 +13,7 @@ export async function GET() {
   }
 
   try {
-    const rows = await getDailyReturnsSinceV31();
+    const rows = await getDailyReturns();
 
     if (rows.length === 0) {
       return NextResponse.json({ series: [] });
