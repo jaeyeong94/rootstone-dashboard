@@ -289,7 +289,7 @@ function MonthlyHeatmap() {
                       (yearData?.rebeta ?? 0) >= 0 ? "text-pnl-positive" : "text-pnl-negative"
                     )}
                   >
-                    {yearData ? `+${yearData.rebeta.toFixed(1)}%` : ""}
+                    {yearData ? `${yearData.rebeta >= 0 ? "+" : ""}${yearData.rebeta.toFixed(1)}%` : ""}
                   </span>
                 </td>
               </tr>
