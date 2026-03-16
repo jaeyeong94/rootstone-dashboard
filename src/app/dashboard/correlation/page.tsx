@@ -27,17 +27,6 @@ interface MatrixData {
   rollingKeys: string[];
 }
 
-interface FrontierData {
-  frontier: {
-    btcWeight: number;
-    rebetaWeight: number;
-    expectedReturn: number;
-    volatility: number;
-    sharpe: number;
-  }[];
-  optimal: { btcWeight: number; rebetaWeight: number };
-  days: number;
-}
 
 interface BenchmarkAsset {
   symbol: string;
@@ -174,9 +163,6 @@ export default function CorrelationPage() {
   const [matrixLoading, setMatrixLoading] = useState(true);
   const [matrixError, setMatrixError] = useState<string | null>(null);
 
-  const [frontierData, setFrontierData] = useState<FrontierData | null>(null);
-  const [frontierLoading, setFrontierLoading] = useState(true);
-
   const [benchmarkData, setBenchmarkData] = useState<BenchmarkData | null>(null);
   const [benchmarkLoading, setBenchmarkLoading] = useState(true);
 
@@ -196,15 +182,6 @@ export default function CorrelationPage() {
 
   // Fetch efficient frontier + benchmarks once
   useEffect(() => {
-    setFrontierLoading(true);
-    fetch("/api/correlation/frontier?period=365")
-      .then((r) => r.json())
-      .then((data) => {
-        if (!data.error) setFrontierData(data);
-      })
-      .catch(() => {})
-      .finally(() => setFrontierLoading(false));
-
     setBenchmarkLoading(true);
     fetch("/api/correlation/benchmarks")
       .then((r) => r.json())
@@ -217,23 +194,6 @@ export default function CorrelationPage() {
 
   const assets = matrixData?.assets ?? ["Rebeta", "BTC", "ETH"];
   const matrix = matrixData?.matrix ?? null;
-
-  /* ─ Insight text ─ */
-  function buildInsightText(): string {
-    if (!frontierData?.optimal || !matrixData) return "";
-    const { btcWeight: optBtc, rebetaWeight: optRebeta } = frontierData.optimal;
-    const rebetaBtcCorr = matrixData.matrix[0]?.[1] ?? 0;
-    const corrDesc =
-      Math.abs(rebetaBtcCorr) < 0.3
-        ? "near-zero correlation"
-        : Math.abs(rebetaBtcCorr) < 0.6
-          ? "low correlation"
-          : "moderate correlation";
-
-    return `Based on trailing 365-day analysis (${frontierData.days} overlapping trading days), the optimal Sharpe allocation is ${optBtc}% BTC / ${optRebeta}% Rebeta. ` +
-      `Rebeta's ${corrDesc} with BTC (${rebetaBtcCorr >= 0 ? "+" : ""}${rebetaBtcCorr.toFixed(2)}) means blending the two assets ` +
-      `reduces portfolio volatility without proportionally reducing returns, improving the risk-adjusted outcome.`;
-  }
 
   return (
     <div>
@@ -460,16 +420,16 @@ export default function CorrelationPage() {
                         <td className="px-4 py-2.5 text-right font-[family-name:var(--font-mono)] text-gold">
                           {formatPct(benchmarkData.rebeta.cagr)}
                         </td>
-                        <td className="px-4 py-2.5 text-right font-[family-name:var(--font-mono)] text-text-primary">
+                        <td className="px-4 py-2.5 text-right font-[family-name:var(--font-mono)] text-gold">
                           {formatPct(benchmarkData.rebeta.volatility)}
                         </td>
-                        <td className="px-4 py-2.5 text-right font-[family-name:var(--font-mono)] text-text-primary">
+                        <td className="px-4 py-2.5 text-right font-[family-name:var(--font-mono)] text-gold">
                           {benchmarkData.rebeta.sharpe.toFixed(2)}
                         </td>
-                        <td className="px-4 py-2.5 text-right font-[family-name:var(--font-mono)] text-pnl-negative">
+                        <td className="px-4 py-2.5 text-right font-[family-name:var(--font-mono)] text-gold">
                           {formatPct(benchmarkData.rebeta.maxDrawdown)}
                         </td>
-                        <td className="px-4 py-2.5 text-right font-[family-name:var(--font-mono)] text-bronze">
+                        <td className="px-4 py-2.5 text-right font-[family-name:var(--font-mono)] text-gold">
                           1.00
                         </td>
                       </tr>
@@ -644,79 +604,6 @@ export default function CorrelationPage() {
           ) : null}
         </section>
 
-        {/* ── D. Key Insights Panel ── */}
-        <section>
-          <SectionLabel>Key Insights</SectionLabel>
-          <div className="mt-3 space-y-3">
-            {/* Optimal allocation insight */}
-            {!frontierLoading && frontierData && (
-              <div className="rounded-sm border-l-2 border-gold bg-bg-elevated px-5 py-4">
-                <span className="text-[10px] font-medium uppercase tracking-[2px] text-gold">
-                  Optimal Allocation
-                </span>
-                <p className="mt-1 text-xs leading-relaxed text-text-secondary">
-                  {buildInsightText()}
-                </p>
-              </div>
-            )}
-
-            {/* Frontier summary cards */}
-            {!frontierLoading && frontierData && frontierData.frontier.length > 0 && (
-              <div className="grid grid-cols-3 gap-3">
-                {[
-                  frontierData.frontier.find((p) => p.btcWeight === 0) ?? frontierData.frontier[0],
-                  frontierData.frontier.find((p) => p.btcWeight === frontierData.optimal.btcWeight) ?? frontierData.frontier[Math.floor(frontierData.frontier.length / 2)],
-                  frontierData.frontier.find((p) => p.btcWeight === 100) ?? frontierData.frontier[frontierData.frontier.length - 1],
-                ].map((pt, idx) => {
-                  const labels = ["Pure Rebeta", `${pt.rebetaWeight}/${pt.btcWeight} Mix`, "Pure BTC"];
-                  const colors = ["text-gold", "text-bronze", "text-text-muted"];
-                  return (
-                    <div
-                      key={idx}
-                      className="rounded-sm border border-border-subtle bg-bg-card p-4"
-                    >
-                      <div className={cn("text-[10px] uppercase tracking-[1px] mb-2", colors[idx])}>
-                        {labels[idx]}
-                      </div>
-                      <div className="space-y-1.5">
-                        <div className="flex justify-between text-xs">
-                          <span className="text-text-muted">Sharpe</span>
-                          <span className="font-[family-name:var(--font-mono)] text-text-primary">
-                            {pt.sharpe.toFixed(2)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-xs">
-                          <span className="text-text-muted">CAGR</span>
-                          <span className="font-[family-name:var(--font-mono)] text-text-primary">
-                            {formatPct(pt.expectedReturn)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-xs">
-                          <span className="text-text-muted">Volatility</span>
-                          <span className="font-[family-name:var(--font-mono)] text-text-primary">
-                            {formatPct(pt.volatility)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Static structural insight */}
-            <div className="rounded-sm border-l-2 border-bronze bg-bg-elevated px-5 py-4">
-              <span className="text-[10px] font-medium uppercase tracking-[2px] text-bronze">
-                Structural Independence
-              </span>
-              <p className="mt-1 text-xs leading-relaxed text-text-secondary">
-                Rebeta&apos;s mean-reversion strategy generates returns orthogonal to directional BTC
-                exposure. Its low beta and near-zero market correlation make it a natural
-                complement in a crypto portfolio, reducing drawdown duration without sacrificing upside.
-              </p>
-            </div>
-          </div>
-        </section>
       </div>
     </div>
   );

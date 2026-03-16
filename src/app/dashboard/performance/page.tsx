@@ -86,7 +86,6 @@ function useTearsheetDisplayData(ts: TearsheetData | undefined, monthlyData: Mon
     { metric: "Alpha", rebeta: `${bm.alpha}`, btc: "0.0000", tooltip: "Annualized excess return vs benchmark" },
     { metric: "Beta", rebeta: `${bm.beta}`, btc: "1.0000", tooltip: "Market sensitivity" },
     { metric: "Information Ratio", rebeta: `${bm.informationRatio}`, btc: "0.0000", tooltip: "Risk-adjusted active return" },
-    { metric: "Treynor Ratio", rebeta: `${bm.treynorRatio}`, btc: "N/A", tooltip: "Return per unit of systematic risk" },
     { metric: "Correlation", rebeta: `${bm.correlation}`, btc: "1.0000", tooltip: "Pearson correlation with BTC" },
   ] : [];
 

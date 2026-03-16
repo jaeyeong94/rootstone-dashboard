@@ -9,7 +9,6 @@ import { ScrollSection } from "@/components/dashboard/ScrollSection";
 import { RightFixedPanel } from "@/components/dashboard/RightFixedPanel";
 import { BlackSwanCard } from "@/components/dashboard/BlackSwanCard";
 import { YearlyReturnsChart } from "@/components/dashboard/YearlyReturnsChart";
-import { AlphaBetaCards } from "@/components/dashboard/AlphaBetaCards";
 import { CandlestickGrid } from "@/components/dashboard/CandlestickGrid";
 
 export default function OverviewPage() {
