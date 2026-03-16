@@ -69,6 +69,7 @@ export function PnLDistribution() {
                 width={48}
               />
               <Tooltip
+                cursor={false}
                 contentStyle={{
                   backgroundColor: "#161616",
                   border: "1px solid #333333",
@@ -90,7 +91,7 @@ export function PnLDistribution() {
                 {recentBars.map((entry, index) => (
                   <Cell
                     key={index}
-                    fill={entry.value >= 0 ? "#C5A049" : "#EF4444"}
+                    fill={entry.value >= 0 ? "#22C55E" : "#EF4444"}
                     fillOpacity={0.8}
                   />
                 ))}
