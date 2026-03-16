@@ -18,12 +18,6 @@ function daysLive(): number {
 }
 
 export function HeroZone() {
-  const { data: balanceData } = useSWR<{ changePercent: number }>(
-    "/api/bybit/balance?period=30d",
-    fetcher,
-    { refreshInterval: 60000 }
-  );
-
   const { data: curveData } = useSWR<{ curve: EquityCurvePoint[] }>(
     "/api/bybit/equity-curve",
     fetcher,
@@ -60,6 +54,10 @@ export function HeroZone() {
 
   const kpis = [
     {
+      label: "CAGR",
+      value: `${COMPOSITE_TEARSHEET.rebeta.cagr}%`,
+    },
+    {
       label: "Sharpe Ratio",
       value: COMPOSITE_TEARSHEET.rebeta.sharpe.toFixed(2),
     },
@@ -70,17 +68,6 @@ export function HeroZone() {
     {
       label: "Max Drawdown",
       value: `${COMPOSITE_TEARSHEET.rebeta.maxDrawdown.toFixed(1)}%`,
-    },
-    {
-      label: "30D Return",
-      value:
-        balanceData?.changePercent != null
-          ? formatPnlPercent(balanceData.changePercent)
-          : "--",
-      color:
-        balanceData?.changePercent != null
-          ? getPnlColor(balanceData.changePercent)
-          : undefined,
     },
   ];
 

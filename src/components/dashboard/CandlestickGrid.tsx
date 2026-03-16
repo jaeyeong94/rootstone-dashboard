@@ -208,13 +208,13 @@ function SingleCandleChart({
 
   return (
     <div className="rounded-sm border border-border-subtle bg-bg-card p-4">
-      {/* Header: Symbol · Price · Change% */}
-      <div className="flex items-center gap-2">
-        <span className="font-[family-name:var(--font-mono)] text-sm font-medium text-text-primary">
+      {/* Header: Symbol · $Price · Change% (나란히 왼쪽 정렬) */}
+      <div className="flex items-baseline gap-1.5">
+        <span className="font-[family-name:var(--font-mono)] text-sm font-semibold text-text-primary">
           {label}
         </span>
-        <span className="font-[family-name:var(--font-mono)] text-sm text-text-secondary">
-          {livePrice ? formatNumber(parseFloat(livePrice)) : "--"}
+        <span className="font-[family-name:var(--font-mono)] text-sm text-text-primary">
+          ${livePrice ? formatNumber(parseFloat(livePrice)) : "--"}
         </span>
         <span
           className={cn(
