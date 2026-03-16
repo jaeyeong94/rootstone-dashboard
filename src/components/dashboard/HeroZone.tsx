@@ -124,7 +124,7 @@ export function HeroZone() {
               <p
                 className={cn(
                   "mt-1.5 font-[family-name:var(--font-mono)] text-lg font-medium",
-                  kpi.color ?? "text-text-primary"
+                  "text-text-primary"
                 )}
               >
                 {kpi.value}
