@@ -3,133 +3,22 @@
 import { Header } from "@/components/layout/Header";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import useSWR from "swr";
 import { CumulativeReturnsChart } from "@/components/performance/CumulativeReturnsChart";
 import { UnderwaterChart } from "@/components/performance/UnderwaterChart";
 import { RollingSharpeChart } from "@/components/performance/RollingSharpeChart";
-import { COMPOSITE_TEARSHEET } from "@/lib/constants";
-import { benchmarkMetrics as sharedBenchmarkMetrics } from "@/lib/strategy-data";
+
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 /* ═══════════════════════════════════════════════════════════════
-   Rebeta v1~v3.1 Composite Tearsheet Data
-   Source: qstats v0.1.33 · 2021.03.02 ~ 2026.02.16
-   주요 지표는 COMPOSITE_TEARSHEET (constants.ts)에서 가져옴
+   ALL data from /api/bybit/tearsheet (computed from daily_returns DB)
+   No hardcoded values — third-party reproducible
    ═══════════════════════════════════════════════════════════════ */
 
-const R = COMPOSITE_TEARSHEET.rebeta;
-const B = COMPOSITE_TEARSHEET.btc;
-
-const mainMetrics = [
-  { metric: "Cumulative Return", rebeta: `${R.cumulativeReturn}%`, btc: `${B.cumulativeReturn}%`, tooltip: "Total percentage change of initial capital" },
-  { metric: "CAGR", rebeta: `${R.cagr}%`, btc: `${B.cagr}%`, tooltip: "Annualized growth rate" },
-  { metric: "Volatility", rebeta: `${R.volatility}%`, btc: `${B.volatility}%`, tooltip: "Annualized std deviation of returns" },
-  { metric: "Sharpe", rebeta: R.sharpe.toFixed(4), btc: B.sharpe.toFixed(4), tooltip: "Risk-adjusted return (rf=0%)" },
-  { metric: "Sortino", rebeta: R.sortino.toFixed(4), btc: B.sortino.toFixed(4), tooltip: "Downside risk-adjusted return" },
-  { metric: "Calmar", rebeta: R.calmar.toFixed(4), btc: B.calmar.toFixed(4), tooltip: "CAGR / Max Drawdown" },
-  { metric: "Max Drawdown", rebeta: `${R.maxDrawdown}%`, btc: `${B.maxDrawdown}%`, tooltip: "Maximum peak-to-trough decline" },
-  { metric: "Duration of MD", rebeta: `${R.maxDrawdownDuration} days`, btc: `${B.maxDrawdownDuration} days`, tooltip: "Duration of max drawdown" },
-];
-
-const returnsMetrics = [
-  { metric: "1-day VaR (95%)", rebeta: "-0.65%", btc: "-4.63%" },
-  { metric: "1-month VaR (99%)", rebeta: "-16.28%", btc: "-13.89%" },
-  { metric: "CVaR (95%)", rebeta: "-2.64%", btc: "-6.06%" },
-  { metric: "CVaR (99%)", rebeta: "-3.45%", btc: "-7.84%" },
-  { metric: "Omega Ratio", rebeta: "1.9281", btc: "1.0636" },
-  { metric: "Gain/Pain Ratio (1M)", rebeta: "8.0852", btc: "0.3565" },
-  { metric: "Tail Ratio", rebeta: "1.9009", btc: "1.0183" },
-  { metric: "Outlier Win Ratio", rebeta: "0.0066", btc: "0.0116" },
-  { metric: "Outlier Loss Ratio", rebeta: "0.0055", btc: "0.0088" },
-];
-
-const rollingMetrics = [
-  { metric: "Rolling Sharpe 90d Mean", rebeta: "2.4368", btc: "0.6383" },
-  { metric: "Rolling Sharpe 90d Median", rebeta: "2.4994", btc: "0.4564" },
-  { metric: "Rolling Sharpe 90d Last", rebeta: "1.7325", btc: "-1.7866" },
-  { metric: "Rolling Sharpe 365d Mean", rebeta: "2.0481", btc: "0.7707" },
-  { metric: "Rolling Sharpe 365d Median", rebeta: "1.9871", btc: "0.9725" },
-  { metric: "Rolling Sharpe 365d Last", rebeta: "1.4502", btc: "-0.5011" },
-];
-
-const cumulativeMetrics = [
-  { metric: "MTD", rebeta: "11.6%", btc: "-11.4%" },
-  { metric: "3M", rebeta: "12.7%", btc: "-26.2%" },
-  { metric: "6M", rebeta: "14.4%", btc: "-41.0%" },
-  { metric: "YTD", rebeta: "12.5%", btc: "-20.4%" },
-  { metric: "Best Day", rebeta: "20.7%", btc: "14.6%" },
-  { metric: "Worst Day", rebeta: "-21.5%", btc: "-15.4%" },
-  { metric: "Best Month", rebeta: "30.2%", btc: "43.8%" },
-  { metric: "Worst Month", rebeta: "-9.3%", btc: "-37.3%" },
-  { metric: "Best Year", rebeta: "86.6%", btc: "155.9%" },
-  { metric: "Worst Year", rebeta: "12.5%", btc: "-64.2%" },
-];
-
-const benchmarkMetrics = sharedBenchmarkMetrics;
-
-const worstDrawdowns = [
-  { rank: 1, started: "2022-11-03", recovered: "2023-03-04", dd: -22.03, days: 121 },
-  { rank: 2, started: "2021-08-27", recovered: "2021-11-11", dd: -14.10, days: 76 },
-  { rank: 3, started: "2022-01-07", recovered: "2022-03-03", dd: -12.53, days: 55 },
-  { rank: 4, started: "2021-06-22", recovered: "2021-07-19", dd: -9.17, days: 27 },
-  { rank: 5, started: "2022-07-24", recovered: "2022-10-29", dd: -9.09, days: 97 },
-  { rank: 6, started: "2023-03-09", recovered: "2023-05-25", dd: -8.48, days: 77 },
-  { rank: 7, started: "2024-09-14", recovered: "2024-12-11", dd: -7.46, days: 88 },
-  { rank: 8, started: "2023-07-01", recovered: "2023-07-15", dd: -6.77, days: 14 },
-  { rank: 9, started: "2021-07-20", recovered: "2021-08-06", dd: -5.60, days: 17 },
-  { rank: 10, started: "2021-04-03", recovered: "2021-04-15", dd: -4.64, days: 12 },
-];
-
-/* ─── Yearly Returns ─── */
-const yearlyReturns = [
-  { year: 2021, rebeta: 86.6, btc: -5.0 },
-  { year: 2022, rebeta: 26.2, btc: -64.2 },
-  { year: 2023, rebeta: 77.9, btc: 155.9 },
-  { year: 2024, rebeta: 41.7, btc: 119.2 },
-  { year: 2025, rebeta: 46.0, btc: -5.4 },
-  { year: 2026, rebeta: 12.5, btc: -20.4 },
-];
-
-/* ─── Monthly Returns ─── */
-const monthlyReturns = [
-  // 2021
-  { year: 2021, month: "Mar", value: 7.6 }, { year: 2021, month: "Apr", value: 12.7 },
-  { year: 2021, month: "May", value: 30.2 }, { year: 2021, month: "Jun", value: 2.9 },
-  { year: 2021, month: "Jul", value: 1.5 }, { year: 2021, month: "Aug", value: 1.2 },
-  { year: 2021, month: "Sep", value: -9.3 }, { year: 2021, month: "Oct", value: 8.5 },
-  { year: 2021, month: "Nov", value: 8.0 }, { year: 2021, month: "Dec", value: 5.4 },
-  // 2022
-  { year: 2022, month: "Jan", value: -6.8 }, { year: 2022, month: "Feb", value: 8.2 },
-  { year: 2022, month: "Mar", value: 2.9 }, { year: 2022, month: "Apr", value: 5.4 },
-  { year: 2022, month: "May", value: 13.6 }, { year: 2022, month: "Jun", value: 11.9 },
-  { year: 2022, month: "Jul", value: -1.9 }, { year: 2022, month: "Aug", value: 1.1 },
-  { year: 2022, month: "Sep", value: -1.0 }, { year: 2022, month: "Oct", value: 5.4 },
-  { year: 2022, month: "Nov", value: -8.6 }, { year: 2022, month: "Dec", value: -4.4 },
-  // 2023
-  { year: 2023, month: "Jan", value: 13.4 }, { year: 2023, month: "Feb", value: 0.8 },
-  { year: 2023, month: "Mar", value: -1.0 }, { year: 2023, month: "Apr", value: 1.9 },
-  { year: 2023, month: "May", value: 3.6 }, { year: 2023, month: "Jun", value: 2.4 },
-  { year: 2023, month: "Jul", value: 18.5 }, { year: 2023, month: "Aug", value: 3.2 },
-  { year: 2023, month: "Sep", value: 2.3 }, { year: 2023, month: "Oct", value: 2.5 },
-  { year: 2023, month: "Nov", value: 5.1 }, { year: 2023, month: "Dec", value: 8.0 },
-  // 2024
-  { year: 2024, month: "Jan", value: 3.0 }, { year: 2024, month: "Feb", value: 8.9 },
-  { year: 2024, month: "Mar", value: 4.9 }, { year: 2024, month: "Apr", value: 2.7 },
-  { year: 2024, month: "May", value: 1.5 }, { year: 2024, month: "Jun", value: 5.9 },
-  { year: 2024, month: "Jul", value: 0.1 }, { year: 2024, month: "Aug", value: 3.3 },
-  { year: 2024, month: "Sep", value: 1.1 }, { year: 2024, month: "Oct", value: -1.4 },
-  { year: 2024, month: "Nov", value: 4.5 }, { year: 2024, month: "Dec", value: 1.2 },
-  // 2025
-  { year: 2025, month: "Jan", value: 3.6 }, { year: 2025, month: "Feb", value: 22.3 },
-  { year: 2025, month: "Mar", value: -0.0 }, { year: 2025, month: "Apr", value: 9.3 },
-  { year: 2025, month: "May", value: 0.3 }, { year: 2025, month: "Jun", value: 0.1 },
-  { year: 2025, month: "Jul", value: 2.9 }, { year: 2025, month: "Aug", value: 0.2 },
-  { year: 2025, month: "Sep", value: 0.3 }, { year: 2025, month: "Oct", value: 1.6 },
-  { year: 2025, month: "Nov", value: -0.6 }, { year: 2025, month: "Dec", value: 0.5 },
-  // 2026
-  { year: 2026, month: "Jan", value: 0.8 }, { year: 2026, month: "Feb", value: 11.6 },
-];
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type TearsheetData = any;
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const YEARS = [2021, 2022, 2023, 2024, 2025, 2026];
 
 /* ═══════════════════════════════════════════════════════════════
    Helper Components
@@ -405,17 +294,20 @@ const TABS: { key: Tab; label: string }[] = [
 export default function PerformancePage() {
   const [tab, setTab] = useState<Tab>("overview");
 
+  const { data: ts } = useSWR<TearsheetData>("/api/bybit/tearsheet", fetcher, { refreshInterval: 300000 });
+  const m = ts?.mainMetrics;
+
   return (
     <div>
       <Header title="Performance" />
       <div className="p-6">
-        {/* Hero Stats */}
+        {/* Hero Stats — live from tearsheet API */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[
-            { value: `${R.cumulativeReturn}%`, label: "Cumulative", sub: `vs BTC ${B.cumulativeReturn}%` },
-            { value: `${R.cagr}%`, label: "CAGR", sub: `vs BTC ${B.cagr}%` },
-            { value: R.sharpe.toFixed(2), label: "Sharpe", sub: `vs BTC ${B.sharpe.toFixed(2)}` },
-            { value: `${R.maxDrawdown}%`, label: "Max DD", sub: `vs BTC ${B.maxDrawdown}%` },
+            { value: m ? `${m.cumulativeReturn}%` : "--", label: "Cumulative" },
+            { value: m ? `${m.cagr}%` : "--", label: "CAGR" },
+            { value: m ? m.sharpe.toFixed(2) : "--", label: "Sharpe" },
+            { value: m ? `${m.maxDrawdown}%` : "--", label: "Max DD" },
           ].map((s) => (
             <div key={s.label} className="rounded-sm border border-border-subtle bg-bg-card p-4">
               <div className="font-[family-name:var(--font-mono)] text-2xl font-semibold text-text-primary">
@@ -424,7 +316,6 @@ export default function PerformancePage() {
               <div className="mt-1 text-[11px] uppercase tracking-[0.5px] text-text-secondary">
                 {s.label}
               </div>
-              <div className="text-[10px] text-text-muted">{s.sub}</div>
             </div>
           ))}
         </div>

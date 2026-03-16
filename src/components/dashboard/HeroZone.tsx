@@ -7,7 +7,7 @@ import { useCountUp } from "@/hooks/useCountUp";
 import { AnimatedSparkline } from "./AnimatedSparkline";
 import staticCurve from "@/data/cumulative-returns.json";
 import type { EquityCurvePoint } from "@/types";
-import { STRATEGY_INCEPTION_DATE, COMPOSITE_TEARSHEET } from "@/lib/constants";
+import { STRATEGY_INCEPTION_DATE } from "@/lib/constants";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -17,7 +17,24 @@ function daysLive(): number {
   return Math.floor((Date.now() - INCEPTION_DATE.getTime()) / 86400000);
 }
 
+interface TearsheetData {
+  mainMetrics: {
+    cumulativeReturn: number;
+    cagr: number;
+    sharpe: number;
+    sortino: number;
+    maxDrawdown: number;
+  };
+}
+
 export function HeroZone() {
+  // Live tearsheet metrics from DB
+  const { data: tearsheet } = useSWR<TearsheetData>(
+    "/api/bybit/tearsheet",
+    fetcher,
+    { refreshInterval: 300000 }
+  );
+
   const { data: curveData } = useSWR<{ curve: EquityCurvePoint[] }>(
     "/api/bybit/equity-curve",
     fetcher,
@@ -32,7 +49,6 @@ export function HeroZone() {
     const liveAfterStatic = liveCurve.filter((p) => p.time > staticEndDate);
 
     if (liveAfterStatic.length > 0) {
-      // Compound rebase: R_t = S_mul × (C_mul / L_mul) - 1
       const staticEndValue = typed[typed.length - 1].value;
       const staticEndMultiplier = 1 + staticEndValue / 100;
       const liveAtStaticEnd = liveCurve.find((p) => p.time >= staticEndDate);
@@ -52,23 +68,12 @@ export function HeroZone() {
   const lastValue = curve.length > 0 ? curve[curve.length - 1].value / 100 : 0;
   const animatedReturn = useCountUp(liveReady ? lastValue : 0, 2000);
 
+  const m = tearsheet?.mainMetrics;
   const kpis = [
-    {
-      label: "CAGR",
-      value: `${COMPOSITE_TEARSHEET.rebeta.cagr}%`,
-    },
-    {
-      label: "Sharpe Ratio",
-      value: COMPOSITE_TEARSHEET.rebeta.sharpe.toFixed(2),
-    },
-    {
-      label: "Sortino Ratio",
-      value: COMPOSITE_TEARSHEET.rebeta.sortino.toFixed(2),
-    },
-    {
-      label: "Max Drawdown",
-      value: `${COMPOSITE_TEARSHEET.rebeta.maxDrawdown.toFixed(1)}%`,
-    },
+    { label: "CAGR", value: m ? `${m.cagr}%` : "--" },
+    { label: "Sharpe Ratio", value: m ? m.sharpe.toFixed(2) : "--" },
+    { label: "Sortino Ratio", value: m ? m.sortino.toFixed(2) : "--" },
+    { label: "Max Drawdown", value: m ? `${m.maxDrawdown}%` : "--" },
   ];
 
   return (
@@ -86,12 +91,10 @@ export function HeroZone() {
       />
 
       <div className="relative z-10 flex flex-1 flex-col justify-center px-6 pt-6 xl:px-12">
-        {/* 서브타이틀 */}
         <p className="text-[11px] uppercase tracking-[2px] text-bronze/70">
           Rebeta v1~v3.1 · Algorithmic Strategy
         </p>
 
-        {/* 누적 수익률 카운터 */}
         <div className="mt-4">
           <span
             className={cn(
@@ -108,7 +111,6 @@ export function HeroZone() {
           </p>
         </div>
 
-        {/* KPI 카드 */}
         <div className="mt-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
           {kpis.map((kpi, i) => (
             <div
@@ -121,12 +123,7 @@ export function HeroZone() {
               <p className="text-[10px] uppercase tracking-[1px] text-text-muted">
                 {kpi.label}
               </p>
-              <p
-                className={cn(
-                  "mt-1.5 font-[family-name:var(--font-mono)] text-lg font-medium",
-                  "text-text-primary"
-                )}
-              >
+              <p className="mt-1.5 font-[family-name:var(--font-mono)] text-lg font-medium text-text-primary">
                 {kpi.value}
               </p>
             </div>
@@ -134,7 +131,6 @@ export function HeroZone() {
         </div>
       </div>
 
-      {/* 하단: 스파크라인 */}
       <div className="relative z-10 mt-auto opacity-60">
         <AnimatedSparkline data={curve} />
       </div>
