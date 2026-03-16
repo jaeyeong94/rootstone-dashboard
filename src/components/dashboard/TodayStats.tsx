@@ -40,11 +40,20 @@ interface ExecutionsResponse {
   nextPageCursor: string;
 }
 
-interface BalanceResponse {
-  changePercent: number;
-  dailyTurnover: number;
-  period: string;
-  hasHistory: boolean;
+interface MetricsResponse {
+  totalReturn: number;
+  sharpeRatio: number;
+  sortinoRatio: number;
+  maxDrawdown: number;
+  winRate: number;
+  avgHoldingHours: number;
+  totalTrades: number;
+}
+
+interface LatestNavResponse {
+  date: string;
+  dailyReturn: number;
+  navIndex: number;
 }
 
 function getTodayExecutions(list: BybitExecution[]): BybitExecution[] {
@@ -67,10 +76,11 @@ export function TodayStats() {
     { refreshInterval: 30_000 }
   );
 
-  const { data: balanceData } = useSWR<BalanceResponse>(
-    "/api/bybit/balance?period=24h",
+  // Daily return from daily_returns table (kline open NAV 기준)
+  const { data: navData } = useSWR<LatestNavResponse>(
+    "/api/bybit/latest-nav",
     fetcher,
-    { refreshInterval: 30_000 }
+    { refreshInterval: 300_000 }
   );
 
   if (isLoading) {
@@ -103,7 +113,6 @@ export function TodayStats() {
 
   const todayExecs = getTodayExecutions(data.list);
 
-  // Open = Buy (entering position), Close = Sell (closing position)
   let openCount = 0;
   let closeCount = 0;
   for (const e of todayExecs) {
@@ -111,8 +120,7 @@ export function TodayStats() {
     else closeCount++;
   }
 
-  const pnlPct = balanceData?.changePercent ?? null;
-  const turnover = balanceData?.dailyTurnover ?? null;
+  const dailyReturn = navData?.dailyReturn ?? null;
 
   return (
     <div className="rounded-sm border border-border-subtle bg-bg-card">
@@ -131,17 +139,14 @@ export function TodayStats() {
           value={`${openCount} / ${closeCount}`}
         />
         <StatBlock
-          label="PnL %"
-          value={pnlPct != null ? formatPnlPercent(pnlPct) : "--"}
-          valueClass={pnlPct != null ? getPnlColor(pnlPct) : undefined}
+          label="Daily Return"
+          value={dailyReturn != null ? formatPnlPercent(dailyReturn) : "--"}
+          valueClass={dailyReturn != null ? getPnlColor(dailyReturn) : undefined}
+          sub={navData?.date ? `${navData.date}` : undefined}
         />
         <StatBlock
-          label="Turnover"
-          value={
-            turnover != null
-              ? `${(turnover * 100).toFixed(1)}%`
-              : "--"
-          }
+          label="Trades Today"
+          value={todayExecs.length > 0 ? `${todayExecs.length} fills` : "No trades"}
         />
       </div>
     </div>
