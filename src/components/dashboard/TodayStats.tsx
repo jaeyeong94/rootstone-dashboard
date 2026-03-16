@@ -137,7 +137,7 @@ export function TodayStats() {
         />
         <StatBlock
           label="Trades Today"
-          value={todayExecs.length > 0 ? `${todayExecs.length} fills` : "No trades"}
+          value={todayExecs.length.toString()}
         />
       </div>
     </div>

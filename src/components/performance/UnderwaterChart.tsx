@@ -82,13 +82,14 @@ export function UnderwaterChart() {
       });
       area.setData(rebetaDD.map((p) => ({ time: p.time, value: p.value })));
 
-      // BTC drawdown
+      // BTC drawdown (underwater = 색칠을 선 위쪽 0까지)
       if (btcDD.length > 0) {
         const area2 = chart.addAreaSeries({
           lineColor: "#555555",
           lineWidth: 1,
-          topColor: "rgba(85, 85, 85, 0)",
-          bottomColor: "rgba(85, 85, 85, 0.15)",
+          topColor: "rgba(85, 85, 85, 0.15)",
+          bottomColor: "rgba(85, 85, 85, 0)",
+          invertFilledArea: true,
           priceFormat: { type: "custom", formatter: (p: number) => `${(p * 100).toFixed(1)}%` },
           title: "BTC DD",
           priceScaleId: "left",

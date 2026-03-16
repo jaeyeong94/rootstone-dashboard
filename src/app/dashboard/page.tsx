@@ -39,11 +39,6 @@ export default function OverviewPage() {
           </div>
         </ScrollSection>
 
-        {/* Section 5: Risk Profile */}
-        <ScrollSection label="Risk Profile" delay={100}>
-          <AlphaBetaCards />
-        </ScrollSection>
-
         {/* Section 6: Market Context */}
         <ScrollSection label="Market Context" delay={100}>
           <div className="grid gap-4 xl:grid-cols-2">
