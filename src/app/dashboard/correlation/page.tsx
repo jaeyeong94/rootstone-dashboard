@@ -218,8 +218,6 @@ export default function CorrelationPage() {
   const assets = matrixData?.assets ?? ["Rebeta", "BTC", "ETH"];
   const matrix = matrixData?.matrix ?? null;
 
-  const optimal = frontierData?.optimal;
-
   /* ─ Insight text ─ */
   function buildInsightText(): string {
     if (!frontierData?.optimal || !matrixData) return "";

@@ -17,8 +17,87 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type TearsheetData = any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type MonthlyReturnData = any;
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// Module-level ref for inner components to access live data
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let currentDisplay: any = {};
+
+/**
+ * Build display data from live tearsheet API response.
+ * Replaces all previously hardcoded constants.
+ */
+function useTearsheetDisplayData(ts: TearsheetData | undefined, monthlyData: MonthlyReturnData | undefined) {
+  const m = ts?.mainMetrics;
+  const risk = ts?.riskMetrics;
+  const periods = ts?.periodReturns;
+  const mStats = ts?.monthlyStats;
+
+  const mainMetrics = m ? [
+    { metric: "Cumulative Return", rebeta: `${m.cumulativeReturn}%`, btc: "—" },
+    { metric: "CAGR", rebeta: `${m.cagr}%`, btc: "—" },
+    { metric: "Volatility", rebeta: `${m.volatility}%`, btc: "—" },
+    { metric: "Sharpe", rebeta: m.sharpe.toFixed(4), btc: "—" },
+    { metric: "Sortino", rebeta: m.sortino.toFixed(4), btc: "—" },
+    { metric: "Calmar", rebeta: m.calmar.toFixed(4), btc: "—" },
+    { metric: "Max Drawdown", rebeta: `${m.maxDrawdown}%`, btc: "—" },
+    { metric: "Duration of MD", rebeta: `${m.maxDrawdownDuration} days`, btc: "—" },
+  ] : [];
+
+  const returnsMetrics = risk ? [
+    { metric: "1-day VaR (95%)", rebeta: `${risk.var95}%`, btc: "—" },
+    { metric: "CVaR (95%)", rebeta: `${risk.cvar95}%`, btc: "—" },
+    { metric: "CVaR (99%)", rebeta: `${risk.cvar99}%`, btc: "—" },
+    { metric: "Omega Ratio", rebeta: risk.omega.toFixed(4), btc: "—" },
+    { metric: "Tail Ratio", rebeta: risk.tailRatio.toFixed(4), btc: "—" },
+  ] : [];
+
+  const cumulativeMetrics = periods ? [
+    { metric: "MTD", rebeta: `${periods.mtd}%`, btc: "—" },
+    { metric: "3M", rebeta: `${periods["3m"]}%`, btc: "—" },
+    { metric: "6M", rebeta: `${periods["6m"]}%`, btc: "—" },
+    { metric: "YTD", rebeta: `${periods.ytd}%`, btc: "—" },
+    { metric: "Best Day", rebeta: `${periods.bestDay.value}%`, btc: "—" },
+    { metric: "Worst Day", rebeta: `${periods.worstDay.value}%`, btc: "—" },
+    { metric: "Best Month", rebeta: `${periods.bestMonth.value}%`, btc: "—" },
+    { metric: "Worst Month", rebeta: `${periods.worstMonth.value}%`, btc: "—" },
+    { metric: "Best Year", rebeta: `${periods.bestYear.value}%`, btc: "—" },
+    { metric: "Worst Year", rebeta: `${periods.worstYear.value}%`, btc: "—" },
+  ] : [];
+
+  const rollingMetrics: { metric: string; rebeta: string; btc: string }[] = [];
+
+  const benchmarkMetrics: { metric: string; rebeta: string; btc: string; tooltip?: string }[] = [];
+
+  const yearlyReturns: { year: number; rebeta: number; btc: number }[] =
+    (ts?.yearlyReturns ?? []).map((y: { year: number; return: number }) => ({
+      year: y.year, rebeta: y.return, btc: 0,
+    }));
+
+  // Build monthlyReturns from API
+  const monthlyRaw = monthlyData?.returns ?? [];
+  const monthlyReturns = monthlyRaw.map((r: { year: number; month: number; return: number }) => ({
+    year: r.year,
+    month: MONTHS[r.month - 1],
+    value: r.return,
+  }));
+
+  const worstDrawdowns = ts?.worstDrawdowns ?? [];
+
+  const monthlyStats = mStats ? {
+    avgProfitMonth: `+${mStats.avgProfitMonth}%`,
+    avgLossMonth: `${mStats.avgLossMonth}%`,
+    avgAllMonths: `+${mStats.avgAllMonths}%`,
+  } : null;
+
+  return {
+    mainMetrics, returnsMetrics, cumulativeMetrics, rollingMetrics,
+    benchmarkMetrics, yearlyReturns, monthlyReturns, worstDrawdowns, monthlyStats,
+  };
+}
 
 /* ═══════════════════════════════════════════════════════════════
    Helper Components
@@ -113,7 +192,7 @@ function MonthlyHeatmap() {
   }
 
   const lookup: Record<string, number> = {};
-  monthlyReturns.forEach((m) => {
+  (currentDisplay.monthlyReturns ?? []).forEach((m: { year: number; month: string; value: number }) => {
     lookup[`${m.year}-${m.month}`] = m.value;
   });
 
@@ -139,8 +218,8 @@ function MonthlyHeatmap() {
           </tr>
         </thead>
         <tbody>
-          {YEARS.map((year) => {
-            const yearData = yearlyReturns.find((y) => y.year === year);
+          {(currentDisplay.yearlyReturns ?? []).map((yearData: { year: number; rebeta: number }) => {
+            const year = yearData.year;
             return (
               <tr key={year}>
                 <td className="px-2 py-1 font-[family-name:var(--font-mono)] text-text-primary font-medium">
@@ -192,14 +271,12 @@ function MonthlyHeatmap() {
 
 /* ─── Yearly Bar Chart (CSS) ─── */
 function YearlyBars() {
-  const maxVal = Math.max(
-    ...yearlyReturns.map((y) => Math.abs(y.rebeta)),
-    ...yearlyReturns.map((y) => Math.abs(y.btc))
-  );
+  const yr = currentDisplay.yearlyReturns ?? [];
+  const maxVal = yr.length > 0 ? Math.max(...yr.map((y: { rebeta: number }) => Math.abs(y.rebeta)), 1) : 1;
 
   return (
     <div className="space-y-3">
-      {yearlyReturns.map((y) => (
+      {yr.map((y: { year: number; rebeta: number; btc: number }) => (
         <div key={y.year} className="flex items-center gap-3">
           <span className="w-10 shrink-0 font-[family-name:var(--font-mono)] text-xs text-text-secondary">
             {y.year}
@@ -295,7 +372,12 @@ export default function PerformancePage() {
   const [tab, setTab] = useState<Tab>("overview");
 
   const { data: ts } = useSWR<TearsheetData>("/api/bybit/tearsheet", fetcher, { refreshInterval: 300000 });
+  const { data: monthlyData } = useSWR<MonthlyReturnData>("/api/bybit/monthly-returns", fetcher, { refreshInterval: 300000 });
   const m = ts?.mainMetrics;
+  const display = useTearsheetDisplayData(ts, monthlyData);
+  // Make display data available to inner components via module-level variable
+  // (inner functions are defined in same file scope)
+  currentDisplay = display;
 
   return (
     <div>
@@ -381,7 +463,7 @@ function OverviewTab() {
         </div>
       </div>
 
-      <MetricTable title="Main Metrics" data={mainMetrics} />
+      <MetricTable title="Main Metrics" data={currentDisplay.mainMetrics ?? []} />
 
       {/* Monthly Returns Heatmap */}
       <div>
@@ -436,7 +518,7 @@ function ReturnDistribution() {
     { label: "13~20%", min: 13, max: 20, count: 0 },
     { label: ">20%", min: 20, max: Infinity, count: 0 },
   ];
-  monthlyReturns.forEach((m) => {
+  (currentDisplay.monthlyReturns ?? []).forEach((m: { year: number; month: string; value: number }) => {
     for (const b of bins) {
       if (m.value >= b.min && m.value < b.max) {
         b.count++;
@@ -482,18 +564,18 @@ function ReturnsTab() {
         </div>
       </div>
 
-      <MetricTable title="Returns Metrics" data={returnsMetrics} />
-      <MetricTable title="Cumulative Return Periods" data={cumulativeMetrics} />
-      <MetricTable title="Rolling Metrics" data={rollingMetrics} />
+      <MetricTable title="Returns Metrics" data={currentDisplay.returnsMetrics ?? []} />
+      <MetricTable title="Cumulative Return Periods" data={currentDisplay.cumulativeMetrics ?? []} />
+      <MetricTable title="Rolling Metrics" data={currentDisplay.rollingMetrics ?? []} />
 
       {/* Monthly Stats Summary */}
       <div>
         <SectionLabel>Monthly Return Distribution</SectionLabel>
         <div className="mt-3 grid grid-cols-3 gap-3">
           {[
-            { label: "Avg Profit Month", value: "+5.6%", color: "text-pnl-positive" },
-            { label: "Avg Loss Month", value: "-3.5%", color: "text-pnl-negative" },
-            { label: "Avg All Months", value: "+4.1%", color: "text-text-primary" },
+            { label: "Avg Profit Month", value: currentDisplay.monthlyStats?.avgProfitMonth ?? "--", color: "text-pnl-positive" },
+            { label: "Avg Loss Month", value: currentDisplay.monthlyStats?.avgLossMonth ?? "--", color: "text-pnl-negative" },
+            { label: "Avg All Months", value: currentDisplay.monthlyStats?.avgAllMonths ?? "--", color: "text-text-primary" },
           ].map((s) => (
             <div key={s.label} className="rounded-sm border border-border-subtle bg-bg-card p-4 text-center">
               <div className={cn("font-[family-name:var(--font-mono)] text-xl font-semibold", s.color)}>
@@ -512,9 +594,9 @@ function ReturnsTab() {
         <SectionLabel>Win/Loss Distribution</SectionLabel>
         <div className="mt-3 rounded-sm border border-border-subtle bg-bg-card p-5">
           {(() => {
-            const wins = monthlyReturns.filter((m) => m.value > 0).length;
-            const losses = monthlyReturns.filter((m) => m.value < 0 || Object.is(m.value, -0)).length;
-            const total = monthlyReturns.length;
+            const wins = (currentDisplay.monthlyReturns ?? []).filter((m: { value: number }) => m.value > 0).length;
+            const losses = (currentDisplay.monthlyReturns ?? []).filter((m: { value: number }) => m.value < 0 || Object.is(m.value, -0)).length;
+            const total = (currentDisplay.monthlyReturns ?? []).length;
             const winPct = ((wins / total) * 100).toFixed(1);
             const lossPct = ((losses / total) * 100).toFixed(1);
             return (
@@ -580,13 +662,13 @@ function RiskTab() {
               </tr>
             </thead>
             <tbody>
-              {worstDrawdowns.map((d) => (
+              {(currentDisplay.worstDrawdowns ?? []).map((d: { rank: number; started: string; recovered: string; dd: number; days: number }) => (
                 <tr key={d.rank} className="border-b border-border-subtle last:border-0 transition-colors hover:bg-bg-elevated">
                   <td className="px-4 py-2 text-text-muted">{d.rank}</td>
                   <td className="px-4 py-2 font-[family-name:var(--font-mono)] text-text-secondary">{d.started}</td>
                   <td className="px-4 py-2 font-[family-name:var(--font-mono)] text-text-secondary">{d.recovered}</td>
                   <td className="px-4 py-2">
-                    <DrawdownDepthBar dd={d.dd} maxDd={worstDrawdowns[0].dd} />
+                    <DrawdownDepthBar dd={d.dd} maxDd={(currentDisplay.worstDrawdowns ?? [{ dd: -1 }])[0].dd} />
                   </td>
                   <td className="px-4 py-2 text-right font-[family-name:var(--font-mono)] text-text-secondary">{d.days}</td>
                 </tr>
@@ -601,10 +683,10 @@ function RiskTab() {
         <SectionLabel>Risk Summary</SectionLabel>
         <div className="mt-3 grid grid-cols-2 gap-3 xl:grid-cols-4">
           {[
-            { label: "Max Drawdown", rebeta: `${R.maxDrawdown}%`, btc: `${B.maxDrawdown}%` },
-            { label: "Longest DD", rebeta: `${R.maxDrawdownDuration} days`, btc: `${B.maxDrawdownDuration} days` },
-            { label: "Daily VaR (95%)", rebeta: "-0.65%", btc: "-4.63%" },
-            { label: "CVaR (99%)", rebeta: "-3.45%", btc: "-7.84%" },
+            { label: "Max Drawdown", rebeta: currentDisplay.mainMetrics?.[6]?.rebeta ?? "--", btc: "—" },
+            { label: "Longest DD", rebeta: currentDisplay.mainMetrics?.[7]?.rebeta ?? "--", btc: "—" },
+            { label: "Daily VaR (95%)", rebeta: currentDisplay.returnsMetrics?.[0]?.rebeta ?? "--", btc: "—" },
+            { label: "CVaR (99%)", rebeta: currentDisplay.returnsMetrics?.[2]?.rebeta ?? "--", btc: "—" },
           ].map((s) => (
             <div key={s.label} className="rounded-sm border border-border-subtle bg-bg-card p-4">
               <div className="text-[10px] uppercase tracking-[1px] text-text-muted">{s.label}</div>
@@ -615,7 +697,7 @@ function RiskTab() {
         </div>
       </div>
 
-      <MetricTable title="Returns Risk Metrics" data={returnsMetrics} />
+      <MetricTable title="Returns Risk Metrics" data={currentDisplay.returnsMetrics ?? []} />
     </>
   );
 }
@@ -640,7 +722,7 @@ function BenchmarkTab() {
         </div>
       </div>
 
-      <MetricTable title="Benchmark Metrics (vs BTC)" data={benchmarkMetrics} />
+      <MetricTable title="Benchmark Metrics (vs BTC)" data={currentDisplay.benchmarkMetrics ?? []} />
 
       {/* Key Insight */}
       <div className="rounded-sm border-l-2 border-gold bg-bg-elevated px-5 py-4">
@@ -659,36 +741,10 @@ function BenchmarkTab() {
           <div className="rounded-sm border border-gold/30 bg-bg-card p-5">
             <span className="text-[10px] font-medium uppercase tracking-[2px] text-gold">Rebeta v1~v3.1</span>
             <div className="mt-4 space-y-3">
-              {[
-                { label: "Cumulative", value: `${R.cumulativeReturn}%` },
-                { label: "CAGR", value: `${R.cagr}%` },
-                { label: "Sharpe", value: R.sharpe.toFixed(2) },
-                { label: "Sortino", value: R.sortino.toFixed(2) },
-                { label: "Max DD", value: `${R.maxDrawdown}%` },
-                { label: "Volatility", value: `${R.volatility}%` },
-              ].map((m) => (
-                <div key={m.label} className="flex items-center justify-between">
-                  <span className="text-xs text-text-secondary">{m.label}</span>
-                  <span className="font-[family-name:var(--font-mono)] text-sm font-medium text-text-primary">{m.value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          {/* BTC */}
-          <div className="rounded-sm border border-border-subtle bg-bg-card p-5">
-            <span className="text-[10px] font-medium uppercase tracking-[2px] text-text-muted">BTC (Benchmark)</span>
-            <div className="mt-4 space-y-3">
-              {[
-                { label: "Cumulative", value: `${B.cumulativeReturn}%` },
-                { label: "CAGR", value: `${B.cagr}%` },
-                { label: "Sharpe", value: B.sharpe.toFixed(2) },
-                { label: "Sortino", value: B.sortino.toFixed(2) },
-                { label: "Max DD", value: `${B.maxDrawdown}%` },
-                { label: "Volatility", value: `${B.volatility}%` },
-              ].map((m) => (
-                <div key={m.label} className="flex items-center justify-between">
-                  <span className="text-xs text-text-secondary">{m.label}</span>
-                  <span className="font-[family-name:var(--font-mono)] text-sm text-text-muted">{m.value}</span>
+              {(currentDisplay.mainMetrics ?? []).slice(0, 6).map((row: { metric: string; rebeta: string }) => (
+                <div key={row.metric} className="flex items-center justify-between">
+                  <span className="text-xs text-text-secondary">{row.metric}</span>
+                  <span className="font-[family-name:var(--font-mono)] text-sm font-medium text-text-primary">{row.rebeta}</span>
                 </div>
               ))}
             </div>
@@ -696,7 +752,7 @@ function BenchmarkTab() {
         </div>
       </div>
 
-      <MetricTable title="Rolling Metrics" data={rollingMetrics} />
+      <MetricTable title="Rolling Metrics" data={currentDisplay.rollingMetrics ?? []} />
     </>
   );
 }

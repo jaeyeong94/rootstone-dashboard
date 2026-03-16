@@ -1,7 +1,7 @@
 "use client";
 
 import { useOrdersStore } from "@/stores/useOrdersStore";
-import { cn, formatNumber } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 export function OrdersPanel() {
   const orders = useOrdersStore((s) => s.orders);
@@ -44,7 +44,6 @@ export function OrdersPanel() {
           <div className="divide-y divide-border-subtle/50">
             {orders.map((order) => {
               const isBuy = order.side === "Buy";
-              const price = parseFloat(order.price);
               const qty = parseFloat(order.qty);
               const filled = parseFloat(order.cumExecQty ?? "0");
               const fillPct = qty > 0 ? (filled / qty) * 100 : 0;

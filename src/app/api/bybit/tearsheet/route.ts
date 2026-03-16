@@ -9,11 +9,10 @@ import {
 } from "@/lib/utils";
 import {
   realizedVolatility,
-  calcCAGR,
   historicalVaR,
   conditionalVaR,
 } from "@/lib/math/statistics";
-import { ANNUALIZATION_DAYS, CALENDAR_DAYS_PER_YEAR } from "@/lib/constants";
+import { CALENDAR_DAYS_PER_YEAR } from "@/lib/constants";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -57,15 +56,12 @@ export async function GET() {
 
     // Max drawdown duration
     let peak = navSeries[0];
-    let peakDate = dates[0];
     let inDrawdown = false;
-    let ddStart = "";
     let maxDDDuration = 0;
     let currentDDDuration = 0;
     for (let i = 0; i < n; i++) {
       if (navSeries[i] > peak) {
         peak = navSeries[i];
-        peakDate = dates[i];
         if (inDrawdown) {
           maxDDDuration = Math.max(maxDDDuration, currentDDDuration);
           inDrawdown = false;
@@ -74,7 +70,6 @@ export async function GET() {
       } else {
         if (!inDrawdown) {
           inDrawdown = true;
-          ddStart = peakDate;
         }
         currentDDDuration++;
       }
@@ -136,8 +131,8 @@ export async function GET() {
     const monthly = await getMonthlyReturns();
     let bestMonth = { key: "", value: -Infinity };
     let worstMonth = { key: "", value: Infinity };
-    let profitMonths: number[] = [];
-    let lossMonths: number[] = [];
+    const profitMonths: number[] = [];
+    const lossMonths: number[] = [];
 
     for (const m of monthly) {
       const key = `${m.year}-${String(m.month).padStart(2, "0")}`;

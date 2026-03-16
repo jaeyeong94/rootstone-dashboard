@@ -40,15 +40,6 @@ interface ExecutionsResponse {
   nextPageCursor: string;
 }
 
-interface MetricsResponse {
-  totalReturn: number;
-  sharpeRatio: number;
-  sortinoRatio: number;
-  maxDrawdown: number;
-  winRate: number;
-  avgHoldingHours: number;
-  totalTrades: number;
-}
 
 interface LatestNavResponse {
   date: string;
