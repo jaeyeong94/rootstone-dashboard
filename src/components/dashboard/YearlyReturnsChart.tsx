@@ -28,7 +28,7 @@ export function YearlyReturnsChart() {
     return (
       <div className="rounded-sm border border-border-subtle bg-bg-card p-5">
         <p className="text-[10px] font-medium uppercase tracking-[2px] text-bronze">Yearly Returns</p>
-        <div className="mt-4 flex h-32 items-center justify-center text-sm text-text-muted">Loading...</div>
+        <div className="mt-4 flex h-32 items-center justify-center text-sm text-text-muted">Awaiting data...</div>
       </div>
     );
   }

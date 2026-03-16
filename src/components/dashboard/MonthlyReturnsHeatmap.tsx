@@ -56,7 +56,7 @@ export function MonthlyReturnsHeatmap() {
     return (
       <div className="rounded-sm border border-border-subtle bg-bg-card p-5">
         <span className="text-[11px] uppercase tracking-[1px] text-text-secondary">Monthly Returns</span>
-        <div className="mt-4 flex h-20 items-center justify-center text-sm text-text-muted">Loading...</div>
+        <div className="mt-4 flex h-20 items-center justify-center text-sm text-text-muted">Awaiting data...</div>
       </div>
     );
   }

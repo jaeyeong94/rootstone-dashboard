@@ -48,7 +48,7 @@ export function PnLDistribution() {
           <div className="h-[200px] animate-pulse rounded bg-bg-elevated" />
         ) : recentBars.length === 0 ? (
           <div className="flex h-[200px] items-center justify-center text-sm text-text-muted">
-            Collecting data...
+            Awaiting data...
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={200}>

@@ -132,7 +132,7 @@ export function DrawdownChart() {
         )}
         {!isLoading && !data?.series?.length ? (
           <div className="flex h-[200px] items-center justify-center text-sm text-text-muted">
-            Collecting data...
+            Awaiting data...
           </div>
         ) : (
           <div ref={chartContainerRef} className="h-[200px]" />

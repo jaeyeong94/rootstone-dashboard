@@ -13,6 +13,12 @@ import type { StrategyMetrics } from "@/types";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/**
+ * @deprecated Use /api/bybit/tearsheet instead.
+ * This route computes a subset of metrics from v3.1 data only.
+ * /api/bybit/tearsheet provides comprehensive metrics from full history.
+ */
+
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) {
