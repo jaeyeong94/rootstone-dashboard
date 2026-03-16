@@ -8,7 +8,9 @@ import {
   calcSharpeRatio,
   calcSortinoRatio,
   calcMaxDrawdown,
+  calcRollingValues,
 } from "@/lib/utils";
+import { pearsonCorrelation } from "@/lib/math/correlation";
 import {
   realizedVolatility,
   historicalVaR,
@@ -285,6 +287,94 @@ export async function GET() {
       }
     }
 
+    // ── Rolling Sharpe (computed from daily returns, not external API) ──
+    function rollingStats(series: { time: string; value: number }[]) {
+      if (series.length === 0) return { mean: 0, median: 0, last: 0 };
+      const vals = series.map((s) => s.value);
+      const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+      const sorted = [...vals].sort((a, b) => a - b);
+      const median = sorted[Math.floor(sorted.length / 2)];
+      const last = vals[vals.length - 1];
+      return { mean: parseFloat(mean.toFixed(4)), median: parseFloat(median.toFixed(4)), last: parseFloat(last.toFixed(4)) };
+    }
+
+    const rollingSharpe90 = calcRollingValues(returns, dates, 90, calcSharpeRatio);
+    const rollingSharpe365 = calcRollingValues(returns, dates, 365, calcSharpeRatio);
+    const btcRollingSharpe90 = btcReturns.length > 90
+      ? calcRollingValues(btcReturns, dates.slice(1), 90, calcSharpeRatio) : [];
+    const btcRollingSharpe365 = btcReturns.length > 365
+      ? calcRollingValues(btcReturns, dates.slice(1), 365, calcSharpeRatio) : [];
+
+    const rollingMetrics = {
+      sharpe90: rollingStats(rollingSharpe90),
+      sharpe365: rollingStats(rollingSharpe365),
+      btcSharpe90: rollingStats(btcRollingSharpe90),
+      btcSharpe365: rollingStats(btcRollingSharpe365),
+    };
+
+    // ── Benchmark Metrics (Alpha, Beta, Correlation vs BTC) ──
+    // Align returns by date for regression
+    const btcRetDates = dates.slice(1);
+    const btcRetsByDate = new Map<string, number>();
+    for (let i = 0; i < btcReturns.length && i < btcRetDates.length; i++) {
+      btcRetsByDate.set(btcRetDates[i], btcReturns[i]);
+    }
+    const alignedRebeta: number[] = [];
+    const alignedBtc: number[] = [];
+    for (const date of dates) {
+      const bR = btcRetsByDate.get(date);
+      if (bR !== undefined) {
+        alignedRebeta.push(returns[dates.indexOf(date)]);
+        alignedBtc.push(bR);
+      }
+    }
+
+    const correlation = pearsonCorrelation(alignedRebeta, alignedBtc);
+
+    // Beta = Cov(Rebeta, BTC) / Var(BTC)
+    const meanR = alignedRebeta.reduce((a, b) => a + b, 0) / alignedRebeta.length;
+    const meanB = alignedBtc.reduce((a, b) => a + b, 0) / alignedBtc.length;
+    let covSum = 0, varBtcSum = 0;
+    for (let i = 0; i < alignedRebeta.length; i++) {
+      covSum += (alignedRebeta[i] - meanR) * (alignedBtc[i] - meanB);
+      varBtcSum += (alignedBtc[i] - meanB) ** 2;
+    }
+    const beta = varBtcSum > 0 ? covSum / varBtcSum : 0;
+
+    // Alpha (annualized) = annualized_rebeta_mean - beta * annualized_btc_mean
+    const alpha = (meanR * 365) - beta * (meanB * 365);
+
+    // Information Ratio = (meanR - meanB) / tracking_error
+    const trackingErrors = alignedRebeta.map((r, i) => r - alignedBtc[i]);
+    const teMean = trackingErrors.reduce((a, b) => a + b, 0) / trackingErrors.length;
+    const teVar = trackingErrors.reduce((s, r) => s + (r - teMean) ** 2, 0) / (trackingErrors.length - 1);
+    const trackingError = Math.sqrt(teVar) * Math.sqrt(365);
+    const infoRatio = trackingError > 0 ? (teMean * 365) / trackingError : 0;
+
+    // Treynor Ratio = annualized_excess_return / beta
+    const treynor = beta !== 0 ? (meanR * 365) / beta : 0;
+
+    const bmMetrics = {
+      alpha: parseFloat(alpha.toFixed(4)),
+      beta: parseFloat(beta.toFixed(4)),
+      correlation: parseFloat(correlation.toFixed(4)),
+      informationRatio: parseFloat(infoRatio.toFixed(4)),
+      treynorRatio: parseFloat(treynor.toFixed(4)),
+    };
+
+    // ── BTC Period Returns ──
+    function btcPeriodReturn(daysBack: number): number {
+      if (btcNav.length < 2) return 0;
+      const cutIdx = Math.max(0, btcNav.length - 1 - daysBack);
+      return (btcNav[btcNav.length - 1] / btcNav[cutIdx] - 1) * 100;
+    }
+    const btcPeriodReturns = {
+      mtd: parseFloat(btcPeriodReturn(today.getUTCDate()).toFixed(1)),
+      "3m": parseFloat(btcPeriodReturn(90).toFixed(1)),
+      "6m": parseFloat(btcPeriodReturn(180).toFixed(1)),
+      ytd: parseFloat(btcPeriodReturn(Math.floor((today.getTime() - new Date(`${today.getUTCFullYear()}-01-01`).getTime()) / 86400000)).toFixed(1)),
+    };
+
     return NextResponse.json({
       dataRange: { start: startDate, end: endDate, days: totalDays },
       mainMetrics: {
@@ -342,6 +432,9 @@ export async function GET() {
       },
       yearlyReturns,
       worstDrawdowns: drawdowns,
+      rollingMetrics,
+      bmMetrics,
+      btcPeriodReturns,
     });
   } catch (error) {
     console.error("Tearsheet API error:", error);

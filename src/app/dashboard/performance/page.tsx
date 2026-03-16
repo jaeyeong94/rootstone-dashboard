@@ -57,11 +57,12 @@ function useTearsheetDisplayData(ts: TearsheetData | undefined, monthlyData: Mon
     { metric: "Tail Ratio", rebeta: risk.tailRatio.toFixed(4), btc: "—" },
   ] : [];
 
+  const bp = ts?.btcPeriodReturns;
   const cumulativeMetrics = periods ? [
-    { metric: "MTD", rebeta: `${periods.mtd}%`, btc: "—" },
-    { metric: "3M", rebeta: `${periods["3m"]}%`, btc: "—" },
-    { metric: "6M", rebeta: `${periods["6m"]}%`, btc: "—" },
-    { metric: "YTD", rebeta: `${periods.ytd}%`, btc: "—" },
+    { metric: "MTD", rebeta: `${periods.mtd}%`, btc: bp ? `${bp.mtd}%` : "—" },
+    { metric: "3M", rebeta: `${periods["3m"]}%`, btc: bp ? `${bp["3m"]}%` : "—" },
+    { metric: "6M", rebeta: `${periods["6m"]}%`, btc: bp ? `${bp["6m"]}%` : "—" },
+    { metric: "YTD", rebeta: `${periods.ytd}%`, btc: bp ? `${bp.ytd}%` : "—" },
     { metric: "Best Day", rebeta: `${periods.bestDay.value}%`, btc: "—" },
     { metric: "Worst Day", rebeta: `${periods.worstDay.value}%`, btc: "—" },
     { metric: "Best Month", rebeta: `${periods.bestMonth.value}%`, btc: "—" },
@@ -70,9 +71,24 @@ function useTearsheetDisplayData(ts: TearsheetData | undefined, monthlyData: Mon
     { metric: "Worst Year", rebeta: `${periods.worstYear.value}%`, btc: "—" },
   ] : [];
 
-  const rollingMetrics: { metric: string; rebeta: string; btc: string }[] = [];
+  const rm = ts?.rollingMetrics;
+  const rollingMetrics = rm ? [
+    { metric: "Rolling Sharpe 90d Mean", rebeta: `${rm.sharpe90.mean}`, btc: `${rm.btcSharpe90.mean}` },
+    { metric: "Rolling Sharpe 90d Median", rebeta: `${rm.sharpe90.median}`, btc: `${rm.btcSharpe90.median}` },
+    { metric: "Rolling Sharpe 90d Last", rebeta: `${rm.sharpe90.last}`, btc: `${rm.btcSharpe90.last}` },
+    { metric: "Rolling Sharpe 365d Mean", rebeta: `${rm.sharpe365.mean}`, btc: `${rm.btcSharpe365.mean}` },
+    { metric: "Rolling Sharpe 365d Median", rebeta: `${rm.sharpe365.median}`, btc: `${rm.btcSharpe365.median}` },
+    { metric: "Rolling Sharpe 365d Last", rebeta: `${rm.sharpe365.last}`, btc: `${rm.btcSharpe365.last}` },
+  ] : [];
 
-  const benchmarkMetrics: { metric: string; rebeta: string; btc: string; tooltip?: string }[] = [];
+  const bm = ts?.bmMetrics;
+  const benchmarkMetrics = bm ? [
+    { metric: "Alpha", rebeta: `${bm.alpha}`, btc: "0.0000", tooltip: "Annualized excess return vs benchmark" },
+    { metric: "Beta", rebeta: `${bm.beta}`, btc: "1.0000", tooltip: "Market sensitivity" },
+    { metric: "Information Ratio", rebeta: `${bm.informationRatio}`, btc: "0.0000", tooltip: "Risk-adjusted active return" },
+    { metric: "Treynor Ratio", rebeta: `${bm.treynorRatio}`, btc: "—", tooltip: "Return per unit of systematic risk" },
+    { metric: "Correlation", rebeta: `${bm.correlation}`, btc: "1.0000", tooltip: "Pearson correlation with BTC" },
+  ] : [];
 
   const yearlyReturns: { year: number; rebeta: number; btc: number }[] =
     (ts?.yearlyReturns ?? []).map((y: { year: number; return: number; btcReturn?: number }) => ({
