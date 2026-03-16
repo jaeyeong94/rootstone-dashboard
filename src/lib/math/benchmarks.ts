@@ -110,9 +110,10 @@ export function calcAssetMetrics(
     (returns.length - 1);
   const volatility = Math.sqrt(variance) * Math.sqrt(ANNUALIZATION_DAYS);
 
-  // Sharpe ratio (rf from constants)
-  const annualizedReturn = cagr - RISK_FREE_RATE;
-  const sharpe = volatility > 0 ? annualizedReturn / volatility : 0;
+  // Sharpe ratio: (dailyMean / dailyStd) × √365 — utils.calcSharpeRatio과 동일 공식
+  const dailyExcess = mean - RISK_FREE_RATE;
+  const dailyStd = Math.sqrt(variance);
+  const sharpe = dailyStd > 0 ? (dailyExcess / dailyStd) * Math.sqrt(ANNUALIZATION_DAYS) : 0;
 
   // Max drawdown
   let peak = 1;
