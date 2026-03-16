@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { db as getDb } from "@/lib/db";
-import { balanceSnapshots } from "@/lib/db/schema";
-import { asc } from "drizzle-orm";
+import { getDailyReturns } from "@/lib/daily-returns";
 import { getDailyClosePrices } from "@/lib/bybit/kline";
 import { pricesToReturns } from "@/lib/math/correlation";
 import {
@@ -27,41 +25,32 @@ export async function GET(request: Request) {
   );
 
   try {
-    const [btcData, snapshots] = await Promise.all([
-      getDailyClosePrices("BTCUSDT", period + 5),
-      getDb()
-        .select({
-          snapshotAt: balanceSnapshots.snapshotAt,
-          totalEquity: balanceSnapshots.totalEquity,
-        })
-        .from(balanceSnapshots)
-        .orderBy(asc(balanceSnapshots.snapshotAt)),
-    ]);
-
-    // Build daily equity map
-    const equityByDay = new Map<string, number>();
-    for (const s of snapshots) {
-      const day = new Date(s.snapshotAt).toISOString().split("T")[0];
-      equityByDay.set(day, s.totalEquity);
-    }
-
-    const btcByDate = new Map(btcData.map((d) => [d.time, d.close]));
-
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - period);
     const cutoff = cutoffDate.toISOString().split("T")[0];
 
-    const equityDays = Array.from(equityByDay.keys()).sort();
-    const btcPrices: number[] = [];
-    const rebetaEquity: number[] = [];
+    const [btcData, rebetaRows] = await Promise.all([
+      getDailyClosePrices("BTCUSDT", period + 5),
+      getDailyReturns({ from: cutoff }),
+    ]);
 
-    for (const day of equityDays) {
-      if (day < cutoff) continue;
+    // Build Rebeta return-by-date map
+    const rebetaReturnsByDate = new Map<string, number>();
+    for (const row of rebetaRows) {
+      rebetaReturnsByDate.set(row.date, row.dailyReturn);
+    }
+
+    const btcByDate = new Map(btcData.map((d) => [d.time, d.close]));
+    const rebetaDays = rebetaRows.map((r) => r.date);
+
+    // Align BTC prices on Rebeta dates
+    const btcPrices: number[] = [];
+    const alignedDates: string[] = [];
+    for (const day of rebetaDays) {
       const btcClose = btcByDate.get(day);
-      const equity = equityByDay.get(day);
-      if (btcClose !== undefined && equity !== undefined) {
+      if (btcClose !== undefined) {
         btcPrices.push(btcClose);
-        rebetaEquity.push(equity);
+        alignedDates.push(day);
       }
     }
 
@@ -74,7 +63,12 @@ export async function GET(request: Request) {
     }
 
     const btcReturns = pricesToReturns(btcPrices);
-    const rebetaReturns = pricesToReturns(rebetaEquity);
+    // Align Rebeta returns to BTC return dates
+    const btcReturnDates = alignedDates.slice(1);
+    const rebetaReturns: number[] = [];
+    for (const date of btcReturnDates) {
+      rebetaReturns.push(rebetaReturnsByDate.get(date) ?? 0);
+    }
     const days = btcReturns.length;
 
     // Generate frontier with 21 steps (0%, 5%, 10%, ..., 100% BTC)

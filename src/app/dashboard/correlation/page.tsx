@@ -2,7 +2,7 @@
 
 import { Header } from "@/components/layout/Header";
 import { cn } from "@/lib/utils";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import {
   LineChart,
   Line,
@@ -25,26 +25,6 @@ interface MatrixData {
   matrix: number[][];
   rollingCorrelation: Record<string, string | number>[];
   rollingKeys: string[];
-}
-
-interface SimulateData {
-  equityCurve: { time: string; btcOnly: number; mixed: number; rebetaOnly: number }[];
-  metrics: {
-    btcOnly: PortfolioMetrics | null;
-    mixed: PortfolioMetrics | null;
-    rebetaOnly: PortfolioMetrics | null;
-  };
-  weights: { btc: number; rebeta: number };
-  days: number;
-}
-
-interface PortfolioMetrics {
-  cumulativeReturn: number;
-  cagr: number;
-  sharpe: number;
-  sortino: number;
-  maxDrawdown: number;
-  volatility: number;
 }
 
 interface FrontierData {
@@ -176,184 +156,17 @@ function CorrelationCell({
 
 
 
-function EquityTooltip({
-  active,
-  payload,
-  label,
-}: {
-  active?: boolean;
-  payload?: { name: string; value: number; color: string }[];
-  label?: string;
-}) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-sm border border-border-subtle bg-bg-card px-3 py-2 text-xs shadow-lg">
-      <p className="mb-1 font-[family-name:var(--font-mono)] text-text-muted">
-        {label}
-      </p>
-      {payload.map((p) => (
-        <p key={p.name} style={{ color: p.color }}>
-          {p.name}:{" "}
-          <span className="font-[family-name:var(--font-mono)]">
-            {((p.value - 1) * 100).toFixed(2)}%
-          </span>
-        </p>
-      ))}
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   Metrics Table Row
-   ═══════════════════════════════════════════════════════════════ */
-
-function MetricsComparisonTable({
-  metrics,
-  btcWeight,
-  rebetaWeight,
-}: {
-  metrics: SimulateData["metrics"];
-  btcWeight: number;
-  rebetaWeight: number;
-}) {
-  const rows: { label: string; key: keyof PortfolioMetrics; format: (v: number) => string; isPositiveBetter: boolean }[] = [
-    {
-      label: "Cumulative Return",
-      key: "cumulativeReturn",
-      format: (v) => formatPct(v),
-      isPositiveBetter: true,
-    },
-    {
-      label: "CAGR",
-      key: "cagr",
-      format: (v) => formatPct(v),
-      isPositiveBetter: true,
-    },
-    {
-      label: "Sharpe Ratio",
-      key: "sharpe",
-      format: (v) => v.toFixed(3),
-      isPositiveBetter: true,
-    },
-    {
-      label: "Sortino Ratio",
-      key: "sortino",
-      format: (v) => v.toFixed(3),
-      isPositiveBetter: true,
-    },
-    {
-      label: "Max Drawdown",
-      key: "maxDrawdown",
-      format: (v) => formatPct(v),
-      isPositiveBetter: false,
-    },
-    {
-      label: "Volatility",
-      key: "volatility",
-      format: (v) => formatPct(v),
-      isPositiveBetter: false,
-    },
-  ];
-
-  const cols = [
-    { label: "Pure BTC", data: metrics.btcOnly, color: "text-text-muted" },
-    { label: `${btcWeight}/${rebetaWeight} Mix`, data: metrics.mixed, color: "text-bronze" },
-    { label: "Pure Rebeta", data: metrics.rebetaOnly, color: "text-gold" },
-  ];
-
-  return (
-    <div className="overflow-hidden rounded-sm border border-border-subtle bg-bg-card">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-border-subtle bg-bg-elevated">
-            <th className="px-4 py-2.5 text-left text-[11px] uppercase tracking-[1px] text-text-secondary font-normal">
-              Metric
-            </th>
-            {cols.map((c) => (
-              <th
-                key={c.label}
-                className={cn(
-                  "px-4 py-2.5 text-right text-[11px] uppercase tracking-[1px] font-normal",
-                  c.color
-                )}
-              >
-                {c.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => {
-            const values = cols.map((c) =>
-              c.data ? c.data[row.key] : null
-            );
-
-            return (
-              <tr
-                key={row.label}
-                className="border-b border-border-subtle last:border-0 transition-colors hover:bg-bg-elevated"
-              >
-                <td className="px-4 py-2 text-text-secondary">{row.label}</td>
-                {values.map((v, i) => {
-                  if (v === null) {
-                    return (
-                      <td
-                        key={i}
-                        className="px-4 py-2 text-right font-[family-name:var(--font-mono)] text-text-muted"
-                      >
-                        —
-                      </td>
-                    );
-                  }
-                  const best = values.filter((x) => x !== null) as number[];
-                  const isBest = row.isPositiveBetter
-                    ? v === Math.max(...best)
-                    : v === Math.min(...best);
-
-                  const isNeg = v < 0;
-                  const isPos = v > 0 && row.isPositiveBetter;
-
-                  return (
-                    <td
-                      key={i}
-                      className={cn(
-                        "px-4 py-2 text-right font-[family-name:var(--font-mono)]",
-                        isBest && "font-semibold",
-                        isPos && isBest && "text-pnl-positive",
-                        isNeg && isBest && "text-pnl-negative",
-                        !isBest && "text-text-secondary"
-                      )}
-                    >
-                      {row.format(v)}
-                    </td>
-                  );
-                })}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 /* ═══════════════════════════════════════════════════════════════
    Page
    ═══════════════════════════════════════════════════════════════ */
 
-type Period = "30" | "90" | "180";
+type Period = "30" | "90" | "180" | "365";
 
 const PERIOD_TABS: { key: Period; label: string }[] = [
   { key: "30", label: "30D" },
   { key: "90", label: "90D" },
   { key: "180", label: "180D" },
-];
-
-const PRESETS: { label: string; btc: number; rebeta: number }[] = [
-  { label: "80/20", btc: 80, rebeta: 20 },
-  { label: "60/40", btc: 60, rebeta: 40 },
-  { label: "50/50", btc: 50, rebeta: 50 },
-  { label: "20/80", btc: 20, rebeta: 80 },
+  { key: "365", label: "365D" },
 ];
 
 export default function CorrelationPage() {
@@ -361,13 +174,6 @@ export default function CorrelationPage() {
   const [matrixData, setMatrixData] = useState<MatrixData | null>(null);
   const [matrixLoading, setMatrixLoading] = useState(true);
   const [matrixError, setMatrixError] = useState<string | null>(null);
-
-  const [btcWeight, setBtcWeight] = useState(60);
-  const rebetaWeight = 100 - btcWeight;
-
-  const [simData, setSimData] = useState<SimulateData | null>(null);
-  const [simLoading, setSimLoading] = useState(false);
-  const [simError, setSimError] = useState<string | null>(null);
 
   const [frontierData, setFrontierData] = useState<FrontierData | null>(null);
   const [frontierLoading, setFrontierLoading] = useState(true);
@@ -409,36 +215,6 @@ export default function CorrelationPage() {
       .catch(() => {})
       .finally(() => setBenchmarkLoading(false));
   }, []);
-
-  // Fetch simulation when weights change (debounced)
-  const fetchSim = useCallback(
-    (btc: number, rebeta: number) => {
-      setSimLoading(true);
-      setSimError(null);
-      fetch(`/api/correlation/simulate?btcWeight=${btc}&rebetaWeight=${rebeta}&period=365`)
-        .then((r) => r.json())
-        .then((data) => {
-          if (data.error) throw new Error(data.error);
-          setSimData(data);
-        })
-        .catch((e) => setSimError(e.message))
-        .finally(() => setSimLoading(false));
-    },
-    []
-  );
-
-  // Initial sim fetch
-  useEffect(() => {
-    fetchSim(60, 40);
-  }, [fetchSim]);
-
-  // Debounce slider
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchSim(btcWeight, rebetaWeight);
-    }, 600);
-    return () => clearTimeout(timer);
-  }, [btcWeight, rebetaWeight, fetchSim]);
 
   const assets = matrixData?.assets ?? ["Rebeta", "BTC", "ETH"];
   const matrix = matrixData?.matrix ?? null;
@@ -569,7 +345,7 @@ export default function CorrelationPage() {
 
         {/* ── B. Rolling Correlation Chart ── */}
         <section>
-          <SectionLabel>Rolling Correlation (21-Day Window)</SectionLabel>
+          <SectionLabel>Rolling Correlation (90-Day Window)</SectionLabel>
           <p className="mt-1 text-xs text-text-muted">
             Rebeta correlation with major asset classes over time
           </p>
@@ -883,181 +659,7 @@ export default function CorrelationPage() {
           ) : null}
         </section>
 
-        {/* ── D. Portfolio Simulator ── */}
-        <section>
-          <SectionLabel>Portfolio Simulator</SectionLabel>
-          <p className="mt-1 text-xs text-text-muted">
-            Blend BTC and Rebeta to explore risk/return tradeoffs
-          </p>
-
-          <div className="mt-3 rounded-sm border border-border-subtle bg-bg-card p-5 space-y-5">
-            {/* Weight Controls */}
-            <div className="space-y-3">
-              {/* Allocation display */}
-              <div className="flex items-center justify-between">
-                <div className="text-xs text-text-secondary">
-                  BTC:{" "}
-                  <span className="font-[family-name:var(--font-mono)] text-text-muted">
-                    {btcWeight}%
-                  </span>
-                </div>
-                <div className="text-xs text-text-secondary">
-                  Rebeta:{" "}
-                  <span className="font-[family-name:var(--font-mono)] text-gold">
-                    {rebetaWeight}%
-                  </span>
-                </div>
-              </div>
-
-              {/* Slider */}
-              <div className="relative">
-                {/* Visual fill track */}
-                <div className="h-1.5 w-full rounded-full bg-bg-elevated overflow-hidden">
-                  <div
-                    className="h-full bg-text-muted/50 rounded-full transition-all"
-                    style={{ width: `${btcWeight}%` }}
-                  />
-                </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  step={5}
-                  value={btcWeight}
-                  onChange={(e) => setBtcWeight(parseInt(e.target.value, 10))}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  style={{ accentColor: "#997B66" }}
-                />
-                {/* Visible thumb */}
-                <div
-                  className="pointer-events-none absolute top-1/2 -translate-y-1/2 h-4 w-4 rounded-full border-2 border-bronze bg-bg-primary transition-all"
-                  style={{ left: `calc(${btcWeight}% - 8px)` }}
-                />
-              </div>
-
-              {/* Preset buttons */}
-              <div className="flex gap-2">
-                {PRESETS.map((p) => (
-                  <button
-                    key={p.label}
-                    onClick={() => setBtcWeight(p.btc)}
-                    className={cn(
-                      "px-3 py-1.5 text-[11px] uppercase tracking-[1px] rounded-sm border transition-colors",
-                      btcWeight === p.btc
-                        ? "border-bronze text-bronze bg-bg-elevated"
-                        : "border-border-subtle text-text-muted hover:border-bronze/50 hover:text-text-secondary"
-                    )}
-                  >
-                    {p.label}
-                  </button>
-                ))}
-                {optimal && (
-                  <button
-                    onClick={() => setBtcWeight(optimal.btcWeight)}
-                    className={cn(
-                      "ml-auto px-3 py-1.5 text-[11px] uppercase tracking-[1px] rounded-sm border transition-colors",
-                      btcWeight === optimal.btcWeight
-                        ? "border-gold text-gold bg-bg-elevated"
-                        : "border-gold/30 text-gold/70 hover:border-gold/60 hover:text-gold"
-                    )}
-                  >
-                    Optimal ({optimal.btcWeight}/{optimal.rebetaWeight})
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Metrics Table */}
-            {simLoading ? (
-              <div className="flex items-center justify-center h-32 text-text-muted text-sm">
-                Simulating portfolio...
-              </div>
-            ) : simError ? (
-              <div className="flex items-center justify-center h-32 text-pnl-negative text-sm">
-                {simError}
-              </div>
-            ) : simData ? (
-              <>
-                <MetricsComparisonTable
-                  metrics={simData.metrics}
-                  btcWeight={btcWeight}
-                  rebetaWeight={rebetaWeight}
-                />
-
-                {/* Equity Curve Chart */}
-                {simData.equityCurve.length > 0 && (
-                  <div>
-                    <p className="text-[11px] uppercase tracking-[1px] text-text-muted mb-2">
-                      Simulated Equity Curve (1-year, normalized to 1.0)
-                    </p>
-                    <ResponsiveContainer width="100%" height={220}>
-                      <LineChart
-                        data={simData.equityCurve}
-                        margin={{ top: 4, right: 8, left: -16, bottom: 0 }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" stroke="#1C1C1C" />
-                        <XAxis
-                          dataKey="time"
-                          tick={{ fill: "#888888", fontSize: 10, fontFamily: "JetBrains Mono, monospace" }}
-                          tickLine={false}
-                          axisLine={{ stroke: "#333333" }}
-                          tickFormatter={(v: string) => v.slice(5)}
-                          interval="preserveStartEnd"
-                        />
-                        <YAxis
-                          tick={{ fill: "#888888", fontSize: 10, fontFamily: "JetBrains Mono, monospace" }}
-                          tickLine={false}
-                          axisLine={{ stroke: "#333333" }}
-                          tickFormatter={(v: number) => `${((v - 1) * 100).toFixed(0)}%`}
-                        />
-                        <Tooltip content={<EquityTooltip />} />
-                        <ReferenceLine y={1} stroke="#333333" strokeDasharray="4 4" />
-                        <Line
-                          type="monotone"
-                          dataKey="btcOnly"
-                          stroke="#555555"
-                          strokeWidth={1.5}
-                          dot={false}
-                          name="Pure BTC"
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="mixed"
-                          stroke="#997B66"
-                          strokeWidth={2}
-                          dot={false}
-                          name={`${btcWeight}/${rebetaWeight} Mix`}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="rebetaOnly"
-                          stroke="#C5A049"
-                          strokeWidth={1.5}
-                          dot={false}
-                          name="Pure Rebeta"
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-
-                    <div className="mt-2 flex items-center justify-center gap-6 text-[10px]">
-                      <span className="flex items-center gap-1.5">
-                        <span className="inline-block h-0.5 w-4 bg-text-muted" /> Pure BTC
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <span className="inline-block h-0.5 w-4 bg-bronze" /> {btcWeight}/{rebetaWeight} Mix
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <span className="inline-block h-0.5 w-4 bg-gold" /> Pure Rebeta
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </>
-            ) : null}
-          </div>
-        </section>
-
-        {/* ── E. Key Insights Panel ── */}
+        {/* ── D. Key Insights Panel ── */}
         <section>
           <SectionLabel>Key Insights</SectionLabel>
           <div className="mt-3 space-y-3">

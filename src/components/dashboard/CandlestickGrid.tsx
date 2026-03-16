@@ -134,11 +134,11 @@ function SingleCandleChart({
       });
 
       const candleSeries = chart.addCandlestickSeries({
-        upColor: "#C5A049",
+        upColor: "#22C55E",
         downColor: "#EF4444",
-        borderUpColor: "#C5A049",
+        borderUpColor: "#22C55E",
         borderDownColor: "#EF4444",
-        wickUpColor: "#C5A049",
+        wickUpColor: "#22C55E",
         wickDownColor: "#EF4444",
       });
 

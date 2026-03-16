@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { db as getDb } from "@/lib/db";
-import { balanceSnapshots } from "@/lib/db/schema";
-import { asc } from "drizzle-orm";
+import { getDailyReturns } from "@/lib/daily-returns";
 import { getDailyClosePrices } from "@/lib/bybit/kline";
 import {
   correlationMatrix,
@@ -18,7 +16,7 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ROLLING_WINDOW = 21; // ~1 trading month
+const ROLLING_WINDOW = 90;
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
@@ -33,65 +31,50 @@ export async function GET(request: Request) {
   );
 
   try {
-    // Fetch BTC and ETH daily close prices + DB snapshots in parallel
-    const [btcData, ethData, snapshots] = await Promise.all([
-      getDailyClosePrices("BTCUSDT", period + 5),
-      getDailyClosePrices("ETHUSDT", period + 5),
-      getDb()
-        .select({
-          snapshotAt: balanceSnapshots.snapshotAt,
-          totalEquity: balanceSnapshots.totalEquity,
-        })
-        .from(balanceSnapshots)
-        .orderBy(asc(balanceSnapshots.snapshotAt)),
-    ]);
-
-    // Build daily equity map from DB snapshots (last snapshot per day)
-    const equityByDay = new Map<string, number>();
-    for (const s of snapshots) {
-      const day = new Date(s.snapshotAt).toISOString().split("T")[0];
-      equityByDay.set(day, s.totalEquity);
-    }
-
-    // Align Rebeta, BTC, ETH on common dates
-    const btcByDate = new Map(btcData.map((d) => [d.time, d.close]));
-    const ethByDate = new Map(ethData.map((d) => [d.time, d.close]));
-    const equityDays = Array.from(equityByDay.keys()).sort();
-
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - period);
     const cutoff = cutoffDate.toISOString().split("T")[0];
 
-    const commonDates: string[] = [];
-    const btcPrices: number[] = [];
-    const ethPrices: number[] = [];
-    const rebetaEquity: number[] = [];
+    // Fetch Rebeta daily returns + BTC/ETH prices in parallel
+    const [rebetaRows, btcData, ethData] = await Promise.all([
+      getDailyReturns({ from: cutoff }),
+      getDailyClosePrices("BTCUSDT", period + 5),
+      getDailyClosePrices("ETHUSDT", period + 5),
+    ]);
 
-    for (const day of equityDays) {
-      if (day < cutoff) continue;
+    // Build Rebeta return-by-date map
+    const rebetaReturnsByDate = new Map<string, number>();
+    for (const row of rebetaRows) {
+      rebetaReturnsByDate.set(row.date, row.dailyReturn);
+    }
+    const rebetaDays = rebetaRows.map((r) => r.date);
+
+    // BTC/ETH price-by-date maps
+    const btcByDate = new Map(btcData.map((d) => [d.time, d.close]));
+    const ethByDate = new Map(ethData.map((d) => [d.time, d.close]));
+
+    // Align BTC/ETH prices on Rebeta dates, then convert to returns
+    const btcPricesAligned: number[] = [];
+    const ethPricesAligned: number[] = [];
+    const commonPriceDates: string[] = [];
+    for (const day of rebetaDays) {
       const btcClose = btcByDate.get(day);
       const ethClose = ethByDate.get(day);
-      const equity = equityByDay.get(day);
-      if (btcClose !== undefined && ethClose !== undefined && equity !== undefined) {
-        commonDates.push(day);
-        btcPrices.push(btcClose);
-        ethPrices.push(ethClose);
-        rebetaEquity.push(equity);
+      if (btcClose !== undefined && ethClose !== undefined) {
+        btcPricesAligned.push(btcClose);
+        ethPricesAligned.push(ethClose);
+        commonPriceDates.push(day);
       }
     }
 
-    // Convert to daily returns
-    const btcReturns = pricesToReturns(btcPrices);
-    const ethReturns = pricesToReturns(ethPrices);
-    const rebetaReturns = pricesToReturns(rebetaEquity);
-    const returnDates = commonDates.slice(1);
+    const btcReturns = pricesToReturns(btcPricesAligned);
+    const ethReturns = pricesToReturns(ethPricesAligned);
+    const returnDates = commonPriceDates.slice(1);
 
-    // Build return-by-date maps for alignment with benchmarks
-    const rebetaReturnsByDate = new Map<string, number>();
+    // Build return-by-date maps for BTC/ETH
     const btcReturnsByDate = new Map<string, number>();
     const ethReturnsByDate = new Map<string, number>();
     for (let i = 0; i < returnDates.length; i++) {
-      rebetaReturnsByDate.set(returnDates[i], rebetaReturns[i]);
       btcReturnsByDate.set(returnDates[i], btcReturns[i]);
       ethReturnsByDate.set(returnDates[i], ethReturns[i]);
     }
@@ -99,9 +82,7 @@ export async function GET(request: Request) {
     // Load benchmark returns and align to common dates
     const benchmarks = getAvailableBenchmarks();
     const assetNames: string[] = ["Rebeta", "BTC", "ETH"];
-    const allReturnsSeries: number[][] = [];
 
-    // Build benchmark return-by-date maps
     const benchmarkReturnMaps: Map<string, number>[] = [];
     for (const bm of benchmarks) {
       const bmData = loadBenchmarkReturns(bm.symbol);
@@ -116,7 +97,9 @@ export async function GET(request: Request) {
     // Find dates where ALL assets have data
     const allCommonDates: string[] = [];
     for (const date of returnDates) {
-      const allHaveData = benchmarkReturnMaps.every((m) => m.has(date));
+      const rebetaR = rebetaReturnsByDate.get(date);
+      const allHaveData =
+        rebetaR !== undefined && benchmarkReturnMaps.every((m) => m.has(date));
       if (allHaveData) {
         allCommonDates.push(date);
       }
@@ -137,15 +120,15 @@ export async function GET(request: Request) {
       }
     }
 
+    const allReturnsSeries: number[][] = [];
     allReturnsSeries.push(alignedRebeta, alignedBtc, alignedEth, ...alignedBenchmarks);
 
     // Full NxN correlation matrix
     const matrix = correlationMatrix(allReturnsSeries);
 
-    // Rolling correlation (21-day window) - Rebeta vs all assets
+    // Rolling correlation (90-day window) - Rebeta vs all assets
     const window = Math.min(ROLLING_WINDOW, Math.floor(allCommonDates.length / 2));
 
-    // All rolling series: BTC, ETH, + benchmarks
     const rollingAssets: { key: string; data: { time: string; value: number }[] }[] = [];
 
     if (allCommonDates.length > window) {

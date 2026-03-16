@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { db as getDb } from "@/lib/db";
-import { balanceSnapshots } from "@/lib/db/schema";
-import { asc } from "drizzle-orm";
+import { getDailyReturns } from "@/lib/daily-returns";
 import { getDailyClosePrices } from "@/lib/bybit/kline";
 import { pearsonCorrelation, pricesToReturns } from "@/lib/math/correlation";
 import {
@@ -22,34 +20,30 @@ export async function GET() {
   }
 
   try {
-    // Fetch Rebeta equity + BTC prices in parallel
-    const [snapshots, btcData] = await Promise.all([
-      getDb()
-        .select({
-          snapshotAt: balanceSnapshots.snapshotAt,
-          totalEquity: balanceSnapshots.totalEquity,
-        })
-        .from(balanceSnapshots)
-        .orderBy(asc(balanceSnapshots.snapshotAt)),
+    // Fetch Rebeta daily returns + BTC prices in parallel
+    const [rebetaRows, btcData] = await Promise.all([
+      getDailyReturns(),
       getDailyClosePrices("BTCUSDT", 400),
     ]);
 
-    // Build Rebeta daily equity map
-    const equityByDay = new Map<string, number>();
-    for (const s of snapshots) {
-      const day = new Date(s.snapshotAt).toISOString().split("T")[0];
-      equityByDay.set(day, s.totalEquity);
+    if (rebetaRows.length < 2) {
+      return NextResponse.json({ error: "Insufficient Rebeta data" }, { status: 404 });
     }
-    const equityDays = Array.from(equityByDay.keys()).sort();
-    const rebetaEquityArr = equityDays.map((d) => equityByDay.get(d)!);
-    const rebetaReturns = pricesToReturns(rebetaEquityArr);
-    const rebetaDays = equityDays.slice(1); // return dates
+
+    // Build Rebeta return-by-date map
+    const rebetaReturns = rebetaRows.map((r) => r.dailyReturn);
+    const rebetaDays = rebetaRows.map((r) => r.date);
+
+    const rebetaReturnsByDate = new Map<string, number>();
+    for (const row of rebetaRows) {
+      rebetaReturnsByDate.set(row.date, row.dailyReturn);
+    }
 
     // BTC returns
     const btcByDate = new Map(btcData.map((d) => [d.time, d.close]));
     const btcPricesAligned: number[] = [];
     const btcAlignedDates: string[] = [];
-    for (const day of equityDays) {
+    for (const day of rebetaDays) {
       const btcClose = btcByDate.get(day);
       if (btcClose !== undefined) {
         btcPricesAligned.push(btcClose);
@@ -75,7 +69,7 @@ export async function GET() {
     const cumulativeCurves: Record<string, { date: string; value: number }[]> =
       {};
 
-    // Rebeta metrics
+    // Rebeta metrics (from daily_returns dailyReturn values)
     const rebetaMetrics = calcAssetMetrics(rebetaReturns, rebetaReturns.length);
 
     // Build Rebeta cumulative curve
@@ -108,11 +102,6 @@ export async function GET() {
     const btcReturnDates = btcAlignedDates.slice(1);
     for (let i = 0; i < btcReturns.length; i++) {
       btcReturnsByDate.set(btcReturnDates[i], btcReturns[i]);
-    }
-
-    const rebetaReturnsByDate = new Map<string, number>();
-    for (let i = 0; i < rebetaReturns.length; i++) {
-      rebetaReturnsByDate.set(rebetaDays[i], rebetaReturns[i]);
     }
 
     // Aligned BTC-Rebeta correlation
@@ -172,7 +161,6 @@ export async function GET() {
       // Cumulative curve (aligned to Rebeta date range)
       const cumCurve: { date: string; value: number }[] = [];
       let cum = 1;
-      // Use only dates that overlap with Rebeta period
       const startDate = rebetaDays[0];
       const endDate = rebetaDays[rebetaDays.length - 1];
       for (let i = 0; i < bmData.dates.length; i++) {
