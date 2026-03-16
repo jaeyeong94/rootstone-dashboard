@@ -232,7 +232,7 @@ export default function CorrelationPage() {
           ? "low correlation"
           : "moderate correlation";
 
-    return `Based on ${frontierData.days}-day historical data, the optimal Sharpe allocation is ${optBtc}% BTC / ${optRebeta}% Rebeta. ` +
+    return `Based on trailing 365-day analysis (${frontierData.days} overlapping trading days), the optimal Sharpe allocation is ${optBtc}% BTC / ${optRebeta}% Rebeta. ` +
       `Rebeta's ${corrDesc} with BTC (${rebetaBtcCorr >= 0 ? "+" : ""}${rebetaBtcCorr.toFixed(2)}) means blending the two assets ` +
       `reduces portfolio volatility without proportionally reducing returns, improving the risk-adjusted outcome.`;
   }

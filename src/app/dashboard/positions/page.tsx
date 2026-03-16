@@ -36,8 +36,8 @@ export default function PositionsPage() {
           <p className="text-xs leading-relaxed text-text-secondary">
             <span className="font-medium text-bronze">Notice</span>
             {" — "}
-            Price and Qty are masked to prevent copy-trading and strategy exposure.
-            Only PnL and directional data are disclosed.
+            Qty is masked to prevent copy-trading.
+            PnL % is calculated as realized PnL relative to NAV at the time of trade.
           </p>
         </div>
 
@@ -63,7 +63,7 @@ function OpenPositions() {
         <div className="grid grid-cols-5 gap-4 border-b border-border-subtle px-4 py-3 text-[11px] uppercase tracking-[1px] text-text-secondary">
           <span>Symbol</span>
           <span>Side</span>
-          <span className="text-right">PnL / NAV</span>
+          <span className="text-right">PnL %</span>
           <span className="text-right">Leverage</span>
           <span className="text-right">Holding</span>
         </div>
@@ -273,7 +273,7 @@ function TradeHistory() {
           <span>Side</span>
           <span className="text-right">Price</span>
           <span className="text-right">Qty</span>
-          <span className="text-right">PnL / NAV</span>
+          <span className="text-right">PnL %</span>
         </div>
 
         {isLoading ? (
@@ -333,8 +333,10 @@ function TradeHistory() {
                             ? "OPEN"
                             : "CLOSE"}
                   </span>
-                  <span className="text-right font-[family-name:var(--font-mono)] text-sm text-text-muted">
-                    ***
+                  <span className="text-right font-[family-name:var(--font-mono)] text-sm text-text-secondary">
+                    {rec.avgEntryPrice
+                      ? parseFloat(rec.avgEntryPrice).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                      : "—"}
                   </span>
                   <span className="text-right font-[family-name:var(--font-mono)] text-sm text-text-muted">
                     ***

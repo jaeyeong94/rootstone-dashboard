@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import useSWR from "swr";
 import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { cn } from "@/lib/utils";
+import { STRATEGY_INCEPTION_DATE } from "@/lib/constants";
 import type { EquityCurvePoint, BenchmarkPoint } from "@/types";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -13,12 +14,10 @@ export function BenchmarkCompare() {
     refreshInterval: 300000,
   });
 
-  const startDate: string | null = curveData?.startDate ?? null;
+  const startDate: string = curveData?.startDate ?? STRATEGY_INCEPTION_DATE;
 
   const { data: benchData } = useSWR(
-    startDate
-      ? `/api/bybit/benchmark?symbol=BTCUSDT&limit=1800&startDate=${startDate}`
-      : null,
+    `/api/bybit/benchmark?symbol=BTCUSDT&limit=2000&startDate=${STRATEGY_INCEPTION_DATE}`,
     fetcher,
     { refreshInterval: 3600000 }
   );
