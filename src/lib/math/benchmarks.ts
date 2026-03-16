@@ -82,7 +82,7 @@ export function calcAssetMetrics(
   returns: number[],
   totalDays: number
 ): AssetMetrics {
-  if (returns.length === 0 || totalDays === 0) {
+  if (returns.length < 2 || totalDays === 0) {
     return {
       cumulativeReturn: 0,
       cagr: 0,

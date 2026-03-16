@@ -102,7 +102,8 @@ export function calcMaxDrawdown(equitySeries: number[]): number {
 export function calcDailyReturns(equitySeries: number[]): number[] {
   const returns: number[] = [];
   for (let i = 1; i < equitySeries.length; i++) {
-    returns.push((equitySeries[i] - equitySeries[i - 1]) / equitySeries[i - 1]);
+    const prev = equitySeries[i - 1];
+    returns.push(prev === 0 ? 0 : (equitySeries[i] - prev) / prev);
   }
   return returns;
 }

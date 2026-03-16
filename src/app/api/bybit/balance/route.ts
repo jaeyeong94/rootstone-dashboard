@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { getWalletBalance, getExecutions } from "@/lib/bybit/client";
 import { db as getDb } from "@/lib/db";
 import { balanceSnapshots } from "@/lib/db/schema";
-import { desc, gte } from "drizzle-orm";
+import { desc, gte, lte } from "drizzle-orm";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -59,13 +59,21 @@ export async function GET(request: Request) {
     };
 
     const cutoff = new Date(Date.now() - (periodMs[period] || periodMs["24h"]));
+    // cutoff 이전의 가장 가까운 스냅샷 (정확한 기간 기준점)
     const oldRows = await db
+      .select()
+      .from(balanceSnapshots)
+      .where(lte(balanceSnapshots.snapshotAt, cutoff))
+      .orderBy(desc(balanceSnapshots.snapshotAt))
+      .limit(1);
+    // fallback: cutoff 이전 스냅샷이 없으면 cutoff 이후 가장 오래된 스냅샷
+    const oldSnapshot = oldRows[0] ?? (await db
       .select()
       .from(balanceSnapshots)
       .where(gte(balanceSnapshots.snapshotAt, cutoff))
       .orderBy(balanceSnapshots.snapshotAt)
-      .limit(1);
-    const oldSnapshot = oldRows[0];
+      .limit(1)
+    )[0];
 
     let changePercent = 0;
     if (oldSnapshot && oldSnapshot.totalEquity > 0) {
@@ -73,18 +81,27 @@ export async function GET(request: Request) {
         (currentEquity - oldSnapshot.totalEquity) / oldSnapshot.totalEquity;
     }
 
-    // Compute daily turnover: today's volume / equity
+    // Compute daily turnover: today's volume / equity (전체 체결 페이지네이션)
     let dailyTurnover = 0;
     try {
-      const execs = await getExecutions({ limit: "200" });
       const now = new Date();
       const todayStartMs = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
       let todayVolume = 0;
-      for (const e of execs.list ?? []) {
-        if (Number(e.execTime) >= todayStartMs) {
-          todayVolume += parseFloat(e.execPrice) * parseFloat(e.execQty);
+      let cursor: string | undefined;
+      do {
+        const page = await getExecutions({ limit: "200", ...(cursor ? { cursor } : {}) });
+        const list = page.list ?? [];
+        let allBeforeToday = true;
+        for (const e of list) {
+          if (Number(e.execTime) >= todayStartMs) {
+            todayVolume += parseFloat(e.execPrice) * parseFloat(e.execQty);
+            allBeforeToday = false;
+          }
         }
-      }
+        cursor = page.nextPageCursor || undefined;
+        // 이전 날짜 체결만 나오면 더 이상 페이지네이션 불필요
+        if (allBeforeToday) break;
+      } while (cursor);
       if (currentEquity > 0) {
         dailyTurnover = todayVolume / currentEquity;
       }
