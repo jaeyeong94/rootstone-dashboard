@@ -41,8 +41,9 @@ export function UnderwaterChart() {
         const area = chart.addAreaSeries({
           lineColor: "#EF4444",
           lineWidth: 2,
-          topColor: "rgba(239, 68, 68, 0.3)",
-          bottomColor: "rgba(239, 68, 68, 0)",
+          topColor: "rgba(239, 68, 68, 0)",
+          bottomColor: "rgba(239, 68, 68, 0.3)",
+          invertFilledArea: true,
           priceFormat: { type: "custom", formatter: (p: number) => `${(p * 100).toFixed(1)}%` },
           title: "Rebeta DD",
           priceScaleId: "right",
