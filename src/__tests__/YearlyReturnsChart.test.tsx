@@ -7,9 +7,9 @@ vi.mock("swr", () => ({
   default: () => ({
     data: {
       yearlyReturns: [
-        { year: 2021, return: 86.6 },
-        { year: 2022, return: 26.2 },
-        { year: 2023, return: 77.9 },
+        { year: 2021, return: 86.6, btcReturn: -5.0 },
+        { year: 2022, return: 26.2, btcReturn: -64.2 },
+        { year: 2023, return: 77.9, btcReturn: 155.9 },
       ],
     },
     isLoading: false,
@@ -29,9 +29,10 @@ describe("YearlyReturnsChart", () => {
     expect(screen.getByText("+77.9%")).toBeInTheDocument();
   });
 
-  it("renders bar elements for each year", () => {
+  it("renders bar elements for each year (rebeta + btc)", () => {
     render(<YearlyReturnsChart />);
     const bars = screen.getAllByTestId(/^bar-/);
-    expect(bars.length).toBe(3);
+    // 3 years × 2 (rebeta + btc) = 6 bars
+    expect(bars.length).toBe(6);
   });
 });

@@ -75,8 +75,8 @@ function useTearsheetDisplayData(ts: TearsheetData | undefined, monthlyData: Mon
   const benchmarkMetrics: { metric: string; rebeta: string; btc: string; tooltip?: string }[] = [];
 
   const yearlyReturns: { year: number; rebeta: number; btc: number }[] =
-    (ts?.yearlyReturns ?? []).map((y: { year: number; return: number }) => ({
-      year: y.year, rebeta: y.return, btc: 0,
+    (ts?.yearlyReturns ?? []).map((y: { year: number; return: number; btcReturn?: number }) => ({
+      year: y.year, rebeta: y.return, btc: y.btcReturn ?? 0,
     }));
 
   // Build monthlyReturns from API
@@ -274,7 +274,11 @@ function MonthlyHeatmap() {
 /* ─── Yearly Bar Chart (CSS) ─── */
 function YearlyBars() {
   const yr = currentDisplay.yearlyReturns ?? [];
-  const maxVal = yr.length > 0 ? Math.max(...yr.map((y: { rebeta: number }) => Math.abs(y.rebeta)), 1) : 1;
+  const maxVal = yr.length > 0 ? Math.max(
+    ...yr.map((y: { rebeta: number }) => Math.abs(y.rebeta)),
+    ...yr.map((y: { btc: number }) => Math.abs(y.btc)),
+    1
+  ) : 1;
 
   return (
     <div className="space-y-3">

@@ -206,11 +206,28 @@ export async function GET() {
       yearlyMap.set(m.year, arr);
     }
 
+    // BTC yearly returns (from kline daily returns, grouped by year)
+    const btcReturnDates = dates.slice(1); // btcReturns aligns with dates shifted by 1
+    const btcYearlyMap = new Map<number, number[]>();
+    for (let i = 0; i < btcReturns.length && i < btcReturnDates.length; i++) {
+      const year = parseInt(btcReturnDates[i].substring(0, 4));
+      const arr = btcYearlyMap.get(year) || [];
+      arr.push(btcReturns[i]);
+      btcYearlyMap.set(year, arr);
+    }
+
     const yearlyReturns = Array.from(yearlyMap.entries())
       .sort(([a], [b]) => a - b)
       .map(([year, monthlyRets]) => {
         const compounded = monthlyRets.reduce((mul, r) => mul * (1 + r / 100), 1);
-        return { year, return: parseFloat(((compounded - 1) * 100).toFixed(1)) };
+        // BTC: compound daily returns for same year
+        const btcDailyRets = btcYearlyMap.get(year) ?? [];
+        const btcCompounded = btcDailyRets.reduce((mul, r) => mul * (1 + r), 1);
+        return {
+          year,
+          return: parseFloat(((compounded - 1) * 100).toFixed(1)),
+          btcReturn: parseFloat(((btcCompounded - 1) * 100).toFixed(1)),
+        };
       });
 
     // Best/Worst year
