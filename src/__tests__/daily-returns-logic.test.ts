@@ -220,8 +220,8 @@ describe("rolling metrics calculation", () => {
 
     const rolling = calcRollingValues(returns, times, window, calcSharpeRatio);
 
-    // Should have (50 - 10) = 40 points
-    expect(rolling).toHaveLength(40);
+    // Should have (50 - 10 + 1) = 41 points (window부터 마지막까지 포함)
+    expect(rolling).toHaveLength(41);
   });
 
   it("rolling window captures local changes", () => {

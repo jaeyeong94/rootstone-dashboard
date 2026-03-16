@@ -117,9 +117,9 @@ export function calcRollingValues(
   calcFn: (returns: number[]) => number
 ): { time: string; value: number }[] {
   const result: { time: string; value: number }[] = [];
-  for (let i = window; i < dailyReturns.length; i++) {
+  for (let i = window; i <= dailyReturns.length; i++) {
     const slice = dailyReturns.slice(i - window, i);
-    result.push({ time: times[i], value: calcFn(slice) });
+    result.push({ time: times[i - 1], value: calcFn(slice) });
   }
   return result;
 }
