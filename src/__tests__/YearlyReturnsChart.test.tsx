@@ -20,7 +20,7 @@ describe("YearlyReturnsChart", () => {
 
   it("shows Rebeta return values with sign", () => {
     render(<YearlyReturnsChart />);
-    expect(screen.getByText("+86.2%")).toBeInTheDocument();
+    expect(screen.getByText("+86.6%")).toBeInTheDocument();
     expect(screen.getByText("+26.2%")).toBeInTheDocument();
     expect(screen.getByText("+77.9%")).toBeInTheDocument();
   });
@@ -28,8 +28,8 @@ describe("YearlyReturnsChart", () => {
   it("shows BTC return values with sign", () => {
     render(<YearlyReturnsChart />);
     expect(screen.getByText("-5.0%")).toBeInTheDocument();
-    expect(screen.getByText("-64.1%")).toBeInTheDocument();
-    expect(screen.getByText("+155.0%")).toBeInTheDocument();
+    expect(screen.getByText("-64.2%")).toBeInTheDocument();
+    expect(screen.getByText("+155.9%")).toBeInTheDocument();
   });
 
   it("has REBETA and BTC labels", () => {
@@ -50,7 +50,7 @@ describe("YearlyReturnsChart", () => {
   it("shows all Rebeta years as positive", () => {
     render(<YearlyReturnsChart />);
     // All 6 rebeta values are positive
-    expect(screen.getByText("+86.2%")).toBeInTheDocument();
+    expect(screen.getByText("+86.6%")).toBeInTheDocument();
     expect(screen.getByText("+26.2%")).toBeInTheDocument();
     expect(screen.getByText("+77.9%")).toBeInTheDocument();
     expect(screen.getByText("+41.7%")).toBeInTheDocument();

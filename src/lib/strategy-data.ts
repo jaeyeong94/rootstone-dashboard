@@ -6,9 +6,9 @@
 
 // ── Yearly Returns ──
 export const yearlyReturns = [
-  { year: 2021, rebeta: 86.2, btc: -5.0 },
-  { year: 2022, rebeta: 26.2, btc: -64.1 },
-  { year: 2023, rebeta: 77.9, btc: 155.0 },
+  { year: 2021, rebeta: 86.6, btc: -5.0 },
+  { year: 2022, rebeta: 26.2, btc: -64.2 },
+  { year: 2023, rebeta: 77.9, btc: 155.9 },
   { year: 2024, rebeta: 41.7, btc: 119.2 },
   { year: 2025, rebeta: 46.0, btc: -5.4 },
   { year: 2026, rebeta: 12.5, btc: -20.4 },
