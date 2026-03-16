@@ -53,8 +53,8 @@ function useTearsheetDisplayData(ts: TearsheetData | undefined, monthlyData: Mon
     { metric: "1-day VaR (95%)", rebeta: `${risk.var95}%`, btc: bRisk ? `${bRisk.var95}%` : "—" },
     { metric: "CVaR (95%)", rebeta: `${risk.cvar95}%`, btc: bRisk ? `${bRisk.cvar95}%` : "—" },
     { metric: "CVaR (99%)", rebeta: `${risk.cvar99}%`, btc: bRisk ? `${bRisk.cvar99}%` : "—" },
-    { metric: "Omega Ratio", rebeta: risk.omega.toFixed(4), btc: "—" },
-    { metric: "Tail Ratio", rebeta: risk.tailRatio.toFixed(4), btc: "—" },
+    { metric: "Omega Ratio", rebeta: risk.omega.toFixed(4), btc: bRisk ? bRisk.omega.toFixed(4) : "—" },
+    { metric: "Tail Ratio", rebeta: risk.tailRatio.toFixed(4), btc: bRisk ? bRisk.tailRatio.toFixed(4) : "—" },
   ] : [];
 
   const bp = ts?.btcPeriodReturns;
@@ -63,12 +63,12 @@ function useTearsheetDisplayData(ts: TearsheetData | undefined, monthlyData: Mon
     { metric: "3M", rebeta: `${periods["3m"]}%`, btc: bp ? `${bp["3m"]}%` : "—" },
     { metric: "6M", rebeta: `${periods["6m"]}%`, btc: bp ? `${bp["6m"]}%` : "—" },
     { metric: "YTD", rebeta: `${periods.ytd}%`, btc: bp ? `${bp.ytd}%` : "—" },
-    { metric: "Best Day", rebeta: `${periods.bestDay.value}%`, btc: "—" },
-    { metric: "Worst Day", rebeta: `${periods.worstDay.value}%`, btc: "—" },
-    { metric: "Best Month", rebeta: `${periods.bestMonth.value}%`, btc: "—" },
-    { metric: "Worst Month", rebeta: `${periods.worstMonth.value}%`, btc: "—" },
-    { metric: "Best Year", rebeta: `${periods.bestYear.value}%`, btc: "—" },
-    { metric: "Worst Year", rebeta: `${periods.worstYear.value}%`, btc: "—" },
+    { metric: "Best Day", rebeta: `${periods.bestDay.value}%`, btc: bRisk ? `${bRisk.bestDay}%` : "—" },
+    { metric: "Worst Day", rebeta: `${periods.worstDay.value}%`, btc: bRisk ? `${bRisk.worstDay}%` : "—" },
+    { metric: "Best Month", rebeta: `${periods.bestMonth.value}%`, btc: bp ? `${bp.bestMonth}%` : "—" },
+    { metric: "Worst Month", rebeta: `${periods.worstMonth.value}%`, btc: bp ? `${bp.worstMonth}%` : "—" },
+    { metric: "Best Year", rebeta: `${periods.bestYear.value}%`, btc: bp ? `${bp.bestYear}%` : "—" },
+    { metric: "Worst Year", rebeta: `${periods.worstYear.value}%`, btc: bp ? `${bp.worstYear}%` : "—" },
   ] : [];
 
   const rm = ts?.rollingMetrics;
@@ -86,7 +86,7 @@ function useTearsheetDisplayData(ts: TearsheetData | undefined, monthlyData: Mon
     { metric: "Alpha", rebeta: `${bm.alpha}`, btc: "0.0000", tooltip: "Annualized excess return vs benchmark" },
     { metric: "Beta", rebeta: `${bm.beta}`, btc: "1.0000", tooltip: "Market sensitivity" },
     { metric: "Information Ratio", rebeta: `${bm.informationRatio}`, btc: "0.0000", tooltip: "Risk-adjusted active return" },
-    { metric: "Treynor Ratio", rebeta: `${bm.treynorRatio}`, btc: "—", tooltip: "Return per unit of systematic risk" },
+    { metric: "Treynor Ratio", rebeta: `${bm.treynorRatio}`, btc: "N/A", tooltip: "Return per unit of systematic risk" },
     { metric: "Correlation", rebeta: `${bm.correlation}`, btc: "1.0000", tooltip: "Pearson correlation with BTC" },
   ] : [];
 
@@ -705,10 +705,10 @@ function RiskTab() {
         <SectionLabel>Risk Summary</SectionLabel>
         <div className="mt-3 grid grid-cols-2 gap-3 xl:grid-cols-4">
           {[
-            { label: "Max Drawdown", rebeta: currentDisplay.mainMetrics?.[6]?.rebeta ?? "--", btc: "—" },
-            { label: "Longest DD", rebeta: currentDisplay.mainMetrics?.[7]?.rebeta ?? "--", btc: "—" },
-            { label: "Daily VaR (95%)", rebeta: currentDisplay.returnsMetrics?.[0]?.rebeta ?? "--", btc: "—" },
-            { label: "CVaR (99%)", rebeta: currentDisplay.returnsMetrics?.[2]?.rebeta ?? "--", btc: "—" },
+            { label: "Max Drawdown", rebeta: currentDisplay.mainMetrics?.[6]?.rebeta ?? "--", btc: currentDisplay.mainMetrics?.[6]?.btc ?? "—" },
+            { label: "Longest DD", rebeta: currentDisplay.mainMetrics?.[7]?.rebeta ?? "--", btc: currentDisplay.mainMetrics?.[7]?.btc ?? "—" },
+            { label: "Daily VaR (95%)", rebeta: currentDisplay.returnsMetrics?.[0]?.rebeta ?? "--", btc: currentDisplay.returnsMetrics?.[0]?.btc ?? "—" },
+            { label: "CVaR (99%)", rebeta: currentDisplay.returnsMetrics?.[2]?.rebeta ?? "--", btc: currentDisplay.returnsMetrics?.[2]?.btc ?? "—" },
           ].map((s) => (
             <div key={s.label} className="rounded-sm border border-border-subtle bg-bg-card p-4">
               <div className="text-[10px] uppercase tracking-[1px] text-text-muted">{s.label}</div>

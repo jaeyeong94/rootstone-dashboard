@@ -126,6 +126,22 @@ export async function GET() {
     const btcVar95 = historicalVaR(btcReturns, 0.95) * 100;
     const btcCvar95 = conditionalVaR(btcReturns, 0.95) * 100;
     const btcCvar99 = conditionalVaR(btcReturns, 0.99) * 100;
+    let btcGainSum = 0, btcLossSum = 0;
+    for (const r of btcReturns) {
+      if (r > 0) btcGainSum += r;
+      else btcLossSum += Math.abs(r);
+    }
+    const btcOmega = btcLossSum > 0 ? btcGainSum / btcLossSum : 0;
+    const btcSorted = [...btcReturns].sort((a, b) => a - b);
+    const btcP5 = btcSorted[Math.floor(btcReturns.length * 0.05)] ?? 0;
+    const btcP95 = btcSorted[Math.floor(btcReturns.length * 0.95)] ?? 0;
+    const btcTailRatio = btcP5 !== 0 ? Math.abs(btcP95 / btcP5) : 0;
+    // BTC Best/Worst day
+    let btcBestDay = { value: -Infinity }, btcWorstDay = { value: Infinity };
+    for (const r of btcReturns) {
+      if (r > btcBestDay.value) btcBestDay = { value: r };
+      if (r < btcWorstDay.value) btcWorstDay = { value: r };
+    }
 
     // ── Risk Metrics ──
     const var95 = historicalVaR(returns, 0.95) * 100;
@@ -368,11 +384,38 @@ export async function GET() {
       const cutIdx = Math.max(0, btcNav.length - 1 - daysBack);
       return (btcNav[btcNav.length - 1] / btcNav[cutIdx] - 1) * 100;
     }
+    // BTC monthly returns (from daily, grouped by month)
+    const btcMonthlyMap = new Map<string, number[]>();
+    for (let i = 0; i < btcReturns.length && i < btcReturnDates.length; i++) {
+      const key = btcReturnDates[i].substring(0, 7);
+      const arr = btcMonthlyMap.get(key) || [];
+      arr.push(btcReturns[i]);
+      btcMonthlyMap.set(key, arr);
+    }
+    let btcBestMonth = { key: "", value: -Infinity };
+    let btcWorstMonth = { key: "", value: Infinity };
+    for (const [key, rets] of btcMonthlyMap) {
+      const comp = (rets.reduce((m, r) => m * (1 + r), 1) - 1) * 100;
+      if (comp > btcBestMonth.value) btcBestMonth = { key, value: comp };
+      if (comp < btcWorstMonth.value) btcWorstMonth = { key, value: comp };
+    }
+    // BTC Best/Worst Year
+    let btcBestYear = { year: 0, value: -Infinity };
+    let btcWorstYear = { year: 0, value: Infinity };
+    for (const y of yearlyReturns) {
+      if (y.btcReturn > btcBestYear.value) btcBestYear = { year: y.year, value: y.btcReturn };
+      if (y.btcReturn < btcWorstYear.value) btcWorstYear = { year: y.year, value: y.btcReturn };
+    }
+
     const btcPeriodReturns = {
       mtd: parseFloat(btcPeriodReturn(today.getUTCDate()).toFixed(1)),
       "3m": parseFloat(btcPeriodReturn(90).toFixed(1)),
       "6m": parseFloat(btcPeriodReturn(180).toFixed(1)),
       ytd: parseFloat(btcPeriodReturn(Math.floor((today.getTime() - new Date(`${today.getUTCFullYear()}-01-01`).getTime()) / 86400000)).toFixed(1)),
+      bestMonth: parseFloat(btcBestMonth.value.toFixed(1)),
+      worstMonth: parseFloat(btcWorstMonth.value.toFixed(1)),
+      bestYear: btcBestYear.value !== -Infinity ? btcBestYear.value : 0,
+      worstYear: btcWorstYear.value !== Infinity ? btcWorstYear.value : 0,
     };
 
     return NextResponse.json({
@@ -409,6 +452,10 @@ export async function GET() {
         var95: parseFloat(btcVar95.toFixed(2)),
         cvar95: parseFloat(btcCvar95.toFixed(2)),
         cvar99: parseFloat(btcCvar99.toFixed(2)),
+        omega: parseFloat(btcOmega.toFixed(4)),
+        tailRatio: parseFloat(btcTailRatio.toFixed(4)),
+        bestDay: parseFloat((btcBestDay.value * 100).toFixed(1)),
+        worstDay: parseFloat((btcWorstDay.value * 100).toFixed(1)),
       },
       periodReturns: {
         mtd: parseFloat(mtdReturn.toFixed(1)),
