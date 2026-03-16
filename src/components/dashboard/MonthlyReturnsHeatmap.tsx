@@ -130,10 +130,10 @@ export function MonthlyReturnsHeatmap() {
           <tbody>
             {years.map((year) => {
               const months = yearMap.get(year)!;
-              const ytd = Array.from(months.values()).reduce(
-                (sum, v) => sum + v,
-                0
-              );
+              const ytd = (Array.from(months.values()).reduce(
+                (mul, v) => mul * (1 + v / 100),
+                1
+              ) - 1) * 100;
               return (
                 <tr key={year}>
                   <td className="px-2 py-1 font-[family-name:var(--font-mono)] text-xs text-text-secondary">
