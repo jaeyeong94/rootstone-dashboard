@@ -31,16 +31,6 @@ export default function PositionsPage() {
     <div>
       <Header title="Positions" />
       <div className="space-y-8 p-6">
-        {/* Masking Notice */}
-        <div className="rounded-sm border border-bronze/20 bg-bronze/5 px-4 py-3">
-          <p className="text-xs leading-relaxed text-text-secondary">
-            <span className="font-medium text-bronze">Notice</span>
-            {" — "}
-            Qty is masked to prevent copy-trading.
-            PnL % is calculated as realized PnL relative to NAV at the time of trade.
-          </p>
-        </div>
-
         <OpenPositions />
         <TradeHistory />
       </div>
@@ -267,12 +257,11 @@ function TradeHistory() {
         Trade History
       </p>
       <div className="rounded-sm border border-border-subtle bg-bg-card">
-        <div className="sticky top-0 z-10 grid grid-cols-6 gap-4 border-b border-border-subtle bg-bg-card px-4 py-3 text-[11px] uppercase tracking-[1px] text-text-secondary">
+        <div className="sticky top-0 z-10 grid grid-cols-5 gap-4 border-b border-border-subtle bg-bg-card px-4 py-3 text-[11px] uppercase tracking-[1px] text-text-secondary">
           <span>Time</span>
           <span>Symbol</span>
           <span>Side</span>
           <span className="text-right">Price</span>
-          <span className="text-right">Qty</span>
           <span className="text-right">PnL %</span>
         </div>
 
@@ -299,7 +288,7 @@ function TradeHistory() {
               return (
                 <div
                   key={`${rec.orderId}-${rec.updatedTime}-${idx}`}
-                  className="grid grid-cols-6 gap-4 border-b border-border-subtle px-4 py-3 transition-colors hover:bg-bg-elevated"
+                  className="grid grid-cols-5 gap-4 border-b border-border-subtle px-4 py-3 transition-colors hover:bg-bg-elevated"
                 >
                   <span className="text-xs text-text-secondary">
                     {new Date(parseInt(rec.updatedTime)).toLocaleString("en-US", {
@@ -337,9 +326,6 @@ function TradeHistory() {
                     {rec.avgEntryPrice
                       ? parseFloat(rec.avgEntryPrice).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                       : "—"}
-                  </span>
-                  <span className="text-right font-[family-name:var(--font-mono)] text-sm text-text-muted">
-                    ***
                   </span>
                   <span
                     className={cn(

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getDailyReturns } from "@/lib/daily-returns";
+import { getDailyClosePrices } from "@/lib/bybit/kline";
+import { pricesToReturns } from "@/lib/math/correlation";
 import { calcSharpeRatio, calcRollingValues } from "@/lib/utils";
 import { ANNUALIZATION_DAYS } from "@/lib/constants";
 
@@ -39,7 +41,25 @@ export async function GET(request: Request) {
     const sharpe = calcRollingValues(returns, times, window, calcSharpeRatio);
     const volatility = calcRollingValues(returns, times, window, calcVolatility);
 
-    return NextResponse.json({ sharpe, volatility });
+    // BTC rolling Sharpe (kline → daily returns → rolling calc)
+    let btcSharpe: { time: string; value: number }[] = [];
+    try {
+      const btcData = await getDailyClosePrices("BTCUSDT", rows.length + 10);
+      const btcByDate = new Map(btcData.map((d) => [d.time, d.close]));
+      const btcPrices: number[] = [];
+      const btcDates: string[] = [];
+      for (const day of times) {
+        const p = btcByDate.get(day);
+        if (p !== undefined) { btcPrices.push(p); btcDates.push(day); }
+      }
+      const btcReturns = pricesToReturns(btcPrices);
+      const btcRetDates = btcDates.slice(1);
+      if (btcReturns.length > window) {
+        btcSharpe = calcRollingValues(btcReturns, btcRetDates, window, calcSharpeRatio);
+      }
+    } catch { /* BTC data optional */ }
+
+    return NextResponse.json({ sharpe, volatility, btcSharpe });
   } catch (error) {
     console.error("Rolling metrics error:", error);
     return NextResponse.json(

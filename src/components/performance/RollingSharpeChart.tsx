@@ -13,6 +13,7 @@ export function RollingSharpeChart() {
   const { data: metricsData, isLoading } = useSWR<{
     sharpe: RollingMetricPoint[];
     volatility: RollingMetricPoint[];
+    btcSharpe?: RollingMetricPoint[];
   }>(
     "/api/bybit/rolling-metrics?window=365",
     fetcher,
@@ -20,6 +21,7 @@ export function RollingSharpeChart() {
   );
 
   const sharpeData = useMemo(() => metricsData?.sharpe ?? [], [metricsData]);
+  const btcSharpeData = useMemo(() => metricsData?.btcSharpe ?? [], [metricsData]);
 
   useEffect(() => {
     if (!containerRef.current || sharpeData.length === 0) return;
@@ -61,6 +63,21 @@ export function RollingSharpeChart() {
           .map((d) => ({ time: d.time, value: d.value }))
       );
 
+      // BTC Rolling Sharpe
+      if (btcSharpeData.length > 0) {
+        const btcLine = chart.addLineSeries({
+          color: "#555555",
+          lineWidth: 1,
+          priceFormat: { type: "custom", formatter: (p: number) => p.toFixed(2) },
+          title: "BTC",
+        });
+        btcLine.setData(
+          btcSharpeData
+            .filter((d) => d.value !== null && d.value !== undefined)
+            .map((d) => ({ time: d.time, value: d.value }))
+        );
+      }
+
       // Zero line
       if (sharpeData.length > 0) {
         const zeroLine = chart.addLineSeries({
@@ -94,7 +111,7 @@ export function RollingSharpeChart() {
         chartRef.current = null;
       }
     };
-  }, [sharpeData]);
+  }, [sharpeData, btcSharpeData]);
 
   if (isLoading) {
     return <div className="h-[280px] animate-pulse rounded bg-bg-elevated" />;
