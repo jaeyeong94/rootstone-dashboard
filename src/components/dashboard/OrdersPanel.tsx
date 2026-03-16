@@ -71,12 +71,12 @@ export function OrdersPanel() {
                       </span>
                     </div>
                     <span className="shrink-0 font-[family-name:var(--font-mono)] text-[10px] text-text-secondary">
-                      {formatNumber(price)}
+                      ••••
                     </span>
                   </div>
                   <div className="mt-0.5 flex items-center justify-between">
                     <span className="font-[family-name:var(--font-mono)] text-[10px] text-text-muted">
-                      {qty} {order.orderType === "Limit" ? "LMT" : "MKT"}
+                      •••• {order.orderType === "Limit" ? "LMT" : "MKT"}
                     </span>
                     {fillPct > 0 && (
                       <span className="font-[family-name:var(--font-mono)] text-[9px] text-bronze">

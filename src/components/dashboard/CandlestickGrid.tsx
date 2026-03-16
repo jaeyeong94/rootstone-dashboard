@@ -204,8 +204,8 @@ function SingleCandleChart({
           color: o.side === "Buy" ? "#C5A049" : "#EF4444",
           lineWidth: 1,
           lineStyle: 2, // Dotted
-          axisLabelVisible: true,
-          title: `${o.side === "Buy" ? "L" : "S"} ${parseFloat(o.qty).toFixed(3)}`,
+          axisLabelVisible: false,
+          title: "",
         });
         priceLineRefs.current.push(pl);
       });

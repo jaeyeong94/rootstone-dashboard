@@ -61,16 +61,24 @@ interface BenchmarkData {
    Helpers
    ═══════════════════════════════════════════════════════════════ */
 
-function getCorrelationColor(value: number): string {
-  if (value >= 0.7) return "bg-pnl-negative/60";
-  if (value >= 0.3) return "bg-pnl-negative/30";
-  if (value > -0.3) return "bg-bg-elevated";
-  if (value > -0.7) return "bg-blue-500/30";
-  return "bg-blue-500/60";
+/** Continuous heatmap color based on correlation value (-1 ~ +1) */
+function getHeatmapStyle(value: number): { backgroundColor: string } {
+  const abs = Math.abs(value);
+  // Stronger opacity for stronger correlation
+  const alpha = Math.round(abs * 0.7 * 100) / 100;
+
+  if (value > 0) {
+    // Positive: warm red/orange
+    return { backgroundColor: `rgba(239, 68, 68, ${alpha})` };
+  } else if (value < 0) {
+    // Negative: cool blue
+    return { backgroundColor: `rgba(59, 130, 246, ${alpha})` };
+  }
+  return { backgroundColor: "transparent" };
 }
 
 function getCorrelationTextColor(value: number): string {
-  if (Math.abs(value) >= 0.7) return "text-text-primary font-semibold";
+  if (Math.abs(value) >= 0.5) return "text-white font-semibold";
   if (Math.abs(value) >= 0.3) return "text-text-primary";
   return "text-text-secondary";
 }
@@ -119,8 +127,8 @@ function CorrelationCell({
 }) {
   if (isDiagonal) {
     return (
-      <div className="flex h-12 w-full items-center justify-center rounded-sm bg-bg-elevated border border-border-subtle">
-        <span className="font-[family-name:var(--font-mono)] text-xs text-bronze">
+      <div className="flex h-14 w-full items-center justify-center rounded-sm bg-bg-elevated/80 border border-border-subtle">
+        <span className="font-[family-name:var(--font-mono)] text-sm text-bronze font-semibold">
           1.00
         </span>
       </div>
@@ -129,26 +137,17 @@ function CorrelationCell({
 
   return (
     <div
-      className={cn(
-        "flex h-12 w-full flex-col items-center justify-center rounded-sm border border-border-subtle transition-colors",
-        getCorrelationColor(value)
-      )}
+      className="flex h-14 w-full items-center justify-center rounded-sm border border-border-subtle/50 transition-colors"
+      style={getHeatmapStyle(value)}
     >
       <span
         className={cn(
-          "font-[family-name:var(--font-mono)] text-xs",
+          "font-[family-name:var(--font-mono)] text-sm",
           getCorrelationTextColor(value)
         )}
       >
         {value >= 0 ? "+" : ""}
         {value.toFixed(2)}
-      </span>
-      <span className="mt-0.5 text-[8px] uppercase tracking-[0.5px] text-text-muted">
-        {Math.abs(value) >= 0.7
-          ? "strong"
-          : Math.abs(value) >= 0.3
-            ? "mod"
-            : "weak"}
       </span>
     </div>
   );
@@ -315,28 +314,16 @@ export default function CorrelationPage() {
                   ))}
                 </div>
 
-                {/* Legend */}
-                <div className="mt-4 flex items-center justify-center gap-4 text-[10px] text-text-muted flex-wrap">
-                  <span className="flex items-center gap-1.5">
-                    <span className="inline-block h-3 w-3 rounded-sm bg-blue-500/60" />
-                    Strong neg (&lt;-0.7)
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="inline-block h-3 w-3 rounded-sm bg-blue-500/30" />
-                    Mod neg
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="inline-block h-3 w-3 rounded-sm bg-bg-elevated border border-border-subtle" />
-                    Near zero
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="inline-block h-3 w-3 rounded-sm bg-pnl-negative/30" />
-                    Mod pos
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="inline-block h-3 w-3 rounded-sm bg-pnl-negative/60" />
-                    Strong pos (&gt;0.7)
-                  </span>
+                {/* Gradient Legend */}
+                <div className="mt-4 flex items-center justify-center gap-3 text-[10px] text-text-muted">
+                  <span>-1.0</span>
+                  <div
+                    className="h-3 w-40 rounded-sm"
+                    style={{
+                      background: "linear-gradient(to right, rgba(59,130,246,0.7), rgba(59,130,246,0.3), transparent, rgba(239,68,68,0.3), rgba(239,68,68,0.7))",
+                    }}
+                  />
+                  <span>+1.0</span>
                 </div>
               </div>
             ) : null}
