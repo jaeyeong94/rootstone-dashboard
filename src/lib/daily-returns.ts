@@ -79,15 +79,20 @@ export async function getMonthlyReturns(opts?: {
   }
 
   const result: { year: number; month: number; returnPct: number }[] = [];
+  const sortedEntries = Array.from(byMonth.entries()).sort();
 
-  for (const [key, monthRows] of Array.from(byMonth.entries()).sort()) {
-    const first = monthRows[0];
+  let prevMonthLastNav: number | null = null;
+
+  for (const [key, monthRows] of sortedEntries) {
     const last = monthRows[monthRows.length - 1];
-    const returnPct = first.navIndex > 0
-      ? ((last.navIndex / first.navIndex) - 1) * 100
+    // 분모: 전월 마지막 navIndex (첫 월은 해당 월 첫날 사용)
+    const baseNav = prevMonthLastNav ?? monthRows[0].navIndex;
+    const returnPct = baseNav > 0
+      ? ((last.navIndex / baseNav) - 1) * 100
       : 0;
     const [year, month] = key.split("-").map(Number);
     result.push({ year, month, returnPct });
+    prevMonthLastNav = last.navIndex;
   }
 
   return result;
