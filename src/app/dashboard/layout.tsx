@@ -2,6 +2,7 @@
 
 import { SessionProvider } from "next-auth/react";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { NavAlertBanner } from "@/components/dashboard/NavAlertBanner";
 import { WebSocketProvider } from "@/components/providers/WebSocketProvider";
 import { PositionsProvider } from "@/components/providers/PositionsProvider";
 import { Agentation } from "agentation";
@@ -17,7 +18,10 @@ export default function DashboardLayout({
         <PositionsProvider>
           <div className="flex h-screen bg-bg-primary">
             <Sidebar />
-            <main className="flex-1 overflow-auto pt-12 xl:pt-0">{children}</main>
+            <main className="flex-1 overflow-auto pt-12 xl:pt-0">
+              <NavAlertBanner />
+              {children}
+            </main>
           </div>
           {process.env.NODE_ENV === "development" && <Agentation />}
         </PositionsProvider>

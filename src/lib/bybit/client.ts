@@ -147,7 +147,10 @@ export async function getKline(
 
 /**
  * Calculate NAV using Factsheet methodology:
- * NAV(open) = Cash + Unrealized PnL (using kline open price)
+ * NAV(open) = Cash + Unrealized PnL (using kline daily open price)
+ *
+ * kline open 이외의 가격 소스는 사용하지 않음 (제3자 재현 가능성 보장).
+ * API 실패 시 fallback 없이 에러를 throw하여 해당 날짜 NAV 미기록.
  */
 export async function calcFactsheetNAV(): Promise<{
   nav: number;
@@ -161,6 +164,7 @@ export async function calcFactsheetNAV(): Promise<{
     openPrice: number;
     upl: number;
   }>;
+  warnings: string[];
 }> {
   const [balResult, posResult] = await Promise.all([
     getWalletBalance(),
@@ -169,13 +173,26 @@ export async function calcFactsheetNAV(): Promise<{
 
   const cash = parseFloat(balResult.list[0].totalWalletBalance);
   const activePositions = posResult.list.filter((p) => parseFloat(p.size) > 0);
+  const warnings: string[] = [];
 
-  // Fetch kline open prices for all active positions in parallel
+  // Fetch kline open prices — no fallback, API failure = error
   const positionDetails = await Promise.all(
     activePositions.map(async (p) => {
       const kline = await getKline(p.symbol, "D", 1);
-      const candle = kline.list[0];
-      const openPrice = candle ? parseFloat(candle[1]) : parseFloat(p.markPrice);
+      const candle = kline.list?.[0];
+      if (!candle) {
+        throw new Error(
+          `Kline API returned no data for ${p.symbol}. ` +
+          `NAV calculation aborted — resolve API issue before retrying.`
+        );
+      }
+      const openPrice = parseFloat(candle[1]);
+      if (isNaN(openPrice) || openPrice <= 0) {
+        throw new Error(
+          `Invalid kline open price for ${p.symbol}: ${candle[1]}. ` +
+          `NAV calculation aborted.`
+        );
+      }
 
       const size = parseFloat(p.size);
       const avgEntry = parseFloat(p.avgPrice);
@@ -200,6 +217,7 @@ export async function calcFactsheetNAV(): Promise<{
     cash,
     unrealisedPnl,
     positions: positionDetails,
+    warnings,
   };
 }
 

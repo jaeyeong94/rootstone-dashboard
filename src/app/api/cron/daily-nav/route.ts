@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { calcFactsheetNAV } from "@/lib/bybit/client";
 import { db as getDb } from "@/lib/db";
-import { dailyReturns, balanceSnapshots } from "@/lib/db/schema";
-import { desc, and, gte, lte, asc } from "drizzle-orm";
+import { dailyReturns, navAlerts } from "@/lib/db/schema";
+import { desc, and, gte, lte, eq } from "drizzle-orm";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,10 +11,12 @@ export const dynamic = "force-dynamic";
  * Daily NAV cron — Factsheet 방법론 준수
  *
  * 매일 UTC 00:05에 실행:
- * 1. 현재 포지션 + kline daily open 가격으로 Unrealized PnL 계산
- * 2. NAV(open) = Cash + Unrealized PnL (kline open 기반)
- * 3. 전일 rawNav 대비 daily return 산출 (kline↔kline 비교)
- * 4. daily_returns 테이블에 rawNav 포함하여 기록
+ * 1. 갭 감지: 마지막 기록일과 오늘 사이에 누락일이 있는지 확인
+ * 2. 갭이 있으면 alert 기록 (누락일은 별도 rebuild API로 복구)
+ * 3. 당일 NAV 계산: kline daily open price 기반 (fallback 없음)
+ * 4. API 실패 시 alert 기록 후 중단 (가짜 데이터 기록 안 함)
+ *
+ * 제3자 재현 가능성: 동일한 Bybit Read API로 같은 결과 산출 가능
  */
 export async function GET(request: Request) {
   const cronSecret = process.env.CRON_SECRET;
@@ -23,10 +25,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  try {
-    const database = getDb();
-    const today = new Date().toISOString().split("T")[0];
+  const database = getDb();
+  const today = new Date().toISOString().split("T")[0];
 
+  try {
     // Dedup: skip if today already recorded
     const existing = await database
       .select()
@@ -42,11 +44,7 @@ export async function GET(request: Request) {
       });
     }
 
-    // Calculate NAV using Factsheet methodology (kline open prices)
-    const navResult = await calcFactsheetNAV();
-    const todayNAV = navResult.nav;
-
-    // Get previous day's entry from daily_returns
+    // ── Gap Detection ──
     const prevRow = await database
       .select()
       .from(dailyReturns)
@@ -54,53 +52,65 @@ export async function GET(request: Request) {
       .limit(1);
 
     if (prevRow.length === 0) {
-      return NextResponse.json({ error: "No previous daily return found" }, { status: 404 });
+      return NextResponse.json({ error: "No previous daily return found — run initial data load first" }, { status: 404 });
     }
 
-    // Determine yesterday's NAV for denominator
-    // Priority: rawNav from daily_returns (kline-based) > balance_snapshot fallback
-    let yesterdayNAV: number;
-    let denomSource: string;
+    const lastRecordedDate = prevRow[0].date;
+    const gapDays = getDateGap(lastRecordedDate, today);
 
-    if (prevRow[0].rawNav != null) {
-      // Previous cron entry has rawNav → kline↔kline comparison (ideal)
-      yesterdayNAV = prevRow[0].rawNav;
-      denomSource = "rawNav";
-    } else {
-      // Historical entry without rawNav → fallback to balance_snapshot equity
-      const yesterday = new Date();
-      yesterday.setUTCDate(yesterday.getUTCDate() - 1);
-      const yesterdayStr = yesterday.toISOString().split("T")[0];
+    if (gapDays.length > 0) {
+      // Record gap alert — do NOT silently skip
+      const gapMsg = `Gap detected: ${gapDays.length} missing day(s) between ${lastRecordedDate} and ${today}: [${gapDays.join(", ")}]. Use /api/admin/rebuild-nav to recover.`;
+      console.warn(`[daily-nav] ${gapMsg}`);
 
-      const yesterdaySnaps = await database
-        .select()
-        .from(balanceSnapshots)
-        .where(and(
-          gte(balanceSnapshots.snapshotAt, new Date(yesterdayStr + "T00:00:00Z")),
-          lte(balanceSnapshots.snapshotAt, new Date(yesterdayStr + "T23:59:59Z"))
-        ))
-        .orderBy(asc(balanceSnapshots.snapshotAt));
-
-      if (yesterdaySnaps.length > 0) {
-        // Pick closest to midnight UTC
-        const midnight = new Date(today + "T00:00:00Z").getTime();
-        let closest = yesterdaySnaps[0];
-        let closestDist = Infinity;
-        for (const snap of yesterdaySnaps) {
-          const dist = Math.abs(new Date(snap.snapshotAt).getTime() - midnight);
-          if (dist < closestDist) {
-            closestDist = dist;
-            closest = snap;
-          }
-        }
-        yesterdayNAV = closest.totalEquity;
-        denomSource = "snapshot_fallback";
-      } else {
-        return NextResponse.json({ error: "No yesterday NAV found" }, { status: 404 });
-      }
+      await database.insert(navAlerts).values({
+        date: today,
+        type: "gap_detected",
+        message: gapMsg,
+      });
     }
 
-    const dailyReturn = (todayNAV - yesterdayNAV) / yesterdayNAV;
+    // ── NAV Calculation (kline open only, no fallback) ──
+    let navResult;
+    try {
+      navResult = await calcFactsheetNAV();
+    } catch (apiError) {
+      const errorMsg = apiError instanceof Error ? apiError.message : String(apiError);
+      console.error(`[daily-nav] API error: ${errorMsg}`);
+
+      await database.insert(navAlerts).values({
+        date: today,
+        type: "api_error",
+        message: `NAV calculation failed: ${errorMsg}`,
+      });
+
+      return NextResponse.json({
+        error: "NAV calculation failed — API error recorded",
+        detail: errorMsg,
+        date: today,
+        alert: "api_error",
+      }, { status: 502 });
+    }
+
+    const todayNAV = navResult.nav;
+
+    // ── Daily Return & navIndex ──
+    // 분모: 전일 rawNav (kline 기반). rawNav 없으면 에러 (snapshot fallback 금지)
+    const prevRawNav = prevRow[0].rawNav;
+    if (prevRawNav == null || prevRawNav <= 0) {
+      const msg = `Previous day (${lastRecordedDate}) has no rawNav — cannot compute kline-based daily return. Run /api/admin/rebuild-nav to fix historical data.`;
+      console.error(`[daily-nav] ${msg}`);
+
+      await database.insert(navAlerts).values({
+        date: today,
+        type: "api_error",
+        message: msg,
+      });
+
+      return NextResponse.json({ error: msg, date: today }, { status: 404 });
+    }
+
+    const dailyReturn = (todayNAV - prevRawNav) / prevRawNav;
     const prevNavIndex = prevRow[0].navIndex;
     const navIndex = prevNavIndex * (1 + dailyReturn);
 
@@ -112,16 +122,24 @@ export async function GET(request: Request) {
       source: "cron",
     }).onConflictDoNothing({ target: dailyReturns.date });
 
+    // Resolve any pending api_error alerts for today (we succeeded)
+    await database.update(navAlerts)
+      .set({ resolved: new Date() })
+      .where(and(
+        eq(navAlerts.date, today),
+        eq(navAlerts.type, "api_error"),
+      ));
+
     return NextResponse.json({
       ok: true,
       date: today,
-      method: "factsheet",
+      method: "factsheet_kline_open",
       todayNAV: parseFloat(todayNAV.toFixed(4)),
-      yesterdayNAV: parseFloat(yesterdayNAV.toFixed(4)),
-      denomSource,
+      yesterdayNAV: parseFloat(prevRawNav.toFixed(4)),
       navIndex: parseFloat(navIndex.toFixed(6)),
       dailyReturn: parseFloat((dailyReturn * 100).toFixed(4)),
       positions: navResult.positions.length,
+      gapDays: gapDays.length > 0 ? gapDays : undefined,
       source: "cron",
     });
   } catch (error) {
@@ -131,4 +149,24 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
+}
+
+/**
+ * Calculate missing dates between lastDate (exclusive) and targetDate (exclusive).
+ * Returns array of "YYYY-MM-DD" strings for gap days.
+ */
+function getDateGap(lastDate: string, targetDate: string): string[] {
+  const gaps: string[] = [];
+  const start = new Date(lastDate + "T00:00:00Z");
+  const end = new Date(targetDate + "T00:00:00Z");
+
+  const current = new Date(start);
+  current.setUTCDate(current.getUTCDate() + 1);
+
+  while (current < end) {
+    gaps.push(current.toISOString().split("T")[0]);
+    current.setUTCDate(current.getUTCDate() + 1);
+  }
+
+  return gaps;
 }

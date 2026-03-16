@@ -40,13 +40,27 @@ export const dailyReturns = pgTable("daily_returns", {
   navIndex: doublePrecision("nav_index").notNull(),
   dailyReturn: doublePrecision("daily_return").notNull(),
   rawNav: doublePrecision("raw_nav"),
-  source: text("source", { enum: ["tearsheet", "snapshot_backfill", "cron"] }).notNull(),
+  source: text("source", { enum: ["tearsheet", "snapshot_backfill", "cron", "csv_factsheet", "api_rebuild"] }).notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => [
   uniqueIndex("idx_daily_returns_date").on(table.date),
+]);
+
+export const navAlerts = pgTable("nav_alerts", {
+  id: serial("id").primaryKey(),
+  date: date("date").notNull(),
+  type: text("type", { enum: ["api_error", "gap_detected", "gap_recovered", "verification_mismatch"] }).notNull(),
+  message: text("message").notNull(),
+  resolved: timestamp("resolved"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_nav_alerts_date").on(table.date),
+  index("idx_nav_alerts_resolved").on(table.resolved),
 ]);
 
 export type Visitor = typeof visitors.$inferSelect;
 export type NewVisitor = typeof visitors.$inferInsert;
 export type DailyReturn = typeof dailyReturns.$inferSelect;
 export type NewDailyReturn = typeof dailyReturns.$inferInsert;
+export type NavAlert = typeof navAlerts.$inferSelect;
+export type NewNavAlert = typeof navAlerts.$inferInsert;
