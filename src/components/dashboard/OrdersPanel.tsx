@@ -64,7 +64,7 @@ export function OrdersPanel() {
               return (
                 <div
                   key={order.orderId}
-                  className="px-4 py-2 transition-colors hover:bg-bg-elevated"
+                  className="px-4 py-2.5 transition-colors hover:bg-bg-elevated"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex min-w-0 items-center gap-2">
@@ -78,18 +78,16 @@ export function OrdersPanel() {
                       >
                         {isBuy ? "L" : "S"}
                       </span>
-                      <div className="min-w-0">
-                        <span className="block truncate font-[family-name:var(--font-mono)] text-xs text-text-primary">
-                          {order.symbol.replace("USDT", "")}
-                        </span>
-                        <span className="font-[family-name:var(--font-mono)] text-[9px] text-text-muted">
-                          {exposurePct > 0 ? `${exposurePct.toFixed(1)}% NAV` : "--"}
-                        </span>
-                      </div>
+                      <span className="truncate font-[family-name:var(--font-mono)] text-xs text-text-primary">
+                        {order.symbol.replace("USDT", "")}
+                      </span>
                     </div>
                     <span className="shrink-0 font-[family-name:var(--font-mono)] text-[10px] text-text-muted">
                       {elapsed}
                     </span>
+                  </div>
+                  <div className="mt-1 ml-7 font-[family-name:var(--font-mono)] text-[10px] text-text-muted">
+                    {exposurePct > 0 ? `${exposurePct.toFixed(1)}% NAV` : "--"}
                   </div>
                 </div>
               );
