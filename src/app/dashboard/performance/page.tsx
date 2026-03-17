@@ -580,57 +580,74 @@ function ReturnDistribution({ d }: { d: DisplayData }) {
 function ReturnsTab({ d }: { d: DisplayData }) {
   const heatmap = d.dailyReturnsHeatmap ?? [];
   const wr = d.winRates;
+  const firstDate = heatmap.length > 0 ? heatmap[0].date : "";
+  const lastDate = heatmap.length > 0 ? heatmap[heatmap.length - 1].date : "";
 
   return (
     <>
-      {/* Daily Percentage Returns Heatmap */}
+      {/* ── Section 1: Daily Analysis ── */}
+
+      {/* Daily Returns Heatmap */}
       <div>
-        <SectionLabel>Daily Percentage Returns Heatmap</SectionLabel>
+        <SectionLabel>Daily Returns Heatmap</SectionLabel>
         <div className="mt-3 rounded-sm border border-border-subtle bg-bg-card p-4">
           {heatmap.length > 0 ? (
-            <div className="flex flex-wrap gap-[2px]">
-              {heatmap.map((day) => {
-                const v = day.value;
-                let bg = "bg-bg-elevated";
-                if (v >= 5) bg = "bg-pnl-positive/80";
-                else if (v >= 2) bg = "bg-pnl-positive/50";
-                else if (v >= 0.5) bg = "bg-pnl-positive/25";
-                else if (v > 0) bg = "bg-pnl-positive/10";
-                else if (v > -0.5) bg = "bg-pnl-negative/10";
-                else if (v > -2) bg = "bg-pnl-negative/25";
-                else if (v > -5) bg = "bg-pnl-negative/50";
-                else bg = "bg-pnl-negative/80";
-                return (
-                  <div
-                    key={day.date}
-                    className={cn("h-3 w-3 rounded-[1px]", bg)}
-                    title={`${day.date}: ${v >= 0 ? "+" : ""}${v.toFixed(2)}%`}
-                  />
-                );
-              })}
-            </div>
+            <>
+              {/* Period labels */}
+              <div className="mb-2 flex items-center justify-between text-[10px] font-[family-name:var(--font-mono)] text-text-muted">
+                <span>{firstDate}</span>
+                <span>{lastDate}</span>
+              </div>
+              <div className="flex flex-wrap gap-[2px]">
+                {heatmap.map((day) => {
+                  const v = day.value;
+                  let bg: string;
+                  if (v === 0) bg = "bg-text-muted/20";
+                  else if (v >= 5) bg = "bg-pnl-positive/80";
+                  else if (v >= 2) bg = "bg-pnl-positive/50";
+                  else if (v >= 0.5) bg = "bg-pnl-positive/25";
+                  else if (v > 0) bg = "bg-pnl-positive/10";
+                  else if (v > -0.5) bg = "bg-pnl-negative/10";
+                  else if (v > -2) bg = "bg-pnl-negative/25";
+                  else if (v > -5) bg = "bg-pnl-negative/50";
+                  else bg = "bg-pnl-negative/80";
+                  return (
+                    <div
+                      key={day.date}
+                      className={cn("h-3 w-3 rounded-[1px] cursor-default", bg)}
+                      title={`${day.date}: ${v === 0 ? "0.00" : (v >= 0 ? "+" : "") + v.toFixed(2)}%`}
+                    />
+                  );
+                })}
+              </div>
+              {/* Color legend */}
+              <div className="mt-3 flex items-center justify-center gap-2 text-[9px] text-text-muted">
+                <span>&lt;-5%</span>
+                <div className="flex gap-[1px]">
+                  <div className="h-3 w-3 rounded-[1px] bg-pnl-negative/80" />
+                  <div className="h-3 w-3 rounded-[1px] bg-pnl-negative/50" />
+                  <div className="h-3 w-3 rounded-[1px] bg-pnl-negative/25" />
+                  <div className="h-3 w-3 rounded-[1px] bg-pnl-negative/10" />
+                  <div className="h-3 w-3 rounded-[1px] bg-text-muted/20" title="0%" />
+                  <div className="h-3 w-3 rounded-[1px] bg-pnl-positive/10" />
+                  <div className="h-3 w-3 rounded-[1px] bg-pnl-positive/25" />
+                  <div className="h-3 w-3 rounded-[1px] bg-pnl-positive/50" />
+                  <div className="h-3 w-3 rounded-[1px] bg-pnl-positive/80" />
+                </div>
+                <span>&gt;+5%</span>
+              </div>
+            </>
           ) : (
             <div className="flex h-20 items-center justify-center text-sm text-text-muted">Awaiting data...</div>
           )}
-          <div className="mt-3 flex items-center justify-center gap-2 text-[9px] text-text-muted">
-            <span>&lt;-5%</span>
-            <div className="flex gap-[1px]">
-              <div className="h-3 w-3 rounded-[1px] bg-pnl-negative/80" />
-              <div className="h-3 w-3 rounded-[1px] bg-pnl-negative/50" />
-              <div className="h-3 w-3 rounded-[1px] bg-pnl-negative/25" />
-              <div className="h-3 w-3 rounded-[1px] bg-pnl-negative/10" />
-              <div className="h-3 w-3 rounded-[1px] bg-bg-elevated" />
-              <div className="h-3 w-3 rounded-[1px] bg-pnl-positive/10" />
-              <div className="h-3 w-3 rounded-[1px] bg-pnl-positive/25" />
-              <div className="h-3 w-3 rounded-[1px] bg-pnl-positive/50" />
-              <div className="h-3 w-3 rounded-[1px] bg-pnl-positive/80" />
-            </div>
-            <span>&gt;+5%</span>
-          </div>
         </div>
       </div>
 
-      {/* Monthly Return Distribution Histogram */}
+      <MetricTable title="Returns Metrics" data={d.returnsMetrics ?? []} />
+      <MetricTable title="Cumulative Return Periods" data={d.cumulativeMetrics ?? []} />
+
+      {/* ── Section 2: Monthly Analysis ── */}
+
       <div>
         <SectionLabel>Monthly Return Distribution</SectionLabel>
         <div className="mt-3 rounded-sm border border-border-subtle bg-bg-card p-5">
@@ -638,11 +655,6 @@ function ReturnsTab({ d }: { d: DisplayData }) {
         </div>
       </div>
 
-      <MetricTable title="Returns Metrics" data={d.returnsMetrics ?? []} />
-      <MetricTable title="Cumulative Return Periods" data={d.cumulativeMetrics ?? []} />
-      <MetricTable title="Rolling Metrics" data={d.rollingMetrics ?? []} />
-
-      {/* Monthly Stats Summary */}
       <div>
         <SectionLabel>Monthly Stats</SectionLabel>
         <div className="mt-3 grid grid-cols-3 gap-3">
@@ -663,7 +675,12 @@ function ReturnsTab({ d }: { d: DisplayData }) {
         </div>
       </div>
 
-      {/* Win/Loss Distribution — multi-timeframe */}
+      {/* ── Section 3: Rolling Metrics ── */}
+
+      <MetricTable title="Rolling Metrics" data={d.rollingMetrics ?? []} />
+
+      {/* ── Section 4: Win/Loss Distribution ── */}
+
       <div>
         <SectionLabel>Win/Loss Distribution</SectionLabel>
         <div className="mt-3 rounded-sm border border-border-subtle bg-bg-card overflow-hidden">
@@ -671,24 +688,35 @@ function ReturnsTab({ d }: { d: DisplayData }) {
             <thead>
               <tr className="border-b border-border-subtle bg-bg-elevated">
                 <th className="px-4 py-2.5 text-left text-[11px] uppercase tracking-[1px] text-text-secondary font-normal">Timeframe</th>
-                <th className="px-4 py-2.5 text-right text-[11px] uppercase tracking-[1px] text-text-secondary font-normal">Wins</th>
                 <th className="px-4 py-2.5 text-right text-[11px] uppercase tracking-[1px] text-text-secondary font-normal">Total</th>
+                <th className="px-4 py-2.5 text-right text-[11px] uppercase tracking-[1px] text-text-secondary font-normal">Wins</th>
+                <th className="px-4 py-2.5 text-right text-[11px] uppercase tracking-[1px] text-text-secondary font-normal">Losses</th>
                 <th className="px-4 py-2.5 text-right text-[11px] uppercase tracking-[1px] text-text-secondary font-normal">Win Rate</th>
-                <th className="px-4 py-2.5 text-left text-[11px] uppercase tracking-[1px] text-text-secondary font-normal w-32"></th>
+                <th className="px-4 py-2.5 text-left text-[11px] uppercase tracking-[1px] text-text-secondary font-normal w-28"></th>
               </tr>
             </thead>
             <tbody>
               {wr && [
-                { label: "Daily", ...wr.daily },
-                { label: "Weekly", ...wr.weekly },
-                { label: "Monthly", ...wr.monthly },
-                { label: "Quarterly", ...wr.quarterly },
-                { label: "Yearly", ...wr.yearly },
+                { label: "Total (Closes)", ...wr.daily, isTotal: true },
+                { label: "Daily", ...wr.daily, isTotal: false },
+                { label: "Weekly", ...wr.weekly, isTotal: false },
+                { label: "Monthly", ...wr.monthly, isTotal: false },
+                { label: "Quarterly", ...wr.quarterly, isTotal: false },
+                { label: "Yearly", ...wr.yearly, isTotal: false },
               ].map((row) => (
-                <tr key={row.label} className="border-b border-border-subtle last:border-0 transition-colors hover:bg-bg-elevated">
-                  <td className="px-4 py-2 text-text-secondary">{row.label}</td>
-                  <td className="px-4 py-2 text-right font-[family-name:var(--font-mono)] text-pnl-positive">{row.wins}</td>
+                <tr
+                  key={row.label}
+                  className={cn(
+                    "border-b border-border-subtle last:border-0 transition-colors hover:bg-bg-elevated",
+                    row.isTotal && "bg-bg-elevated/50"
+                  )}
+                >
+                  <td className={cn("px-4 py-2", row.isTotal ? "text-text-primary font-medium" : "text-text-secondary")}>
+                    {row.label}
+                  </td>
                   <td className="px-4 py-2 text-right font-[family-name:var(--font-mono)] text-text-muted">{row.total}</td>
+                  <td className="px-4 py-2 text-right font-[family-name:var(--font-mono)] text-pnl-positive">{row.wins}</td>
+                  <td className="px-4 py-2 text-right font-[family-name:var(--font-mono)] text-pnl-negative">{row.total - row.wins}</td>
                   <td className="px-4 py-2 text-right font-[family-name:var(--font-mono)] font-medium text-text-primary">{row.rate}%</td>
                   <td className="px-4 py-2">
                     <div className="flex h-3 overflow-hidden rounded-full bg-bg-elevated">
