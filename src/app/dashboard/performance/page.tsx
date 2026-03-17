@@ -701,7 +701,7 @@ function ReturnsTab({ d }: { d: DisplayData }) {
             </thead>
             <tbody>
               {wr && [
-                { label: "Total (Closes)", ...(wr.closes ?? wr.daily), isTotal: true },
+                { label: "Total (All close trades of Rebeta v3.1)", ...(wr.closes ?? wr.daily), isTotal: true },
                 { label: "Daily", ...wr.daily, isTotal: false },
                 { label: "Weekly", ...wr.weekly, isTotal: false },
                 { label: "Monthly", ...wr.monthly, isTotal: false },
