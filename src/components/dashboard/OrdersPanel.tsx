@@ -83,7 +83,7 @@ export function OrdersPanel() {
                           {order.symbol.replace("USDT", "")}
                         </span>
                         <span className="font-[family-name:var(--font-mono)] text-[9px] text-text-muted">
-                          {exposurePct > 0 ? `${exposurePct.toFixed(1)}% NAV` : "--"} · LMT
+                          {exposurePct > 0 ? `${exposurePct.toFixed(1)}% NAV` : "--"}
                         </span>
                       </div>
                     </div>
