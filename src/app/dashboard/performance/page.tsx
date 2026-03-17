@@ -675,24 +675,19 @@ function ReturnsTab({ d }: { d: DisplayData }) {
             </thead>
             <tbody>
               {wr && [
-                { label: "Total (All close trades of Rebeta v3.1)", pf: wr.closes, isTotal: true },
-                { label: "Daily", pf: wr.daily, isTotal: false },
-                { label: "Weekly", pf: wr.weekly, isTotal: false },
-                { label: "Monthly", pf: wr.monthly, isTotal: false },
-                { label: "Quarterly", pf: wr.quarterly, isTotal: false },
-                { label: "Yearly", pf: wr.yearly, isTotal: false },
+                { label: "Daily", pf: wr.daily },
+                { label: "Weekly", pf: wr.weekly },
+                { label: "Monthly", pf: wr.monthly },
+                { label: "Quarterly", pf: wr.quarterly },
+                { label: "Yearly", pf: wr.yearly },
               ].map((row) => (
-                <tr key={row.label} className={cn("border-b border-border-subtle last:border-0 transition-colors hover:bg-bg-elevated", row.isTotal && "bg-bg-elevated/50")}>
-                  <td className={cn("px-4 py-2", row.isTotal ? "text-text-primary font-medium" : "text-text-secondary")}>{row.label}</td>
+                <tr key={row.label} className="border-b border-border-subtle last:border-0 transition-colors hover:bg-bg-elevated">
+                  <td className="px-4 py-2 text-text-secondary">{row.label}</td>
                   <td className="px-4 py-2 text-right font-[family-name:var(--font-mono)] text-pnl-positive">
-                    {(row.pf?.avgProfit ?? 0) !== 0
-                      ? row.isTotal ? `+$${Math.abs(row.pf?.avgProfit ?? 0).toFixed(2)}` : `+${(row.pf?.avgProfit ?? 0).toFixed(2)}%`
-                      : "-"}
+                    {(row.pf?.avgProfit ?? 0) !== 0 ? `+${(row.pf?.avgProfit ?? 0).toFixed(2)}%` : "-"}
                   </td>
                   <td className="px-4 py-2 text-right font-[family-name:var(--font-mono)] text-pnl-negative">
-                    {(row.pf?.avgLoss ?? 0) !== 0
-                      ? row.isTotal ? `-$${Math.abs(row.pf?.avgLoss ?? 0).toFixed(2)}` : `${(row.pf?.avgLoss ?? 0).toFixed(2)}%`
-                      : "-"}
+                    {(row.pf?.avgLoss ?? 0) !== 0 ? `${(row.pf?.avgLoss ?? 0).toFixed(2)}%` : "-"}
                   </td>
                   <td className="px-4 py-2 text-right font-[family-name:var(--font-mono)] font-medium text-text-primary">
                     {row.pf?.profitFactor === Infinity ? "∞" : (row.pf?.profitFactor ?? 0) === 0 ? "-" : `${(row.pf?.profitFactor ?? 0).toFixed(2)}x`}
