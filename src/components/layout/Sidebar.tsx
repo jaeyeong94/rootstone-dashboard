@@ -47,10 +47,12 @@ export function Sidebar() {
   const navContent = (
     <>
       {/* Logo */}
-      <div className="flex h-16 items-center justify-between px-6">
-        <span className="font-[family-name:var(--font-heading)] text-lg font-light tracking-wide text-text-primary">
-          ROOTSTONE
-        </span>
+      <div className="flex h-16 items-center justify-between px-5">
+        <img
+          src="/images/logo.png"
+          alt="Rootstone"
+          className="h-6 w-auto opacity-90"
+        />
         {/* Close button - mobile only */}
         <button
           onClick={() => setOpen(false)}
@@ -122,9 +124,11 @@ export function Sidebar() {
         <button onClick={() => setOpen(true)} className="text-text-secondary">
           <Menu className="h-5 w-5" />
         </button>
-        <span className="ml-3 font-[family-name:var(--font-heading)] text-sm font-light tracking-wide text-text-primary">
-          ROOTSTONE
-        </span>
+        <img
+          src="/images/logo.png"
+          alt="Rootstone"
+          className="ml-3 h-5 w-auto opacity-90"
+        />
       </div>
 
       {/* Mobile overlay */}
