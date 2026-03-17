@@ -1,18 +1,29 @@
 "use client";
 
 import { useOrdersStore } from "@/stores/useOrdersStore";
+import { usePositionStore } from "@/stores/usePositionStore";
 import { cn } from "@/lib/utils";
+
+function timeAgo(createdTime: string): string {
+  const ms = Date.now() - parseInt(createdTime);
+  const mins = Math.floor(ms / 60000);
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  return `${Math.floor(hrs / 24)}d`;
+}
 
 export function OrdersPanel() {
   const orders = useOrdersStore((s) => s.orders);
   const connected = useOrdersStore((s) => s.connected);
+  const totalEquity = usePositionStore((s) => s.totalEquity);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col rounded-sm border border-border-subtle bg-bg-card">
       {/* Header */}
       <div className="flex shrink-0 items-center justify-between border-b border-border-subtle px-4 py-3">
         <span className="text-[11px] uppercase tracking-[1px] text-text-secondary">
-          Orders
+          Open Orders
         </span>
         <span className="flex items-center gap-1.5">
           <span
@@ -44,9 +55,11 @@ export function OrdersPanel() {
           <div className="divide-y divide-border-subtle/50">
             {orders.map((order) => {
               const isBuy = order.side === "Buy";
+              const price = parseFloat(order.price);
               const qty = parseFloat(order.qty);
-              const filled = parseFloat(order.cumExecQty ?? "0");
-              const fillPct = qty > 0 ? (filled / qty) * 100 : 0;
+              const notional = price * qty;
+              const exposurePct = totalEquity > 0 ? (notional / totalEquity) * 100 : 0;
+              const elapsed = order.createdTime ? timeAgo(order.createdTime) : "--";
 
               return (
                 <div
@@ -65,23 +78,18 @@ export function OrdersPanel() {
                       >
                         {isBuy ? "L" : "S"}
                       </span>
-                      <span className="truncate font-[family-name:var(--font-mono)] text-xs text-text-primary">
-                        {order.symbol.replace("USDT", "")}
-                      </span>
+                      <div className="min-w-0">
+                        <span className="block truncate font-[family-name:var(--font-mono)] text-xs text-text-primary">
+                          {order.symbol.replace("USDT", "")}
+                        </span>
+                        <span className="font-[family-name:var(--font-mono)] text-[9px] text-text-muted">
+                          {exposurePct > 0 ? `${exposurePct.toFixed(1)}% NAV` : "--"} · LMT
+                        </span>
+                      </div>
                     </div>
-                    <span className="shrink-0 font-[family-name:var(--font-mono)] text-[10px] text-text-secondary">
-                      ••••
+                    <span className="shrink-0 font-[family-name:var(--font-mono)] text-[10px] text-text-muted">
+                      {elapsed}
                     </span>
-                  </div>
-                  <div className="mt-0.5 flex items-center justify-between">
-                    <span className="font-[family-name:var(--font-mono)] text-[10px] text-text-muted">
-                      •••• {order.orderType === "Limit" ? "LMT" : "MKT"}
-                    </span>
-                    {fillPct > 0 && (
-                      <span className="font-[family-name:var(--font-mono)] text-[9px] text-bronze">
-                        {fillPct.toFixed(0)}% filled
-                      </span>
-                    )}
                   </div>
                 </div>
               );
