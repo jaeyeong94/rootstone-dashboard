@@ -15,7 +15,6 @@ function timeAgo(createdTime: string): string {
 
 export function OrdersPanel() {
   const orders = useOrdersStore((s) => s.orders);
-  const connected = useOrdersStore((s) => s.connected);
   const totalEquity = usePositionStore((s) => s.totalEquity);
 
   return (
@@ -26,22 +25,8 @@ export function OrdersPanel() {
           Open Orders
         </span>
         <span className="flex items-center gap-1.5">
-          <span
-            className={cn(
-              "h-1.5 w-1.5 rounded-full",
-              connected
-                ? "animate-[live-pulse_2s_ease-in-out_infinite] bg-status-live"
-                : "bg-text-dim"
-            )}
-          />
-          <span
-            className={cn(
-              "text-[10px]",
-              connected ? "text-status-live" : "text-text-dim"
-            )}
-          >
-            {connected ? "Live" : "—"}
-          </span>
+          <span className="h-1.5 w-1.5 animate-[live-pulse_2s_ease-in-out_infinite] rounded-full bg-status-live" />
+          <span className="text-[10px] text-status-live">Live</span>
         </span>
       </div>
 
