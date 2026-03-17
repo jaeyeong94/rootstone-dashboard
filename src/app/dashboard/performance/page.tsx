@@ -659,23 +659,43 @@ function ReturnsTab({ d }: { d: DisplayData }) {
         </div>
       </div>
 
+      {/* Profit Factor by Timeframe */}
       <div>
-        <SectionLabel>Monthly Stats</SectionLabel>
-        <div className="mt-3 grid grid-cols-3 gap-3">
-          {[
-            { label: "Avg Profit Month", value: d.monthlyStats?.avgProfitMonth ?? "--", color: "text-pnl-positive" },
-            { label: "Avg Loss Month", value: d.monthlyStats?.avgLossMonth ?? "--", color: "text-pnl-negative" },
-            { label: "Avg All Months", value: d.monthlyStats?.avgAllMonths ?? "--", color: "text-text-primary" },
-          ].map((s) => (
-            <div key={s.label} className="rounded-sm border border-border-subtle bg-bg-card p-4 text-center">
-              <div className={cn("font-[family-name:var(--font-mono)] text-xl font-semibold", s.color)}>
-                {s.value}
-              </div>
-              <div className="mt-1 text-[10px] uppercase tracking-[0.5px] text-text-muted">
-                {s.label}
-              </div>
-            </div>
-          ))}
+        <SectionLabel>Profit Factor</SectionLabel>
+        <p className="mt-1 text-xs text-text-muted">Average profit vs loss by timeframe with profit factor ratio</p>
+        <div className="mt-3 rounded-sm border border-border-subtle bg-bg-card overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border-subtle bg-bg-elevated">
+                <th className="px-4 py-2.5 text-left text-[11px] uppercase tracking-[1px] text-text-secondary font-normal">Timeframe</th>
+                <th className="px-4 py-2.5 text-right text-[11px] uppercase tracking-[1px] text-text-secondary font-normal">Avg Profit</th>
+                <th className="px-4 py-2.5 text-right text-[11px] uppercase tracking-[1px] text-text-secondary font-normal">Avg Loss</th>
+                <th className="px-4 py-2.5 text-right text-[11px] uppercase tracking-[1px] text-text-secondary font-normal">Profit Factor</th>
+              </tr>
+            </thead>
+            <tbody>
+              {wr && [
+                { label: "Daily", pf: wr.daily },
+                { label: "Weekly", pf: wr.weekly },
+                { label: "Monthly", pf: wr.monthly },
+                { label: "Quarterly", pf: wr.quarterly },
+                { label: "Yearly", pf: wr.yearly },
+              ].map((row) => (
+                <tr key={row.label} className="border-b border-border-subtle last:border-0 transition-colors hover:bg-bg-elevated">
+                  <td className="px-4 py-2 text-text-secondary">{row.label}</td>
+                  <td className="px-4 py-2 text-right font-[family-name:var(--font-mono)] text-pnl-positive">
+                    +{(row.pf?.avgProfit ?? 0).toFixed(2)}%
+                  </td>
+                  <td className="px-4 py-2 text-right font-[family-name:var(--font-mono)] text-pnl-negative">
+                    {(row.pf?.avgLoss ?? 0).toFixed(2)}%
+                  </td>
+                  <td className="px-4 py-2 text-right font-[family-name:var(--font-mono)] font-medium text-text-primary">
+                    {row.pf?.profitFactor === Infinity ? "∞" : (row.pf?.profitFactor ?? 0).toFixed(2)}x
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 

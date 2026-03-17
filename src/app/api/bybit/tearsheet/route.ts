@@ -509,28 +509,42 @@ export async function GET() {
         } catch { /* closed-pnl optional */ }
         const closeTotal = closeWins + closeLosses;
 
-        // Daily win rate
-        const dailyWins = returns.filter((r) => r > 0).length;
-        const dailyLosses = returns.filter((r) => r < 0).length;
-        const dailyTotal = dailyWins + dailyLosses;
+        // Helper: compute stats for a set of return values (%)
+        function pfStats(vals: number[]) {
+          const wins = vals.filter((v) => v > 0);
+          const losses = vals.filter((v) => v < 0);
+          const total = wins.length + losses.length;
+          const avgProfit = wins.length > 0 ? parseFloat((wins.reduce((a, b) => a + b, 0) / wins.length).toFixed(2)) : 0;
+          const avgLoss = losses.length > 0 ? parseFloat((losses.reduce((a, b) => a + b, 0) / losses.length).toFixed(2)) : 0;
+          const profitFactor = Math.abs(losses.reduce((a, b) => a + b, 0)) > 0
+            ? parseFloat((wins.reduce((a, b) => a + b, 0) / Math.abs(losses.reduce((a, b) => a + b, 0))).toFixed(2))
+            : wins.length > 0 ? Infinity : 0;
+          return {
+            wins: wins.length, total, rate: total > 0 ? parseFloat((wins.length / total * 100).toFixed(1)) : 0,
+            avgProfit, avgLoss, profitFactor,
+          };
+        }
 
-        // Weekly win rate (group by ISO week)
+        // Daily (returns are decimal, convert to %)
+        const dailyPcts = returns.map((r) => r * 100);
+        const dailyStats = pfStats(dailyPcts);
+
+        // Weekly
         const weeklyMap = new Map<string, number>();
         for (let i = 0; i < n; i++) {
-          const d = new Date(dates[i]);
-          const weekStart = new Date(d);
-          weekStart.setDate(d.getDate() - d.getDay());
+          const dd = new Date(dates[i]);
+          const weekStart = new Date(dd);
+          weekStart.setDate(dd.getDate() - dd.getDay());
           const key = weekStart.toISOString().split("T")[0];
-          weeklyMap.set(key, (weeklyMap.get(key) ?? 0) + returns[i]);
+          weeklyMap.set(key, (weeklyMap.get(key) ?? 0) + returns[i] * 100);
         }
-        const weeklyVals = Array.from(weeklyMap.values());
-        const weeklyWins = weeklyVals.filter((v) => v > 0).length;
+        const weeklyStats = pfStats(Array.from(weeklyMap.values()));
 
-        // Monthly win rate
-        const monthlyWins = profitMonths.length;
-        const monthlyTotal = profitMonths.length + lossMonths.length;
+        // Monthly
+        const monthlyPcts = monthly.map((m) => m.returnPct);
+        const monthlyStats = pfStats(monthlyPcts);
 
-        // Quarterly win rate
+        // Quarterly
         const qMap = new Map<string, number[]>();
         for (const m of monthly) {
           const q = `${m.year}-Q${Math.ceil(m.month / 3)}`;
@@ -538,21 +552,22 @@ export async function GET() {
           arr.push(m.returnPct);
           qMap.set(q, arr);
         }
-        const qReturns = Array.from(qMap.values()).map((arr) =>
+        const qPcts = Array.from(qMap.values()).map((arr) =>
           (arr.reduce((mul, r) => mul * (1 + r / 100), 1) - 1) * 100
         );
-        const qWins = qReturns.filter((r) => r > 0).length;
+        const quarterlyStats = pfStats(qPcts);
 
-        // Yearly win rate
-        const yrWins = yearlyReturns.filter((y) => y.return > 0).length;
+        // Yearly
+        const yearlyPcts = yearlyReturns.map((y) => y.return);
+        const yearlyStats = pfStats(yearlyPcts);
 
         return {
-          closes: { wins: closeWins, total: closeTotal, rate: closeTotal > 0 ? parseFloat((closeWins / closeTotal * 100).toFixed(1)) : 0 },
-          daily: { wins: dailyWins, total: dailyTotal, rate: dailyTotal > 0 ? parseFloat((dailyWins / dailyTotal * 100).toFixed(1)) : 0 },
-          weekly: { wins: weeklyWins, total: weeklyVals.length, rate: weeklyVals.length > 0 ? parseFloat((weeklyWins / weeklyVals.length * 100).toFixed(1)) : 0 },
-          monthly: { wins: monthlyWins, total: monthlyTotal, rate: monthlyTotal > 0 ? parseFloat((monthlyWins / monthlyTotal * 100).toFixed(1)) : 0 },
-          quarterly: { wins: qWins, total: qReturns.length, rate: qReturns.length > 0 ? parseFloat((qWins / qReturns.length * 100).toFixed(1)) : 0 },
-          yearly: { wins: yrWins, total: yearlyReturns.length, rate: yearlyReturns.length > 0 ? parseFloat((yrWins / yearlyReturns.length * 100).toFixed(1)) : 0 },
+          closes: { wins: closeWins, total: closeTotal, rate: closeTotal > 0 ? parseFloat((closeWins / closeTotal * 100).toFixed(1)) : 0, avgProfit: 0, avgLoss: 0, profitFactor: 0 },
+          daily: dailyStats,
+          weekly: weeklyStats,
+          monthly: monthlyStats,
+          quarterly: quarterlyStats,
+          yearly: yearlyStats,
         };
       })(),
       // Daily returns for heatmap (date + return %)
