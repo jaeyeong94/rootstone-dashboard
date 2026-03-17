@@ -10,6 +10,8 @@ export function RollingMetrics() {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ReturnType<typeof import("lightweight-charts").createChart> | null>(null);
   const sharpeSeriesRef = useRef<ReturnType<ReturnType<typeof import("lightweight-charts").createChart>["addLineSeries"]> | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const avgLineRef = useRef<any>(null);
   const [chartReady, setChartReady] = useState(false);
 
   const { data, isLoading } = useSWR(
@@ -93,10 +95,13 @@ export function RollingMetrics() {
       sharpe.map((p) => ({ time: p.time, value: p.value }))
     );
 
-    // Sharpe 평균 수평선
+    // Sharpe 평균 수평선 (이전 라인 제거 후 재생성)
     if (sharpe.length > 0) {
+      if (avgLineRef.current) {
+        try { sharpeSeriesRef.current.removePriceLine(avgLineRef.current); } catch {}
+      }
       const avg = sharpe.reduce((sum, p) => sum + p.value, 0) / sharpe.length;
-      sharpeSeriesRef.current.createPriceLine({
+      avgLineRef.current = sharpeSeriesRef.current.createPriceLine({
         price: avg,
         color: "#997B66",
         lineWidth: 1,
