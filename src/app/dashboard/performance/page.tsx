@@ -109,11 +109,14 @@ function useTearsheetDisplayData(ts: TearsheetData | undefined, monthlyData: Mon
   } : null;
 
   const dataRange = ts?.dataRange as { start?: string; end?: string } | undefined;
+  const winRates = ts?.winRates;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const dailyReturnsHeatmap: { date: string; value: number }[] = ts?.dailyReturnsHeatmap ?? [];
 
   return {
     mainMetrics, returnsMetrics, cumulativeMetrics, rollingMetrics,
     benchmarkMetrics, yearlyReturns, monthlyReturns, worstDrawdowns, monthlyStats,
-    dataRange,
+    dataRange, winRates, dailyReturnsHeatmap,
   };
 }
 
@@ -575,8 +578,58 @@ function ReturnDistribution({ d }: { d: DisplayData }) {
 }
 
 function ReturnsTab({ d }: { d: DisplayData }) {
+  const heatmap = d.dailyReturnsHeatmap ?? [];
+  const wr = d.winRates;
+
   return (
     <>
+      {/* Daily Percentage Returns Heatmap */}
+      <div>
+        <SectionLabel>Daily Percentage Returns Heatmap</SectionLabel>
+        <div className="mt-3 rounded-sm border border-border-subtle bg-bg-card p-4">
+          {heatmap.length > 0 ? (
+            <div className="flex flex-wrap gap-[2px]">
+              {heatmap.map((day) => {
+                const v = day.value;
+                let bg = "bg-bg-elevated";
+                if (v >= 5) bg = "bg-pnl-positive/80";
+                else if (v >= 2) bg = "bg-pnl-positive/50";
+                else if (v >= 0.5) bg = "bg-pnl-positive/25";
+                else if (v > 0) bg = "bg-pnl-positive/10";
+                else if (v > -0.5) bg = "bg-pnl-negative/10";
+                else if (v > -2) bg = "bg-pnl-negative/25";
+                else if (v > -5) bg = "bg-pnl-negative/50";
+                else bg = "bg-pnl-negative/80";
+                return (
+                  <div
+                    key={day.date}
+                    className={cn("h-3 w-3 rounded-[1px]", bg)}
+                    title={`${day.date}: ${v >= 0 ? "+" : ""}${v.toFixed(2)}%`}
+                  />
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex h-20 items-center justify-center text-sm text-text-muted">Awaiting data...</div>
+          )}
+          <div className="mt-3 flex items-center justify-center gap-2 text-[9px] text-text-muted">
+            <span>&lt;-5%</span>
+            <div className="flex gap-[1px]">
+              <div className="h-3 w-3 rounded-[1px] bg-pnl-negative/80" />
+              <div className="h-3 w-3 rounded-[1px] bg-pnl-negative/50" />
+              <div className="h-3 w-3 rounded-[1px] bg-pnl-negative/25" />
+              <div className="h-3 w-3 rounded-[1px] bg-pnl-negative/10" />
+              <div className="h-3 w-3 rounded-[1px] bg-bg-elevated" />
+              <div className="h-3 w-3 rounded-[1px] bg-pnl-positive/10" />
+              <div className="h-3 w-3 rounded-[1px] bg-pnl-positive/25" />
+              <div className="h-3 w-3 rounded-[1px] bg-pnl-positive/50" />
+              <div className="h-3 w-3 rounded-[1px] bg-pnl-positive/80" />
+            </div>
+            <span>&gt;+5%</span>
+          </div>
+        </div>
+      </div>
+
       {/* Monthly Return Distribution Histogram */}
       <div>
         <SectionLabel>Monthly Return Distribution</SectionLabel>
@@ -591,7 +644,7 @@ function ReturnsTab({ d }: { d: DisplayData }) {
 
       {/* Monthly Stats Summary */}
       <div>
-        <SectionLabel>Monthly Return Distribution</SectionLabel>
+        <SectionLabel>Monthly Stats</SectionLabel>
         <div className="mt-3 grid grid-cols-3 gap-3">
           {[
             { label: "Avg Profit Month", value: d.monthlyStats?.avgProfitMonth ?? "--", color: "text-pnl-positive" },
@@ -610,38 +663,42 @@ function ReturnsTab({ d }: { d: DisplayData }) {
         </div>
       </div>
 
-      {/* Win rate */}
+      {/* Win/Loss Distribution — multi-timeframe */}
       <div>
         <SectionLabel>Win/Loss Distribution</SectionLabel>
-        <div className="mt-3 rounded-sm border border-border-subtle bg-bg-card p-5">
-          {(() => {
-            const wins = (d.monthlyReturns ?? []).filter((m: { value: number }) => m.value > 0).length;
-            const losses = (d.monthlyReturns ?? []).filter((m: { value: number }) => m.value < 0 || Object.is(m.value, -0)).length;
-            const total = (d.monthlyReturns ?? []).length;
-            const winPct = ((wins / total) * 100).toFixed(1);
-            const lossPct = ((losses / total) * 100).toFixed(1);
-            return (
-              <div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-pnl-positive">{wins} wins ({winPct}%)</span>
-                  <span className="text-pnl-negative">{losses} losses ({lossPct}%)</span>
-                </div>
-                <div className="mt-2 flex h-4 overflow-hidden rounded-full">
-                  <div
-                    className="bg-pnl-positive/60"
-                    style={{ width: `${winPct}%` }}
-                  />
-                  <div
-                    className="bg-pnl-negative/60"
-                    style={{ width: `${lossPct}%` }}
-                  />
-                </div>
-                <div className="mt-2 text-center font-[family-name:var(--font-mono)] text-xs text-text-muted">
-                  {total} months total
-                </div>
-              </div>
-            );
-          })()}
+        <div className="mt-3 rounded-sm border border-border-subtle bg-bg-card overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border-subtle bg-bg-elevated">
+                <th className="px-4 py-2.5 text-left text-[11px] uppercase tracking-[1px] text-text-secondary font-normal">Timeframe</th>
+                <th className="px-4 py-2.5 text-right text-[11px] uppercase tracking-[1px] text-text-secondary font-normal">Wins</th>
+                <th className="px-4 py-2.5 text-right text-[11px] uppercase tracking-[1px] text-text-secondary font-normal">Total</th>
+                <th className="px-4 py-2.5 text-right text-[11px] uppercase tracking-[1px] text-text-secondary font-normal">Win Rate</th>
+                <th className="px-4 py-2.5 text-left text-[11px] uppercase tracking-[1px] text-text-secondary font-normal w-32"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {wr && [
+                { label: "Daily", ...wr.daily },
+                { label: "Weekly", ...wr.weekly },
+                { label: "Monthly", ...wr.monthly },
+                { label: "Quarterly", ...wr.quarterly },
+                { label: "Yearly", ...wr.yearly },
+              ].map((row) => (
+                <tr key={row.label} className="border-b border-border-subtle last:border-0 transition-colors hover:bg-bg-elevated">
+                  <td className="px-4 py-2 text-text-secondary">{row.label}</td>
+                  <td className="px-4 py-2 text-right font-[family-name:var(--font-mono)] text-pnl-positive">{row.wins}</td>
+                  <td className="px-4 py-2 text-right font-[family-name:var(--font-mono)] text-text-muted">{row.total}</td>
+                  <td className="px-4 py-2 text-right font-[family-name:var(--font-mono)] font-medium text-text-primary">{row.rate}%</td>
+                  <td className="px-4 py-2">
+                    <div className="flex h-3 overflow-hidden rounded-full bg-bg-elevated">
+                      <div className="bg-pnl-positive/60 rounded-full" style={{ width: `${row.rate}%` }} />
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </>

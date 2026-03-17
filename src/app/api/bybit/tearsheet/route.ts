@@ -482,6 +482,58 @@ export async function GET() {
       rollingMetrics,
       bmMetrics,
       btcPeriodReturns,
+      // Win/Loss rates at multiple timeframes
+      winRates: (() => {
+        // Daily win rate
+        const dailyWins = returns.filter((r) => r > 0).length;
+        const dailyLosses = returns.filter((r) => r < 0).length;
+        const dailyTotal = dailyWins + dailyLosses;
+
+        // Weekly win rate (group by ISO week)
+        const weeklyMap = new Map<string, number>();
+        for (let i = 0; i < n; i++) {
+          const d = new Date(dates[i]);
+          const weekStart = new Date(d);
+          weekStart.setDate(d.getDate() - d.getDay());
+          const key = weekStart.toISOString().split("T")[0];
+          weeklyMap.set(key, (weeklyMap.get(key) ?? 0) + returns[i]);
+        }
+        const weeklyVals = Array.from(weeklyMap.values());
+        const weeklyWins = weeklyVals.filter((v) => v > 0).length;
+
+        // Monthly win rate
+        const monthlyWins = profitMonths.length;
+        const monthlyTotal = profitMonths.length + lossMonths.length;
+
+        // Quarterly win rate
+        const qMap = new Map<string, number[]>();
+        for (const m of monthly) {
+          const q = `${m.year}-Q${Math.ceil(m.month / 3)}`;
+          const arr = qMap.get(q) || [];
+          arr.push(m.returnPct);
+          qMap.set(q, arr);
+        }
+        const qReturns = Array.from(qMap.values()).map((arr) =>
+          (arr.reduce((mul, r) => mul * (1 + r / 100), 1) - 1) * 100
+        );
+        const qWins = qReturns.filter((r) => r > 0).length;
+
+        // Yearly win rate
+        const yrWins = yearlyReturns.filter((y) => y.return > 0).length;
+
+        return {
+          daily: { wins: dailyWins, total: dailyTotal, rate: dailyTotal > 0 ? parseFloat((dailyWins / dailyTotal * 100).toFixed(1)) : 0 },
+          weekly: { wins: weeklyWins, total: weeklyVals.length, rate: weeklyVals.length > 0 ? parseFloat((weeklyWins / weeklyVals.length * 100).toFixed(1)) : 0 },
+          monthly: { wins: monthlyWins, total: monthlyTotal, rate: monthlyTotal > 0 ? parseFloat((monthlyWins / monthlyTotal * 100).toFixed(1)) : 0 },
+          quarterly: { wins: qWins, total: qReturns.length, rate: qReturns.length > 0 ? parseFloat((qWins / qReturns.length * 100).toFixed(1)) : 0 },
+          yearly: { wins: yrWins, total: yearlyReturns.length, rate: yearlyReturns.length > 0 ? parseFloat((yrWins / yearlyReturns.length * 100).toFixed(1)) : 0 },
+        };
+      })(),
+      // Daily returns for heatmap (date + return %)
+      dailyReturnsHeatmap: rows.map((r) => ({
+        date: r.date,
+        value: parseFloat((r.dailyReturn * 100).toFixed(4)),
+      })),
     });
   } catch (error) {
     console.error("Tearsheet API error:", error);

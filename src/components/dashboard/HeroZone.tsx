@@ -24,6 +24,11 @@ interface TearsheetData {
     sortino: number;
     maxDrawdown: number;
   };
+  dataRange?: {
+    start: string;
+    end: string;
+    days: number;
+  };
 }
 
 export function HeroZone() {
@@ -86,7 +91,7 @@ export function HeroZone() {
             {liveReady ? formatPnlPercent(animatedReturn) : formatPnlPercent(0)}
           </span>
           <p className="mt-3 font-[family-name:var(--font-mono)] text-sm text-text-muted">
-            Cumulative Return · Since Mar 2021 ·{" "}
+            Cumulative Return · {tearsheet?.dataRange?.start ?? "2021-03-02"} ~ {tearsheet?.dataRange?.end ?? "..."} ·{" "}
             <span className="text-bronze">{daysLive()} days live</span>
           </p>
         </div>
