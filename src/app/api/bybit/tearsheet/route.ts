@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getDailyReturns, getMonthlyReturns } from "@/lib/daily-returns";
 import { getDailyClosePrices } from "@/lib/bybit/kline";
+import { getClosedPnl } from "@/lib/bybit/client";
 import { pricesToReturns } from "@/lib/math/correlation";
 import {
   calcSharpeRatio,
@@ -483,7 +484,31 @@ export async function GET() {
       bmMetrics,
       btcPeriodReturns,
       // Win/Loss rates at multiple timeframes
-      winRates: (() => {
+      winRates: await (async () => {
+        // Total close trades win rate (from Bybit closed-pnl API, v3.1 period)
+        let closeWins = 0, closeLosses = 0;
+        try {
+          const v31Start = new Date("2024-11-17").getTime();
+          let cursor: string | undefined;
+          const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
+          let endTime = Date.now();
+          for (let window = 0; window < 100 && endTime > v31Start; window++) {
+            const startTime = Math.max(endTime - SEVEN_DAYS, v31Start);
+            const page = await getClosedPnl({ limit: "200", startTime: String(startTime), endTime: String(endTime), ...(cursor ? { cursor } : {}) });
+            for (const t of page.list ?? []) {
+              if (parseFloat(t.closedPnl) > 0) closeWins++;
+              else if (parseFloat(t.closedPnl) < 0) closeLosses++;
+            }
+            if (page.nextPageCursor) {
+              cursor = page.nextPageCursor;
+            } else {
+              cursor = undefined;
+              endTime = startTime;
+            }
+          }
+        } catch { /* closed-pnl optional */ }
+        const closeTotal = closeWins + closeLosses;
+
         // Daily win rate
         const dailyWins = returns.filter((r) => r > 0).length;
         const dailyLosses = returns.filter((r) => r < 0).length;
@@ -522,6 +547,7 @@ export async function GET() {
         const yrWins = yearlyReturns.filter((y) => y.return > 0).length;
 
         return {
+          closes: { wins: closeWins, total: closeTotal, rate: closeTotal > 0 ? parseFloat((closeWins / closeTotal * 100).toFixed(1)) : 0 },
           daily: { wins: dailyWins, total: dailyTotal, rate: dailyTotal > 0 ? parseFloat((dailyWins / dailyTotal * 100).toFixed(1)) : 0 },
           weekly: { wins: weeklyWins, total: weeklyVals.length, rate: weeklyVals.length > 0 ? parseFloat((weeklyWins / weeklyVals.length * 100).toFixed(1)) : 0 },
           monthly: { wins: monthlyWins, total: monthlyTotal, rate: monthlyTotal > 0 ? parseFloat((monthlyWins / monthlyTotal * 100).toFixed(1)) : 0 },

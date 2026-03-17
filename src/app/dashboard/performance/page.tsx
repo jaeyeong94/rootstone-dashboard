@@ -598,7 +598,7 @@ function ReturnsTab({ d }: { d: DisplayData }) {
                 <span>{firstDate}</span>
                 <span>{lastDate}</span>
               </div>
-              <div className="flex flex-wrap gap-[2px]">
+              <div className="flex flex-wrap gap-[1px]">
                 {heatmap.map((day) => {
                   const v = day.value;
                   let bg: string;
@@ -611,12 +611,16 @@ function ReturnsTab({ d }: { d: DisplayData }) {
                   else if (v > -2) bg = "bg-pnl-negative/25";
                   else if (v > -5) bg = "bg-pnl-negative/50";
                   else bg = "bg-pnl-negative/80";
+                  const label = `${day.date}: ${v === 0 ? "0.00" : (v >= 0 ? "+" : "") + v.toFixed(2)}%`;
                   return (
                     <div
                       key={day.date}
-                      className={cn("h-3 w-3 rounded-[1px] cursor-default", bg)}
-                      title={`${day.date}: ${v === 0 ? "0.00" : (v >= 0 ? "+" : "") + v.toFixed(2)}%`}
-                    />
+                      className={cn("group relative h-[10px] w-[10px] rounded-[1px]", bg)}
+                    >
+                      <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded border border-border-subtle bg-bg-card px-2 py-1 text-[10px] font-[family-name:var(--font-mono)] text-text-primary shadow-lg group-hover:block">
+                        {label}
+                      </div>
+                    </div>
                   );
                 })}
               </div>
@@ -624,15 +628,15 @@ function ReturnsTab({ d }: { d: DisplayData }) {
               <div className="mt-3 flex items-center justify-center gap-2 text-[9px] text-text-muted">
                 <span>&lt;-5%</span>
                 <div className="flex gap-[1px]">
-                  <div className="h-3 w-3 rounded-[1px] bg-pnl-negative/80" />
-                  <div className="h-3 w-3 rounded-[1px] bg-pnl-negative/50" />
-                  <div className="h-3 w-3 rounded-[1px] bg-pnl-negative/25" />
-                  <div className="h-3 w-3 rounded-[1px] bg-pnl-negative/10" />
-                  <div className="h-3 w-3 rounded-[1px] bg-text-muted/20" title="0%" />
-                  <div className="h-3 w-3 rounded-[1px] bg-pnl-positive/10" />
-                  <div className="h-3 w-3 rounded-[1px] bg-pnl-positive/25" />
-                  <div className="h-3 w-3 rounded-[1px] bg-pnl-positive/50" />
-                  <div className="h-3 w-3 rounded-[1px] bg-pnl-positive/80" />
+                  <div className="h-[10px] w-[10px] rounded-[1px] bg-pnl-negative/80" />
+                  <div className="h-[10px] w-[10px] rounded-[1px] bg-pnl-negative/50" />
+                  <div className="h-[10px] w-[10px] rounded-[1px] bg-pnl-negative/25" />
+                  <div className="h-[10px] w-[10px] rounded-[1px] bg-pnl-negative/10" />
+                  <div className="h-[10px] w-[10px] rounded-[1px] bg-text-muted/20" />
+                  <div className="h-[10px] w-[10px] rounded-[1px] bg-pnl-positive/10" />
+                  <div className="h-[10px] w-[10px] rounded-[1px] bg-pnl-positive/25" />
+                  <div className="h-[10px] w-[10px] rounded-[1px] bg-pnl-positive/50" />
+                  <div className="h-[10px] w-[10px] rounded-[1px] bg-pnl-positive/80" />
                 </div>
                 <span>&gt;+5%</span>
               </div>
@@ -697,7 +701,7 @@ function ReturnsTab({ d }: { d: DisplayData }) {
             </thead>
             <tbody>
               {wr && [
-                { label: "Total (Closes)", ...wr.daily, isTotal: true },
+                { label: "Total (Closes)", ...(wr.closes ?? wr.daily), isTotal: true },
                 { label: "Daily", ...wr.daily, isTotal: false },
                 { label: "Weekly", ...wr.weekly, isTotal: false },
                 { label: "Monthly", ...wr.monthly, isTotal: false },
