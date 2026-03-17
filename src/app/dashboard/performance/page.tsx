@@ -684,13 +684,13 @@ function ReturnsTab({ d }: { d: DisplayData }) {
                 <tr key={row.label} className="border-b border-border-subtle last:border-0 transition-colors hover:bg-bg-elevated">
                   <td className="px-4 py-2 text-text-secondary">{row.label}</td>
                   <td className="px-4 py-2 text-right font-[family-name:var(--font-mono)] text-pnl-positive">
-                    +{(row.pf?.avgProfit ?? 0).toFixed(2)}%
+                    {(row.pf?.avgProfit ?? 0) !== 0 ? `+${(row.pf?.avgProfit ?? 0).toFixed(2)}%` : "-"}
                   </td>
                   <td className="px-4 py-2 text-right font-[family-name:var(--font-mono)] text-pnl-negative">
-                    {(row.pf?.avgLoss ?? 0).toFixed(2)}%
+                    {(row.pf?.avgLoss ?? 0) !== 0 ? `${(row.pf?.avgLoss ?? 0).toFixed(2)}%` : "-"}
                   </td>
                   <td className="px-4 py-2 text-right font-[family-name:var(--font-mono)] font-medium text-text-primary">
-                    {row.pf?.profitFactor === Infinity ? "∞" : (row.pf?.profitFactor ?? 0).toFixed(2)}x
+                    {row.pf?.profitFactor === Infinity ? "∞" : (row.pf?.profitFactor ?? 0) === 0 ? "-" : `${(row.pf?.profitFactor ?? 0).toFixed(2)}x`}
                   </td>
                 </tr>
               ))}

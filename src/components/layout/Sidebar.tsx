@@ -12,6 +12,7 @@ import {
   LogOut,
   Menu,
   X,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -59,8 +60,21 @@ export function Sidebar() {
         </button>
       </div>
 
+      {/* Strategy Selector */}
+      <div className="mx-3 mb-2">
+        <button className="flex w-full items-center justify-between rounded-sm border border-border-subtle bg-bg-card px-3 py-2 transition-colors hover:border-bronze/40">
+          <div className="flex flex-col items-start">
+            <span className="text-[9px] uppercase tracking-[1px] text-text-muted">Strategy</span>
+            <span className="font-[family-name:var(--font-mono)] text-xs font-medium text-bronze">
+              Rebeta v3.1
+            </span>
+          </div>
+          <ChevronDown className="h-3.5 w-3.5 text-text-muted" />
+        </button>
+      </div>
+
       {/* Navigation */}
-      <nav className="flex-1 px-3 pt-4">
+      <nav className="flex-1 px-3 pt-2">
         <ul className="space-y-1">
           {navigation.map((item) => {
             const isActive =
