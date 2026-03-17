@@ -49,7 +49,7 @@ export function Sidebar() {
       {/* Logo */}
       <div className="flex h-16 items-center justify-between px-5">
         <img
-          src="/images/logo.png"
+          src="/images/logo.svg"
           alt="Rootstone"
           className="h-6 w-auto opacity-90"
         />
@@ -125,7 +125,7 @@ export function Sidebar() {
           <Menu className="h-5 w-5" />
         </button>
         <img
-          src="/images/logo.png"
+          src="/images/logo.svg"
           alt="Rootstone"
           className="ml-3 h-5 w-auto opacity-90"
         />
