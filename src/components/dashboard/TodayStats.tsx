@@ -62,7 +62,14 @@ export function TodayStats() {
 
   // Track last update time
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const formatTime = useCallback((d: Date) => d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }), []);
+  const formatDate = useCallback((d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    const h = String(d.getHours()).padStart(2, "0");
+    const min = String(d.getMinutes()).padStart(2, "0");
+    return `${y}.${m}.${day} ${h}:${min}`;
+  }, []);
 
   useEffect(() => {
     if (data) setLastUpdated(new Date());
@@ -119,14 +126,14 @@ export function TodayStats() {
 
   return (
     <div className="rounded-sm border border-border-subtle bg-bg-card">
-      <div className="flex items-center justify-between border-b border-border-subtle px-4 py-3">
+      <div className="border-b border-border-subtle px-4 py-3">
         <span className="text-[11px] uppercase tracking-[1px] text-text-secondary">
           Today Stats
         </span>
         {lastUpdated && (
-          <span className="font-[family-name:var(--font-mono)] text-[10px] text-text-muted">
-            {formatTime(lastUpdated)}
-          </span>
+          <p className="mt-1 font-[family-name:var(--font-mono)] text-[10px] text-text-muted">
+            Last Updated {formatDate(lastUpdated)}
+          </p>
         )}
       </div>
       <div className="grid grid-cols-2 gap-x-6 gap-y-4 px-4 py-4">
