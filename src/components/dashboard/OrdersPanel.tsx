@@ -66,38 +66,27 @@ export function OrdersPanel() {
               return (
                 <div
                   key={order.orderId}
-                  className="px-4 py-2 transition-colors hover:bg-bg-elevated"
+                  className="flex items-center gap-2 px-4 py-2.5 transition-colors hover:bg-bg-elevated"
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span
-                        className={cn(
-                          "shrink-0 rounded-sm px-1 py-0.5 text-[9px] uppercase tracking-[1px]",
-                          isBuy
-                            ? "bg-pnl-positive/15 text-pnl-positive"
-                            : "bg-pnl-negative/15 text-pnl-negative"
-                        )}
-                      >
-                        {isBuy ? "L" : "S"}
-                      </span>
-                      <span className="truncate font-[family-name:var(--font-mono)] text-xs text-text-primary">
-                        {order.symbol.replace("USDT", "")}
-                      </span>
-                    </div>
-                    <span className="shrink-0 font-[family-name:var(--font-mono)] text-[10px] text-text-secondary">
-                      {elapsed}
-                    </span>
-                  </div>
-                  <div className="mt-0.5 flex items-center justify-between">
-                    <span className="font-[family-name:var(--font-mono)] text-[10px] text-text-muted">
-                      {exposurePct > 0 ? `${exposurePct.toFixed(1)}% NAV` : "--"}
-                    </span>
-                    {fillPct > 0 && (
-                      <span className="font-[family-name:var(--font-mono)] text-[9px] text-bronze">
-                        {fillPct.toFixed(0)}% filled
-                      </span>
+                  <span
+                    className={cn(
+                      "shrink-0 rounded-sm px-1 py-0.5 text-[9px] uppercase tracking-[1px]",
+                      isBuy
+                        ? "bg-pnl-positive/15 text-pnl-positive"
+                        : "bg-pnl-negative/15 text-pnl-negative"
                     )}
-                  </div>
+                  >
+                    {isBuy ? "L" : "S"}
+                  </span>
+                  <span className="shrink-0 font-[family-name:var(--font-mono)] text-xs text-text-primary">
+                    {order.symbol.replace("USDT", "")}
+                  </span>
+                  <span className="font-[family-name:var(--font-mono)] text-[10px] text-text-muted">
+                    {exposurePct > 0 ? `${exposurePct.toFixed(1)}% NAV` : "--"}
+                  </span>
+                  <span className="ml-auto shrink-0 font-[family-name:var(--font-mono)] text-[10px] text-text-muted">
+                    {elapsed}
+                  </span>
                 </div>
               );
             })}
