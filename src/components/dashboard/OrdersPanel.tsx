@@ -59,12 +59,14 @@ export function OrdersPanel() {
               const qty = parseFloat(order.qty);
               const notional = price * qty;
               const exposurePct = totalEquity > 0 ? (notional / totalEquity) * 100 : 0;
-              const elapsed = order.createdTime ? timeAgo(order.createdTime) : "--";
+              const elapsed = order.createdTime ? timeAgo(order.createdTime) : "";
+              const filled = parseFloat(order.cumExecQty ?? "0");
+              const fillPct = qty > 0 ? (filled / qty) * 100 : 0;
 
               return (
                 <div
                   key={order.orderId}
-                  className="px-4 py-2.5 transition-colors hover:bg-bg-elevated"
+                  className="px-4 py-2 transition-colors hover:bg-bg-elevated"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex min-w-0 items-center gap-2">
@@ -82,12 +84,19 @@ export function OrdersPanel() {
                         {order.symbol.replace("USDT", "")}
                       </span>
                     </div>
-                    <span className="shrink-0 font-[family-name:var(--font-mono)] text-[10px] text-text-muted">
+                    <span className="shrink-0 font-[family-name:var(--font-mono)] text-[10px] text-text-secondary">
                       {elapsed}
                     </span>
                   </div>
-                  <div className="mt-1 ml-7 font-[family-name:var(--font-mono)] text-[10px] text-text-muted">
-                    {exposurePct > 0 ? `${exposurePct.toFixed(1)}% NAV` : "--"}
+                  <div className="mt-0.5 flex items-center justify-between">
+                    <span className="font-[family-name:var(--font-mono)] text-[10px] text-text-muted">
+                      {exposurePct > 0 ? `${exposurePct.toFixed(1)}% NAV` : "--"}
+                    </span>
+                    {fillPct > 0 && (
+                      <span className="font-[family-name:var(--font-mono)] text-[9px] text-bronze">
+                        {fillPct.toFixed(0)}% filled
+                      </span>
+                    )}
                   </div>
                 </div>
               );
