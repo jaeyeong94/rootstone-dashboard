@@ -487,6 +487,7 @@ export async function GET() {
       winRates: await (async () => {
         // Total close trades win rate (from Bybit closed-pnl API, v3.1 period)
         let closeWins = 0, closeLosses = 0;
+        let closeProfitSum = 0, closeLossSum = 0;
         try {
           const v31Start = new Date("2024-11-17").getTime();
           let cursor: string | undefined;
@@ -496,8 +497,9 @@ export async function GET() {
             const startTime = Math.max(endTime - SEVEN_DAYS, v31Start);
             const page = await getClosedPnl({ limit: "200", startTime: String(startTime), endTime: String(endTime), ...(cursor ? { cursor } : {}) });
             for (const t of page.list ?? []) {
-              if (parseFloat(t.closedPnl) > 0) closeWins++;
-              else if (parseFloat(t.closedPnl) < 0) closeLosses++;
+              const pnl = parseFloat(t.closedPnl);
+              if (pnl > 0) { closeWins++; closeProfitSum += pnl; }
+              else if (pnl < 0) { closeLosses++; closeLossSum += pnl; }
             }
             if (page.nextPageCursor) {
               cursor = page.nextPageCursor;
@@ -508,6 +510,9 @@ export async function GET() {
           }
         } catch { /* closed-pnl optional */ }
         const closeTotal = closeWins + closeLosses;
+        const closeAvgProfit = closeWins > 0 ? closeProfitSum / closeWins : 0;
+        const closeAvgLoss = closeLosses > 0 ? closeLossSum / closeLosses : 0;
+        const closePF = Math.abs(closeLossSum) > 0 ? closeProfitSum / Math.abs(closeLossSum) : (closeWins > 0 ? Infinity : 0);
 
         // Helper: compute stats for a set of return values (%)
         function pfStats(vals: number[]) {
@@ -562,7 +567,7 @@ export async function GET() {
         const yearlyStats = pfStats(yearlyPcts);
 
         return {
-          closes: { wins: closeWins, total: closeTotal, rate: closeTotal > 0 ? parseFloat((closeWins / closeTotal * 100).toFixed(1)) : 0, avgProfit: 0, avgLoss: 0, profitFactor: 0 },
+          closes: { wins: closeWins, total: closeTotal, rate: closeTotal > 0 ? parseFloat((closeWins / closeTotal * 100).toFixed(1)) : 0, avgProfit: parseFloat(closeAvgProfit.toFixed(2)), avgLoss: parseFloat(closeAvgLoss.toFixed(2)), profitFactor: closePF === Infinity ? Infinity : parseFloat(closePF.toFixed(2)) },
           daily: dailyStats,
           weekly: weeklyStats,
           monthly: monthlyStats,
