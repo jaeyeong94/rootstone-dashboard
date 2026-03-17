@@ -3,6 +3,7 @@
 import useSWR from "swr";
 import { cn, formatPnlPercent, getPnlColor } from "@/lib/utils";
 import { usePositionStore } from "@/stores/usePositionStore";
+import { useOrdersStore } from "@/stores/useOrdersStore";
 import type { BybitExecution } from "@/types";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -41,12 +42,6 @@ interface ExecutionsResponse {
   nextPageCursor: string;
 }
 
-interface LatestNavResponse {
-  date: string;
-  dailyReturn: number;
-  navIndex: number;
-}
-
 function getTodayExecutions(list: BybitExecution[]): BybitExecution[] {
   const now = new Date();
   const todayStart = Date.UTC(
@@ -54,10 +49,7 @@ function getTodayExecutions(list: BybitExecution[]): BybitExecution[] {
     now.getUTCMonth(),
     now.getUTCDate()
   );
-  return list.filter((e) => {
-    const ts = Number(e.execTime);
-    return ts >= todayStart;
-  });
+  return list.filter((e) => Number(e.execTime) >= todayStart);
 }
 
 export function TodayStats() {
@@ -67,14 +59,10 @@ export function TodayStats() {
     { refreshInterval: 30_000 }
   );
 
-  const { data: navData } = useSWR<LatestNavResponse>(
-    "/api/bybit/latest-nav",
-    fetcher,
-    { refreshInterval: 300_000 }
-  );
-
-  // Open positions from live store
-  const positionCount = usePositionStore((s) => s.positions.length);
+  // Live stores
+  const positions = usePositionStore((s) => s.positions);
+  const totalEquity = usePositionStore((s) => s.totalEquity);
+  const orderCount = useOrdersStore((s) => s.orders.length);
 
   if (isLoading) {
     return (
@@ -105,7 +93,20 @@ export function TodayStats() {
   }
 
   const todayExecs = getTodayExecutions(data.list);
-  const dailyReturn = navData?.dailyReturn ?? null;
+
+  // Realized PnL: sum of closedPnl from today's executions / totalEquity
+  let realizedPnlUsdt = 0;
+  for (const e of todayExecs) {
+    realizedPnlUsdt += parseFloat(e.closedPnl || "0");
+  }
+  const realizedPnlPct = totalEquity > 0 ? realizedPnlUsdt / totalEquity : 0;
+
+  // Portfolio Exposure: Σ(size × markPrice) / totalEquity
+  let totalPositionValue = 0;
+  for (const p of positions) {
+    totalPositionValue += parseFloat(p.size) * parseFloat(p.markPrice);
+  }
+  const exposure = totalEquity > 0 ? (totalPositionValue / totalEquity) * 100 : 0;
 
   return (
     <div className="rounded-sm border border-border-subtle bg-bg-card">
@@ -116,30 +117,21 @@ export function TodayStats() {
       </div>
       <div className="grid grid-cols-2 gap-x-6 gap-y-4 px-4 py-4">
         <StatBlock
-          label="Daily Return"
-          value={dailyReturn != null ? formatPnlPercent(dailyReturn) : "--"}
-          valueClass={dailyReturn != null ? getPnlColor(dailyReturn) : undefined}
-          sub={navData?.date ? `${navData.date}` : undefined}
+          label="Realized PnL"
+          value={formatPnlPercent(realizedPnlPct)}
+          valueClass={getPnlColor(realizedPnlPct)}
         />
         <StatBlock
-          label="Open Positions"
-          value={positionCount.toString()}
+          label="Open Orders"
+          value={orderCount.toString()}
         />
         <StatBlock
           label="Fills Today"
           value={todayExecs.length.toString()}
         />
         <StatBlock
-          label="Last Fill"
-          value={
-            todayExecs.length > 0
-              ? new Date(Number(todayExecs[0].execTime)).toLocaleTimeString("en-US", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  hour12: false,
-                })
-              : "--"
-          }
+          label="Exposure"
+          value={`${exposure.toFixed(1)}%`}
         />
       </div>
     </div>
