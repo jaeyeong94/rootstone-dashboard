@@ -108,9 +108,12 @@ function useTearsheetDisplayData(ts: TearsheetData | undefined, monthlyData: Mon
     avgAllMonths: `+${mStats.avgAllMonths}%`,
   } : null;
 
+  const dataRange = ts?.dataRange as { start?: string; end?: string } | undefined;
+
   return {
     mainMetrics, returnsMetrics, cumulativeMetrics, rollingMetrics,
     benchmarkMetrics, yearlyReturns, monthlyReturns, worstDrawdowns, monthlyStats,
+    dataRange,
   };
 }
 
@@ -465,7 +468,9 @@ function OverviewTab({ d }: { d: DisplayData }) {
       {/* Cumulative Returns Chart */}
       <div>
         <SectionLabel>Cumulative Returns</SectionLabel>
-        <p className="mt-1 text-xs text-text-muted">Rebeta vs BTC (2021.03 ~ 2026.02)</p>
+        <p className="mt-1 text-xs text-text-muted">
+          Rebeta vs BTC ({d.dataRange?.start?.substring(0, 7)?.replace("-", ".") ?? "..."} ~ {d.dataRange?.end?.substring(0, 7)?.replace("-", ".") ?? "..."})
+        </p>
         <div className="mt-3 rounded-sm border border-border-subtle bg-bg-card p-4">
           <CumulativeReturnsChart />
         </div>
