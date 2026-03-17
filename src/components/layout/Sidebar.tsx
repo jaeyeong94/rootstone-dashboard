@@ -51,7 +51,7 @@ export function Sidebar() {
         <img
           src="/images/logo.svg"
           alt="Rootstone"
-          className="h-6 w-auto opacity-90"
+          className="h-[18px] w-auto opacity-90"
         />
         {/* Close button - mobile only */}
         <button
@@ -127,7 +127,7 @@ export function Sidebar() {
         <img
           src="/images/logo.svg"
           alt="Rootstone"
-          className="ml-3 h-5 w-auto opacity-90"
+          className="ml-3 h-[14px] w-auto opacity-90"
         />
       </div>
 
