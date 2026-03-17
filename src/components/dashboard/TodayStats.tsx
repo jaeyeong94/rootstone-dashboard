@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect, useCallback } from "react";
 import useSWR from "swr";
 import { cn, formatPnlPercent, getPnlColor } from "@/lib/utils";
 import { usePositionStore } from "@/stores/usePositionStore";
@@ -59,6 +60,14 @@ export function TodayStats() {
     { refreshInterval: 30_000 }
   );
 
+  // Track last update time
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const formatTime = useCallback((d: Date) => d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }), []);
+
+  useEffect(() => {
+    if (data) setLastUpdated(new Date());
+  }, [data]);
+
   // Live stores
   const positions = usePositionStore((s) => s.positions);
   const totalEquity = usePositionStore((s) => s.totalEquity);
@@ -110,10 +119,15 @@ export function TodayStats() {
 
   return (
     <div className="rounded-sm border border-border-subtle bg-bg-card">
-      <div className="border-b border-border-subtle px-4 py-3">
+      <div className="flex items-center justify-between border-b border-border-subtle px-4 py-3">
         <span className="text-[11px] uppercase tracking-[1px] text-text-secondary">
           Today Stats
         </span>
+        {lastUpdated && (
+          <span className="font-[family-name:var(--font-mono)] text-[10px] text-text-muted">
+            {formatTime(lastUpdated)}
+          </span>
+        )}
       </div>
       <div className="grid grid-cols-2 gap-x-6 gap-y-4 px-4 py-4">
         <StatBlock
