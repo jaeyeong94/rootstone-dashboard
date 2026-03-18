@@ -21,10 +21,9 @@ export async function GET() {
 
   try {
     // Fetch Rebeta daily returns + BTC prices in parallel
-    const [rebetaRows, btcData] = await Promise.all([
-      getDailyReturns(),
-      getDailyClosePrices("BTCUSDT", 400),
-    ]);
+    const rebetaRows = await getDailyReturns();
+    // BTC: 전체 기간 (2021.03~ = ~1800일)
+    const btcData = await getDailyClosePrices("BTCUSDT", rebetaRows.length + 10);
 
     if (rebetaRows.length < 2) {
       return NextResponse.json({ error: "Insufficient Rebeta data" }, { status: 404 });
@@ -84,16 +83,19 @@ export async function GET() {
     }
     cumulativeCurves["Rebeta"] = rebetaCumCurve;
 
-    // BTC metrics and cumulative curve
+    // BTC metrics and cumulative curve (aligned to Rebeta date range)
     const btcMetrics = calcAssetMetrics(btcReturns, btcReturns.length);
+    const btcReturnDatesAll = btcAlignedDates.slice(1);
     const btcCumCurve: { date: string; value: number }[] = [];
     let btcCum = 1;
     for (let i = 0; i < btcReturns.length; i++) {
       btcCum *= 1 + btcReturns[i];
-      btcCumCurve.push({
-        date: btcAlignedDates.slice(1)[i],
-        value: Math.round((btcCum - 1) * 10000) / 10000,
-      });
+      if (btcReturnDatesAll[i]) {
+        btcCumCurve.push({
+          date: btcReturnDatesAll[i],
+          value: Math.round((btcCum - 1) * 10000) / 10000,
+        });
+      }
     }
     cumulativeCurves["BTC"] = btcCumCurve;
 

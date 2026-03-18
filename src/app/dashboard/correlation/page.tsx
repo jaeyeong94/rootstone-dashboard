@@ -2,7 +2,8 @@
 
 import { Header } from "@/components/layout/Header";
 import { cn } from "@/lib/utils";
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import useSWR from "swr";
 import {
   LineChart,
   Line,
@@ -157,40 +158,24 @@ const PERIOD_TABS: { key: Period; label: string }[] = [
   { key: "365", label: "365D" },
 ];
 
+const swrFetcher = (url: string) => fetch(url).then((r) => r.json());
+
 export default function CorrelationPage() {
   const [period, setPeriod] = useState<Period>("90");
-  const [matrixData, setMatrixData] = useState<MatrixData | null>(null);
-  const [matrixLoading, setMatrixLoading] = useState(true);
-  const [matrixError, setMatrixError] = useState<string | null>(null);
 
-  const [benchmarkData, setBenchmarkData] = useState<BenchmarkData | null>(null);
-  const [benchmarkLoading, setBenchmarkLoading] = useState(true);
+  // Matrix: period 변경 시 + 1시간마다 자동 갱신
+  const { data: matrixData, isLoading: matrixLoading, error: matrixError } = useSWR<MatrixData>(
+    `/api/correlation/matrix?period=${period}`,
+    swrFetcher,
+    { refreshInterval: 3600000 }
+  );
 
-  // Fetch correlation matrix when period changes
-  useEffect(() => {
-    setMatrixLoading(true);
-    setMatrixError(null);
-    fetch(`/api/correlation/matrix?period=${period}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.error) throw new Error(data.error);
-        setMatrixData(data);
-      })
-      .catch((e) => setMatrixError(e.message))
-      .finally(() => setMatrixLoading(false));
-  }, [period]);
-
-  // Fetch efficient frontier + benchmarks once
-  useEffect(() => {
-    setBenchmarkLoading(true);
-    fetch("/api/correlation/benchmarks")
-      .then((r) => r.json())
-      .then((data) => {
-        if (!data.error) setBenchmarkData(data);
-      })
-      .catch(() => {})
-      .finally(() => setBenchmarkLoading(false));
-  }, []);
+  // Benchmarks: 1시간마다 자동 갱신
+  const { data: benchmarkData, isLoading: benchmarkLoading } = useSWR<BenchmarkData>(
+    "/api/correlation/benchmarks",
+    swrFetcher,
+    { refreshInterval: 3600000 }
+  );
 
   const assets = matrixData?.assets ?? ["Rebeta", "BTC", "ETH"];
   const matrix = matrixData?.matrix ?? null;
@@ -230,7 +215,7 @@ export default function CorrelationPage() {
               </div>
             ) : matrixError ? (
               <div className="flex items-center justify-center h-40 text-pnl-negative text-sm">
-                {matrixError}
+                {matrixError instanceof Error ? matrixError.message : "Failed to load"}
               </div>
             ) : matrix ? (
               <div className="overflow-x-auto">
@@ -538,6 +523,7 @@ export default function CorrelationPage() {
                         stroke="#C5A049"
                         strokeWidth={2.5}
                         dot={false}
+                        connectNulls
                         name="Rebeta"
                       />
                     )}
@@ -550,6 +536,7 @@ export default function CorrelationPage() {
                         stroke="#F7931A"
                         strokeWidth={1.5}
                         dot={false}
+                        connectNulls
                         name="BTC"
                         strokeDasharray="4 2"
                       />
@@ -566,6 +553,7 @@ export default function CorrelationPage() {
                           stroke={BENCHMARK_COLORS[symbol] ?? "#666"}
                           strokeWidth={1}
                           dot={false}
+                          connectNulls
                           name={symbol}
                           strokeOpacity={0.7}
                         />
