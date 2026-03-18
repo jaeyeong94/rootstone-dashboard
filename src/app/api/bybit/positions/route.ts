@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getPositions, getWalletBalance, getExecutions } from "@/lib/bybit/client";
+import { getPositions, getWalletBalance, getExecutions, getClosedPnl } from "@/lib/bybit/client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,30 +25,27 @@ export async function GET() {
 
     const totalEquity = parseFloat(walletResult.list?.[0]?.totalEquity ?? "0");
 
-    // Fetch recent executions to find actual entry time for each open position.
-    // Bybit's position.createdTime is the slot creation time (account-level),
-    // NOT the current trade's entry time. We find the most recent entry ORDER
-    // and use its earliest fill time as the position entry time.
+    // Find actual entry time for each open position's current accumulation cycle.
+    // Rebeta v3.1: enters every hour, force-closes after 24.5h.
+    // Strategy: find the last full close (via Closed PnL), then the earliest
+    // entry execution AFTER that close = current cycle start.
     const entryTimeMap = new Map<string, string>();
     if (openPositions.length > 0) {
       try {
-        const execResult = await getExecutions({ limit: "100" });
-        const executions = execResult.list || [];
-        for (const pos of openPositions) {
-          // Get entry-side executions for this symbol, sorted newest first
-          const entries = executions
-            .filter((e) => e.symbol === pos.symbol && e.side === pos.side)
-            .sort((a, b) => parseInt(b.execTime) - parseInt(a.execTime));
+        await Promise.all(openPositions.map(async (pos) => {
+          const [pnlResult, execResult] = await Promise.all([
+            getClosedPnl({ symbol: pos.symbol, limit: "1" }),
+            getExecutions({ symbol: pos.symbol, limit: "50" }),
+          ]);
+          const lastCloseTime = parseInt(pnlResult.list?.[0]?.updatedTime || "0");
+          const entries = (execResult.list || [])
+            .filter((e) => e.side === pos.side && parseInt(e.execTime) > lastCloseTime)
+            .map((e) => parseInt(e.execTime))
+            .filter((t) => !isNaN(t));
           if (entries.length > 0) {
-            // Most recent entry order = current position's entry
-            const latestOrderId = entries[0].orderId;
-            // All fills for that order → take the earliest fill as entry time
-            const orderFills = entries
-              .filter((e) => e.orderId === latestOrderId)
-              .map((e) => parseInt(e.execTime));
-            entryTimeMap.set(pos.symbol, String(Math.min(...orderFills)));
+            entryTimeMap.set(pos.symbol, String(Math.min(...entries)));
           }
-        }
+        }));
       } catch {
         // Fallback: entryTimeMap stays empty, frontend will use createdTime
       }
