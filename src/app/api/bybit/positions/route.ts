@@ -27,22 +27,26 @@ export async function GET() {
 
     // Fetch recent executions to find actual entry time for each open position.
     // Bybit's position.createdTime is the slot creation time (account-level),
-    // NOT the current trade's entry time. We look up the earliest execution
-    // within the last 25h (Rebeta max hold = 24.5h) matching the position side.
+    // NOT the current trade's entry time. We find the most recent entry ORDER
+    // and use its earliest fill time as the position entry time.
     const entryTimeMap = new Map<string, string>();
     if (openPositions.length > 0) {
       try {
         const execResult = await getExecutions({ limit: "100" });
         const executions = execResult.list || [];
         for (const pos of openPositions) {
-          // Find all executions for this symbol+side (entry side)
+          // Get entry-side executions for this symbol, sorted newest first
           const entries = executions
             .filter((e) => e.symbol === pos.symbol && e.side === pos.side)
-            .map((e) => parseInt(e.execTime))
-            .filter((t) => !isNaN(t));
+            .sort((a, b) => parseInt(b.execTime) - parseInt(a.execTime));
           if (entries.length > 0) {
-            // Earliest execution = position entry time
-            entryTimeMap.set(pos.symbol, String(Math.min(...entries)));
+            // Most recent entry order = current position's entry
+            const latestOrderId = entries[0].orderId;
+            // All fills for that order → take the earliest fill as entry time
+            const orderFills = entries
+              .filter((e) => e.orderId === latestOrderId)
+              .map((e) => parseInt(e.execTime));
+            entryTimeMap.set(pos.symbol, String(Math.min(...orderFills)));
           }
         }
       } catch {
