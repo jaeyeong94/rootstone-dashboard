@@ -152,4 +152,5 @@ export interface Position {
   liqPrice: string;
   createdTime: string;
   updatedTime: string;
+  entryTime?: string;
 }

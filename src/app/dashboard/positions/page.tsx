@@ -83,10 +83,9 @@ function PositionRow({ position }: { position: Position }) {
   const unrealisedPnl = parseFloat(position.unrealisedPnl);
   const pnlPercent = totalEquity > 0 ? unrealisedPnl / totalEquity : 0;
 
-  const holdingTime = position.createdTime
-    ? Math.floor(
-        (Date.now() - parseInt(position.createdTime)) / (1000 * 60 * 60)
-      )
+  const entryMs = parseInt(position.entryTime || position.createdTime || "0");
+  const holdingTime = entryMs > 0
+    ? Math.floor((Date.now() - entryMs) / (1000 * 60 * 60))
     : 0;
 
   return (

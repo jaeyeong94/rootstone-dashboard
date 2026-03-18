@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getPositions, getWalletBalance } from "@/lib/bybit/client";
+import { getPositions, getWalletBalance, getExecutions } from "@/lib/bybit/client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,6 +25,31 @@ export async function GET() {
 
     const totalEquity = parseFloat(walletResult.list?.[0]?.totalEquity ?? "0");
 
+    // Fetch recent executions to find actual entry time for each open position.
+    // Bybit's position.createdTime is the slot creation time (account-level),
+    // NOT the current trade's entry time. We look up the earliest execution
+    // within the last 25h (Rebeta max hold = 24.5h) matching the position side.
+    const entryTimeMap = new Map<string, string>();
+    if (openPositions.length > 0) {
+      try {
+        const execResult = await getExecutions({ limit: "100" });
+        const executions = execResult.list || [];
+        for (const pos of openPositions) {
+          // Find all executions for this symbol+side (entry side)
+          const entries = executions
+            .filter((e) => e.symbol === pos.symbol && e.side === pos.side)
+            .map((e) => parseInt(e.execTime))
+            .filter((t) => !isNaN(t));
+          if (entries.length > 0) {
+            // Earliest execution = position entry time
+            entryTimeMap.set(pos.symbol, String(Math.min(...entries)));
+          }
+        }
+      } catch {
+        // Fallback: entryTimeMap stays empty, frontend will use createdTime
+      }
+    }
+
     return NextResponse.json({
       positions: openPositions.map((p) => ({
         symbol: p.symbol,
@@ -38,6 +63,7 @@ export async function GET() {
         liqPrice: p.liqPrice,
         createdTime: p.createdTime,
         updatedTime: p.updatedTime,
+        entryTime: entryTimeMap.get(p.symbol) || p.createdTime,
       })),
       count: openPositions.length,
       totalEquity,
