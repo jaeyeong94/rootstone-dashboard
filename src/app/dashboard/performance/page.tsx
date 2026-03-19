@@ -886,8 +886,8 @@ function MarginUtilSection() {
               </div>
               <div className="rounded-sm border border-border-subtle bg-bg-primary p-4 text-center">
                 <div className="text-[9px] uppercase tracking-[1px] text-text-muted">&gt;100% Util</div>
-                <div className="mt-2 font-[family-name:var(--font-mono)] text-2xl font-semibold text-pnl-negative">{summary?.above100 ?? 0}h</div>
-                <div className="mt-1 font-[family-name:var(--font-mono)] text-[10px] text-text-muted">{summary?.above100Pct ?? 0}%</div>
+                <div className="mt-2 font-[family-name:var(--font-mono)] text-2xl font-semibold text-pnl-negative">{summary?.above100Pct ?? 0}%</div>
+                <div className="mt-1 font-[family-name:var(--font-mono)] text-[10px] text-text-muted">{summary?.above100 ?? 0}h</div>
               </div>
             </div>
             <div>
