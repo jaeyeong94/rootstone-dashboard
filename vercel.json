@@ -8,6 +8,10 @@
     {
       "path": "/api/cron/daily-nav",
       "schedule": "5 0 * * *"
+    },
+    {
+      "path": "/api/cron/margin-util",
+      "schedule": "15 0 * * *"
     }
   ]
 }

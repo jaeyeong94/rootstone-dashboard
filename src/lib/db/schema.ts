@@ -62,5 +62,24 @@ export type Visitor = typeof visitors.$inferSelect;
 export type NewVisitor = typeof visitors.$inferInsert;
 export type DailyReturn = typeof dailyReturns.$inferSelect;
 export type NewDailyReturn = typeof dailyReturns.$inferInsert;
+export const marginUtilSnapshots = pgTable("margin_util_snapshots", {
+  id: serial("id").primaryKey(),
+  hour: text("hour").notNull(),  // "YYYY-MM-DD HH:00"
+  marginUtil: doublePrecision("margin_util").notNull(),
+  positionValue: doublePrecision("position_value").notNull(),
+  cashBalance: doublePrecision("cash_balance").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_margin_util_hour").on(table.hour),
+]);
+
+export const marginUtilDistribution = pgTable("margin_util_distribution", {
+  id: serial("id").primaryKey(),
+  dataJson: text("data_json").notNull(),  // JSON string of full distribution result
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export type NavAlert = typeof navAlerts.$inferSelect;
 export type NewNavAlert = typeof navAlerts.$inferInsert;
+export type MarginUtilSnapshot = typeof marginUtilSnapshots.$inferSelect;
+export type MarginUtilDistribution = typeof marginUtilDistribution.$inferSelect;
