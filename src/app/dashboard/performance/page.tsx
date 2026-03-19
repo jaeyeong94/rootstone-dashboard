@@ -828,7 +828,82 @@ function RiskTab({ d }: { d: DisplayData }) {
       </div>
 
       <MetricTable title="Returns Risk Metrics" data={d.returnsMetrics ?? []} />
+
+      {/* Margin Utilization Distribution */}
+      <MarginUtilSection />
     </>
+  );
+}
+
+function MarginUtilSection() {
+  const { data } = useSWR("/api/bybit/margin-distribution", fetcher, { refreshInterval: 3600000 });
+
+  if (!data || data.error) {
+    return (
+      <div>
+        <SectionLabel>Margin Utilization Distribution</SectionLabel>
+        <div className="mt-3 rounded-sm border border-border-subtle bg-bg-card p-5">
+          <div className="flex h-40 items-center justify-center text-sm text-text-muted">Awaiting data...</div>
+        </div>
+      </div>
+    );
+  }
+
+  const dist: { range: string; hours: number; pct: number }[] = data.distribution ?? [];
+  const summary = data.summary;
+  const events: { date: string; maxUtil: number }[] = data.topEvents ?? [];
+  const maxPct = Math.max(...dist.map((dd: { pct: number }) => dd.pct), 1);
+
+  const barColors: Record<string, string> = {
+    "0–10%": "bg-pnl-positive/20", "10–20%": "bg-pnl-positive/25", "20–30%": "bg-pnl-positive/30",
+    "30–50%": "bg-pnl-positive/40", "50–80%": "bg-gold/30", "80–100%": "bg-gold/50",
+    "100–120%": "bg-pnl-negative/40", "120–150%": "bg-pnl-negative/60", ">150%": "bg-pnl-negative/80",
+  };
+
+  return (
+    <div>
+      <SectionLabel>Margin Utilization Distribution</SectionLabel>
+      <p className="mt-1 text-xs text-text-muted">Position value / cash balance — capital deployment intensity</p>
+      <div className="mt-3 rounded-sm border border-border-subtle bg-bg-card p-5">
+        <div className="grid gap-4 xl:grid-cols-3">
+          <div className="xl:col-span-2 space-y-1.5">
+            {dist.map((bucket: { range: string; pct: number }) => (
+              <div key={bucket.range} className="flex items-center gap-3">
+                <span className="w-16 shrink-0 text-right font-[family-name:var(--font-mono)] text-[10px] text-text-muted">{bucket.range}</span>
+                <div className="flex-1 h-5 rounded-sm bg-bg-elevated overflow-hidden">
+                  <div className={cn("h-full rounded-sm", barColors[bucket.range] || "bg-bg-elevated")} style={{ width: `${(bucket.pct / maxPct) * 100}%` }} />
+                </div>
+                <span className="w-14 shrink-0 font-[family-name:var(--font-mono)] text-[10px] text-text-secondary">{bucket.pct > 0.01 ? `${bucket.pct}%` : ""}</span>
+              </div>
+            ))}
+          </div>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-sm border border-border-subtle bg-bg-primary p-3 text-center">
+                <div className="font-[family-name:var(--font-mono)] text-lg font-semibold text-pnl-positive">{summary?.below30Pct ?? "--"}%</div>
+                <div className="text-[9px] uppercase tracking-[0.5px] text-text-muted">&lt;30% Util</div>
+              </div>
+              <div className="rounded-sm border border-border-subtle bg-bg-primary p-3 text-center">
+                <div className="font-[family-name:var(--font-mono)] text-lg font-semibold text-pnl-negative">{summary?.above100 ?? 0}h</div>
+                <div className="text-[9px] uppercase tracking-[0.5px] text-text-muted">&gt;100% Util</div>
+              </div>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-[1px] text-text-muted mb-2">Peak Exposure Events</p>
+              <div className="space-y-1.5">
+                {events.map((ev: { date: string; maxUtil: number }) => (
+                  <div key={ev.date} className="flex items-center justify-between">
+                    <span className="text-[10px] text-text-secondary">{ev.date}</span>
+                    <span className={cn("font-[family-name:var(--font-mono)] text-xs font-medium", ev.maxUtil > 100 ? "text-pnl-negative" : ev.maxUtil > 80 ? "text-gold" : "text-text-primary")}>{ev.maxUtil}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+        <p className="mt-4 text-center text-[9px] text-text-muted">Period: {data.period} · {summary?.totalHours ?? 0}h · Median: ~0%</p>
+      </div>
+    </div>
   );
 }
 
