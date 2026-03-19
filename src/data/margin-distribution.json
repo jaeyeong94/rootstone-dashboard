@@ -1,0 +1,80 @@
+{
+  "distribution": [
+    {
+      "range": "0\u201310%",
+      "hours": 10542,
+      "pct": 90.2
+    },
+    {
+      "range": "10\u201320%",
+      "hours": 600,
+      "pct": 5.1
+    },
+    {
+      "range": "20\u201330%",
+      "hours": 232,
+      "pct": 2.0
+    },
+    {
+      "range": "30\u201350%",
+      "hours": 206,
+      "pct": 1.8
+    },
+    {
+      "range": "50\u201380%",
+      "hours": 73,
+      "pct": 0.6
+    },
+    {
+      "range": "80\u2013100%",
+      "hours": 19,
+      "pct": 0.2
+    },
+    {
+      "range": "100\u2013120%",
+      "hours": 7,
+      "pct": 0.1
+    },
+    {
+      "range": "120\u2013150%",
+      "hours": 9,
+      "pct": 0.1
+    },
+    {
+      "range": ">150%",
+      "hours": 0,
+      "pct": 0.0
+    }
+  ],
+  "summary": {
+    "totalHours": 11688,
+    "below30Pct": 97.3,
+    "above80": 35,
+    "above80Pct": 0.3,
+    "above100": 16,
+    "above100Pct": 0.14,
+    "median": 0.0
+  },
+  "topEvents": [
+    {
+      "date": "2025-04-07",
+      "maxUtil": 149.2
+    },
+    {
+      "date": "2026-02-06",
+      "maxUtil": 117.1
+    },
+    {
+      "date": "2026-02-05",
+      "maxUtil": 116.4
+    },
+    {
+      "date": "2024-12-09",
+      "maxUtil": 110.1
+    }
+  ],
+  "period": "2024-11-17 ~ 2026-03-19",
+  "method": "forward_closedSize_kline_open_snapshot_before_trades",
+  "validation": "18/18 CTO reference points within 1%",
+  "computedAt": "2026-03-19T08:42:03.051691"
+}
