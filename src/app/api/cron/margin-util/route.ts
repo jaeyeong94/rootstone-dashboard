@@ -85,33 +85,27 @@ export async function GET(request: Request) {
       }
     }
 
-    // 3. Forward reconstruction
-    // Group trades by "next hour" for _OPEN timing
+    // 3. Forward reconstruction (CTO validated: 18/18 within 1%)
+    // Trades in hour H → snapshot at hour H still shows pre-trade position
+    // → trades reflected from hour H+1 onward
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const nextHourTrades: Record<string, any[]> = {};
+    const hourTrades: Record<string, any[]> = {};
     for (const e of trades) {
       const dt = new Date(parseInt(e.execTime));
-      const nextH = new Date(dt);
-      nextH.setUTCMinutes(0, 0, 0);
-      nextH.setTime(nextH.getTime() + 3600000);
-      const key = formatHour(nextH);
-      if (!nextHourTrades[key]) nextHourTrades[key] = [];
-      nextHourTrades[key].push(e);
+      const key = formatHour(dt);
+      if (!hourTrades[key]) hourTrades[key] = [];
+      hourTrades[key].push(e);
     }
 
     const netPos: Record<string, number> = {};
     for (const s of SYMBOLS) netPos[s] = 0;
 
-    // Cash tracking via cumulative PnL
     let cumPnl = 0;
-    const tradePnlByHour: Record<string, number> = {};
+    const cashAfterHour: Record<string, number> = {};
     for (const e of trades) {
       cumPnl += parseFloat(e.closedPnl || "0") - Math.abs(parseFloat(e.execFee || "0"));
       const dt = new Date(parseInt(e.execTime));
-      const nextH = new Date(dt);
-      nextH.setUTCMinutes(0, 0, 0);
-      nextH.setTime(nextH.getTime() + 3600000);
-      tradePnlByHour[formatHour(nextH)] = 19284 + cumPnl;
+      cashAfterHour[formatHour(dt)] = 19284 + cumPnl;
     }
 
     let lastCash = 19284.0;
@@ -123,18 +117,18 @@ export async function GET(request: Request) {
     while (current < endDate) {
       const h = formatHour(current);
 
-      // Snapshot BEFORE trades (= hour start position)
+      // Snapshot: position BEFORE this hour's trades × kline open
       let pv = 0;
       for (const s of SYMBOLS) {
         const price = hourlyOpen[s]?.[h] || 0;
-        pv += Math.max(0, netPos[s]) * price;
+        pv += Math.max(0, netPos[s] || 0) * price;
       }
       const mu = lastCash > 0 ? pv / lastCash : 0;
       allUtils.push(mu);
 
-      // Process trades for next hour
-      if (nextHourTrades[h]) {
-        for (const e of nextHourTrades[h]) {
+      // THEN apply this hour's trades (for next snapshot)
+      if (hourTrades[h]) {
+        for (const e of hourTrades[h]) {
           const sym = e.symbol;
           if (!SYMBOLS.includes(sym)) continue;
           const cs = parseFloat(e.closedSize || "0");
@@ -142,7 +136,7 @@ export async function GET(request: Request) {
           if (cs > 0) netPos[sym] = Math.max(0, (netPos[sym] || 0) - cs);
           else if (e.side === "Buy") netPos[sym] = (netPos[sym] || 0) + qty;
         }
-        if (tradePnlByHour[h]) lastCash = tradePnlByHour[h];
+        if (cashAfterHour[h]) lastCash = cashAfterHour[h];
       }
 
       current.setTime(current.getTime() + 3600000);
