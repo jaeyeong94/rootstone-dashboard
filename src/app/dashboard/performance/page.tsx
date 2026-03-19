@@ -881,11 +881,13 @@ function MarginUtilSection() {
             <div className="grid grid-cols-2 gap-2">
               <div className="rounded-sm border border-border-subtle bg-bg-primary p-3 text-center">
                 <div className="font-[family-name:var(--font-mono)] text-lg font-semibold text-pnl-positive">{summary?.below30Pct ?? "--"}%</div>
-                <div className="text-[9px] uppercase tracking-[0.5px] text-text-muted">&lt;30% Util</div>
+                <div className="font-[family-name:var(--font-mono)] text-[10px] text-text-muted">{summary ? `${Math.round((summary.totalHours ?? 0) * (summary.below30Pct ?? 0) / 100)}h / ${summary.totalHours ?? 0}h` : ""}</div>
+                <div className="mt-1 text-[9px] uppercase tracking-[0.5px] text-text-muted">&lt;30% Util</div>
               </div>
               <div className="rounded-sm border border-border-subtle bg-bg-primary p-3 text-center">
                 <div className="font-[family-name:var(--font-mono)] text-lg font-semibold text-pnl-negative">{summary?.above100 ?? 0}h</div>
-                <div className="text-[9px] uppercase tracking-[0.5px] text-text-muted">&gt;100% Util</div>
+                <div className="font-[family-name:var(--font-mono)] text-[10px] text-text-muted">{summary?.above100Pct ?? 0}%</div>
+                <div className="mt-1 text-[9px] uppercase tracking-[0.5px] text-text-muted">&gt;100% Util</div>
               </div>
             </div>
             <div>
