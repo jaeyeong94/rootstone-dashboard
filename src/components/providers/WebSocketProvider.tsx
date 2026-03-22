@@ -14,7 +14,7 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
  * Replaces direct client→Bybit WebSocket with Vercel API proxy.
  * Ensures all clients work regardless of geo-restriction.
  */
-export function WebSocketProvider({ children }: { children: React.ReactNode }) {
+function DataPollingProvider({ children }: { children: React.ReactNode }) {
   // ── Ticker polling (5s) ──
   const { data: tickerData, error: tickerError } = useSWR<{
     tickers: TickerData[];
@@ -67,3 +67,6 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
 
   return <>{children}</>;
 }
+
+// Keep legacy export name for layout.tsx compatibility
+export { DataPollingProvider as WebSocketProvider };

@@ -88,7 +88,7 @@ function SingleCandleChart({
     [allOrders, symbol]
   );
 
-  // 24h 변동률: WebSocket ticker 데이터 (표준 24h 기준)
+  // 24h 변동률: 서버사이드 ticker 폴링 데이터 (표준 24h 기준)
   const changePercent = change24h ? parseFloat(change24h) * 100 : 0;
 
   // Initialize chart

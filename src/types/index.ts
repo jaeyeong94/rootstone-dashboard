@@ -84,7 +84,7 @@ export interface BybitOrder {
   createdTime: string;
 }
 
-// Ticker (WebSocket)
+// Ticker data (server-side REST polling)
 export interface TickerData {
   symbol: string;
   lastPrice: string;

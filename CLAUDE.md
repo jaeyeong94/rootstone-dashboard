@@ -8,7 +8,7 @@ Rebeta v3.1 크립토 퀀트 전략의 실시간 운용 대시보드.
 - NextAuth.js (Credentials / ID/PW)
 - Drizzle ORM + SQLite (Turso for prod)
 - Zustand (realtime state) + SWR (server state)
-- Bybit API (REST + Public WebSocket)
+- Bybit API (REST, 서버사이드 프록시)
 - Vercel deploy
 
 ## Design (rootstone.io + PDF Hybrid)
