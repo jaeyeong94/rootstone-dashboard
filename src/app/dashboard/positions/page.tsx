@@ -53,7 +53,7 @@ function OpenPositions() {
         <div className="grid grid-cols-5 gap-4 border-b border-border-subtle px-4 py-3 text-[11px] uppercase tracking-[1px] text-text-secondary">
           <span>Symbol</span>
           <span>Side</span>
-          <span className="text-right">PnL %</span>
+          <span className="text-right">Unrealized PnL %</span>
           <span className="text-right">Leverage</span>
           <span className="text-right">Holding</span>
         </div>

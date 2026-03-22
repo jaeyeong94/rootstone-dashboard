@@ -2,10 +2,16 @@
 
 import { useConnectionStore } from "@/stores/useConnectionStore";
 import { cn } from "@/lib/utils";
-import { formatRelativeTime } from "@/lib/utils";
+
+function formatTime(date: Date): string {
+  const h = String(date.getHours()).padStart(2, "0");
+  const m = String(date.getMinutes()).padStart(2, "0");
+  const s = String(date.getSeconds()).padStart(2, "0");
+  return `${h}:${m}:${s}`;
+}
 
 export function LiveIndicator() {
-  const { status, lastMessageAt } = useConnectionStore();
+  const { status, lastPollAt } = useConnectionStore();
 
   const statusConfig = {
     connected: {
@@ -13,9 +19,9 @@ export function LiveIndicator() {
       text: "LIVE",
       textColor: "text-status-live",
     },
-    reconnecting: {
+    stale: {
       color: "bg-status-warn",
-      text: "RECONNECTING",
+      text: "STALE",
       textColor: "text-status-warn",
     },
     disconnected: {
@@ -29,9 +35,9 @@ export function LiveIndicator() {
 
   return (
     <div className="flex items-center gap-3">
-      {lastMessageAt && (
-        <span className="text-xs text-text-muted">
-          {formatRelativeTime(lastMessageAt)}
+      {lastPollAt && (
+        <span className="font-[family-name:var(--font-mono)] text-xs text-text-muted">
+          {formatTime(lastPollAt)}
         </span>
       )}
       <div className="flex items-center gap-2">

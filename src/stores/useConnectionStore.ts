@@ -1,28 +1,29 @@
 import { create } from "zustand";
 
-type ConnectionStatus = "connected" | "reconnecting" | "disconnected";
+type ConnectionStatus = "connected" | "stale" | "disconnected";
 
 interface ConnectionState {
   status: ConnectionStatus;
-  lastMessageAt: Date | null;
-  reconnectCount: number;
-  setStatus: (status: ConnectionStatus) => void;
-  setLastMessage: () => void;
-  incrementReconnect: () => void;
-  resetReconnect: () => void;
+  lastPollAt: Date | null;
+  errorCount: number;
+  setPolled: () => void;
+  setError: () => void;
 }
 
 export const useConnectionStore = create<ConnectionState>((set) => ({
   status: "disconnected",
-  lastMessageAt: null,
-  reconnectCount: 0,
+  lastPollAt: null,
+  errorCount: 0,
 
-  setStatus: (status) => set({ status }),
+  setPolled: () =>
+    set({ status: "connected", lastPollAt: new Date(), errorCount: 0 }),
 
-  setLastMessage: () => set({ lastMessageAt: new Date() }),
-
-  incrementReconnect: () =>
-    set((state) => ({ reconnectCount: state.reconnectCount + 1 })),
-
-  resetReconnect: () => set({ reconnectCount: 0 }),
+  setError: () =>
+    set((state) => {
+      const count = state.errorCount + 1;
+      return {
+        errorCount: count,
+        status: count >= 3 ? "disconnected" : "stale",
+      };
+    }),
 }));
