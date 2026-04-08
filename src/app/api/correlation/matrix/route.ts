@@ -9,7 +9,7 @@ import {
   pricesToReturns,
 } from "@/lib/math/correlation";
 import {
-  loadBenchmarkReturns,
+  loadBenchmarkReturnsAsync,
   getAvailableBenchmarks,
 } from "@/lib/math/benchmarks";
 
@@ -85,7 +85,7 @@ export async function GET(request: Request) {
 
     const benchmarkReturnMaps: Map<string, number>[] = [];
     for (const bm of benchmarks) {
-      const bmData = loadBenchmarkReturns(bm.symbol);
+      const bmData = await loadBenchmarkReturnsAsync(bm.symbol);
       const bmMap = new Map<string, number>();
       for (let i = 0; i < bmData.dates.length; i++) {
         bmMap.set(bmData.dates[i], bmData.returns[i]);

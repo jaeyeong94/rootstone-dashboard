@@ -79,7 +79,18 @@ export const marginUtilDistribution = pgTable("margin_util_distribution", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const benchmarkPrices = pgTable("benchmark_prices", {
+  id: serial("id").primaryKey(),
+  symbol: text("symbol").notNull(),         // SPY, QQQ, GLD, IEF
+  date: date("date").notNull(),
+  close: doublePrecision("close").notNull(),
+}, (table) => [
+  uniqueIndex("idx_benchmark_prices_symbol_date").on(table.symbol, table.date),
+  index("idx_benchmark_prices_symbol").on(table.symbol),
+]);
+
 export type NavAlert = typeof navAlerts.$inferSelect;
 export type NewNavAlert = typeof navAlerts.$inferInsert;
 export type MarginUtilSnapshot = typeof marginUtilSnapshots.$inferSelect;
 export type MarginUtilDistribution = typeof marginUtilDistribution.$inferSelect;
+export type BenchmarkPrice = typeof benchmarkPrices.$inferSelect;

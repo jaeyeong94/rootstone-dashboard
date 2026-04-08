@@ -81,10 +81,11 @@ function formatPct(v: number, digits = 2): string {
 
 const BENCHMARK_COLORS: Record<string, string> = {
   BTC: "#F7931A",
+  ETH: "#627EEA",
   SPY: "#4A90D9",
   QQQ: "#7B68EE",
   GLD: "#DAA520",
-  TLT: "#20B2AA",
+  IEF: "#20B2AA",
 };
 
 const ROLLING_COLORS: Record<string, string> = {
@@ -93,7 +94,7 @@ const ROLLING_COLORS: Record<string, string> = {
   SPY: "#4A90D9",
   QQQ: "#7B68EE",
   GLD: "#DAA520",
-  TLT: "#20B2AA",
+  IEF: "#20B2AA",
 };
 
 function SectionLabel({ children }: { children: React.ReactNode }) {

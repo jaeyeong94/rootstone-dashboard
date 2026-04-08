@@ -26,8 +26,8 @@ describe("loadBenchmarkReturns", () => {
     expect(data.dates.length).toBeGreaterThan(100);
   });
 
-  it("loads TLT data", () => {
-    const data = loadBenchmarkReturns("TLT");
+  it("loads IEF data", () => {
+    const data = loadBenchmarkReturns("IEF");
     expect(data.dates.length).toBeGreaterThan(100);
   });
 
@@ -49,7 +49,7 @@ describe("getAvailableBenchmarks", () => {
     expect(benchmarks.map((b) => b.symbol)).toContain("SPY");
     expect(benchmarks.map((b) => b.symbol)).toContain("GLD");
     expect(benchmarks.map((b) => b.symbol)).toContain("QQQ");
-    expect(benchmarks.map((b) => b.symbol)).toContain("TLT");
+    expect(benchmarks.map((b) => b.symbol)).toContain("IEF");
   });
 
   it("each benchmark has symbol and name", () => {

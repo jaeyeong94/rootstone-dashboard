@@ -5,7 +5,7 @@ import { getDailyReturns } from "@/lib/daily-returns";
 import { getDailyClosePrices } from "@/lib/bybit/kline";
 import { pearsonCorrelation, pricesToReturns } from "@/lib/math/correlation";
 import {
-  loadBenchmarkReturns,
+  loadBenchmarkReturnsAsync,
   getAvailableBenchmarks,
   calcAssetMetrics,
 } from "@/lib/math/benchmarks";
@@ -20,10 +20,13 @@ export async function GET() {
   }
 
   try {
-    // Fetch Rebeta daily returns + BTC prices in parallel
+    // Fetch Rebeta daily returns + BTC/ETH prices in parallel
     const rebetaRows = await getDailyReturns();
-    // BTC: 전체 기간 (2021.03~ = ~1800일)
-    const btcData = await getDailyClosePrices("BTCUSDT", rebetaRows.length + 10);
+    // BTC/ETH: 전체 기간 (2021.03~ = ~1800일)
+    const [btcData, ethData] = await Promise.all([
+      getDailyClosePrices("BTCUSDT", rebetaRows.length + 10),
+      getDailyClosePrices("ETHUSDT", rebetaRows.length + 10),
+    ]);
 
     if (rebetaRows.length < 2) {
       return NextResponse.json({ error: "Insufficient Rebeta data" }, { status: 404 });
@@ -129,9 +132,65 @@ export async function GET() {
       correlationWithRebeta: Math.round(btcCorrelation * 10000) / 10000,
     });
 
+    // ETH metrics and cumulative curve (same pattern as BTC)
+    const ethByDate = new Map(ethData.map((d) => [d.time, d.close]));
+    const ethPricesAligned: number[] = [];
+    const ethAlignedDates: string[] = [];
+    for (const day of rebetaDays) {
+      const ethClose = ethByDate.get(day);
+      if (ethClose !== undefined) {
+        ethPricesAligned.push(ethClose);
+        ethAlignedDates.push(day);
+      }
+    }
+    const ethReturns = pricesToReturns(ethPricesAligned);
+
+    const ethMetrics = calcAssetMetrics(ethReturns, ethReturns.length);
+    const ethReturnDatesAll = ethAlignedDates.slice(1);
+    const ethCumCurve: { date: string; value: number }[] = [];
+    let ethCum = 1;
+    for (let i = 0; i < ethReturns.length; i++) {
+      ethCum *= 1 + ethReturns[i];
+      if (ethReturnDatesAll[i]) {
+        ethCumCurve.push({
+          date: ethReturnDatesAll[i],
+          value: Math.round((ethCum - 1) * 10000) / 10000,
+        });
+      }
+    }
+    cumulativeCurves["ETH"] = ethCumCurve;
+
+    const ethReturnsByDate = new Map<string, number>();
+    const ethReturnDates = ethAlignedDates.slice(1);
+    for (let i = 0; i < ethReturns.length; i++) {
+      ethReturnsByDate.set(ethReturnDates[i], ethReturns[i]);
+    }
+
+    const alignedRebetaForEth: number[] = [];
+    const alignedEthForRebeta: number[] = [];
+    for (const date of rebetaDays) {
+      const ethR = ethReturnsByDate.get(date);
+      const rebetaR = rebetaReturnsByDate.get(date);
+      if (ethR !== undefined && rebetaR !== undefined) {
+        alignedRebetaForEth.push(rebetaR);
+        alignedEthForRebeta.push(ethR);
+      }
+    }
+    const ethCorrelation = pearsonCorrelation(
+      alignedRebetaForEth,
+      alignedEthForRebeta
+    );
+
+    benchmarkResults.push({
+      symbol: "ETH",
+      name: "Ethereum",
+      ...ethMetrics,
+      correlationWithRebeta: Math.round(ethCorrelation * 10000) / 10000,
+    });
+
     // Process each traditional benchmark
     for (const bm of benchmarks) {
-      const bmData = loadBenchmarkReturns(bm.symbol);
+      const bmData = await loadBenchmarkReturnsAsync(bm.symbol);
       const bmMetrics = calcAssetMetrics(bmData.returns, bmData.returns.length);
 
       // Align benchmark returns with Rebeta returns by date
