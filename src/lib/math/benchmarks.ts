@@ -1,12 +1,9 @@
 /**
- * Benchmark asset data loading and metrics calculation.
- * DB 우선 조회 → JSON fallback.
+ * Benchmark asset data loading and metrics calculation
+ * Loads static benchmark price data and computes financial metrics
  */
 
 import benchmarkData from "@/data/benchmarks.json";
-import { getDb } from "@/lib/db";
-import { benchmarkPrices } from "@/lib/db/schema";
-import { eq, asc } from "drizzle-orm";
 import { ANNUALIZATION_DAYS, CALENDAR_DAYS_PER_YEAR, RISK_FREE_RATE } from "@/lib/constants";
 
 type BenchmarkEntry = {
@@ -17,14 +14,7 @@ type BenchmarkEntry = {
 
 type BenchmarkDataSet = Record<string, BenchmarkEntry>;
 
-const jsonData = benchmarkData as BenchmarkDataSet;
-
-const BENCHMARK_ASSETS: { symbol: string; name: string }[] = [
-  { symbol: "SPY", name: "S&P 500" },
-  { symbol: "QQQ", name: "Nasdaq 100" },
-  { symbol: "GLD", name: "Gold" },
-  { symbol: "IEF", name: "US 10Y Treasury" },
-];
+const data = benchmarkData as BenchmarkDataSet;
 
 export interface BenchmarkReturns {
   dates: string[];
@@ -44,10 +34,21 @@ export interface AssetMetrics {
   maxDrawdown: number;
 }
 
-function pricesToDailyReturns(
-  prices: { date: string; close: number }[]
-): BenchmarkReturns {
-  if (prices.length < 2) return { dates: [], returns: [] };
+/**
+ * Load benchmark price data and convert to daily returns
+ * Returns are calculated as (P_t / P_{t-1}) - 1
+ * Dates array is aligned with returns (starts from second price date)
+ */
+export function loadBenchmarkReturns(symbol: string): BenchmarkReturns {
+  const entry = data[symbol];
+  if (!entry) {
+    throw new Error(`Unknown benchmark symbol: ${symbol}`);
+  }
+
+  const prices = entry.prices;
+  if (prices.length < 2) {
+    return { dates: [], returns: [] };
+  }
 
   const dates: string[] = [];
   const returns: number[] = [];
@@ -63,48 +64,13 @@ function pricesToDailyReturns(
 }
 
 /**
- * Load benchmark price data and convert to daily returns.
- * DB 우선 → JSON fallback.
- */
-export async function loadBenchmarkReturnsAsync(
-  symbol: string
-): Promise<BenchmarkReturns> {
-  // Try DB first
-  try {
-    const db = getDb();
-    const rows = await db
-      .select({ date: benchmarkPrices.date, close: benchmarkPrices.close })
-      .from(benchmarkPrices)
-      .where(eq(benchmarkPrices.symbol, symbol))
-      .orderBy(asc(benchmarkPrices.date));
-
-    if (rows.length >= 100) {
-      return pricesToDailyReturns(rows);
-    }
-  } catch {
-    // DB not available, fall through to JSON
-  }
-
-  // Fallback to static JSON
-  return loadBenchmarkReturns(symbol);
-}
-
-/**
- * Synchronous JSON-only loader (for tests and fallback).
- */
-export function loadBenchmarkReturns(symbol: string): BenchmarkReturns {
-  const entry = jsonData[symbol];
-  if (!entry) {
-    throw new Error(`Unknown benchmark symbol: ${symbol}`);
-  }
-  return pricesToDailyReturns(entry.prices);
-}
-
-/**
- * Get list of available benchmark assets.
+ * Get list of available benchmark assets
  */
 export function getAvailableBenchmarks(): BenchmarkInfo[] {
-  return BENCHMARK_ASSETS;
+  return Object.values(data).map((entry) => ({
+    symbol: entry.symbol,
+    name: entry.name,
+  }));
 }
 
 /**
@@ -144,7 +110,7 @@ export function calcAssetMetrics(
     (returns.length - 1);
   const volatility = Math.sqrt(variance) * Math.sqrt(ANNUALIZATION_DAYS);
 
-  // Sharpe ratio: (dailyMean / dailyStd) × √365
+  // Sharpe ratio: (dailyMean / dailyStd) × √365 — utils.calcSharpeRatio과 동일 공식
   const dailyExcess = mean - RISK_FREE_RATE;
   const dailyStd = Math.sqrt(variance);
   const sharpe = dailyStd > 0 ? (dailyExcess / dailyStd) * Math.sqrt(ANNUALIZATION_DAYS) : 0;
