@@ -61,12 +61,12 @@ interface BenchmarkData {
    Helpers
    ═══════════════════════════════════════════════════════════════ */
 
-function getCorrelationColor(value: number): string {
-  if (value >= 0.7) return "bg-pnl-negative/60";
-  if (value >= 0.3) return "bg-pnl-negative/30";
-  if (value > -0.3) return "bg-bg-elevated";
-  if (value > -0.7) return "bg-blue-500/30";
-  return "bg-blue-500/60";
+function getCorrelationStyle(value: number): { backgroundColor: string } {
+  const abs = Math.abs(value);
+  const alpha = Math.round(abs * 0.7 * 100) / 100;
+  if (value > 0) return { backgroundColor: `rgba(239, 68, 68, ${alpha})` };
+  if (value < 0) return { backgroundColor: `rgba(59, 130, 246, ${alpha})` };
+  return { backgroundColor: "transparent" };
 }
 
 function getCorrelationTextColor(value: number): string {
@@ -129,10 +129,8 @@ function CorrelationCell({
 
   return (
     <div
-      className={cn(
-        "flex h-12 w-full flex-col items-center justify-center rounded-sm border border-border-subtle transition-colors",
-        getCorrelationColor(value)
-      )}
+      className="flex h-12 w-full flex-col items-center justify-center rounded-sm border border-border-subtle transition-colors"
+      style={getCorrelationStyle(value)}
     >
       <span
         className={cn(
