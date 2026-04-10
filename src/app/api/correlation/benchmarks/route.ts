@@ -20,19 +20,21 @@ export async function GET() {
   }
 
   try {
-    // Fetch Rebeta daily returns
-    const rebetaRows = await getDailyReturns();
+    // Cap Bybit kline to 1000 candles (single page, avoids pagination timeout).
+    // 1000 daily candles ≈ 2.7 years — more than enough for correlation and
+    // cumulative return curves while staying within Vercel function timeout.
+    const KLINE_LIMIT = 1000;
 
-    // BTC: always fetch
-    const btcData = await getDailyClosePrices("BTCUSDT", rebetaRows.length + 10);
-
-    // ETH: fetch separately so failure doesn't block everything
-    let ethData: { time: string; close: number }[] = [];
-    try {
-      ethData = await getDailyClosePrices("ETHUSDT", rebetaRows.length + 10);
-    } catch (e) {
-      console.error("ETH kline fetch failed, skipping ETH:", e);
-    }
+    // Parallelize all external I/O: DB + BTC + ETH
+    const [rebetaRows, btcData, ethResult] = await Promise.all([
+      getDailyReturns(),
+      getDailyClosePrices("BTCUSDT", KLINE_LIMIT),
+      getDailyClosePrices("ETHUSDT", KLINE_LIMIT).catch((e) => {
+        console.error("ETH kline fetch failed, skipping ETH:", e);
+        return [] as { time: string; close: number }[];
+      }),
+    ]);
+    const ethData = ethResult;
 
     if (rebetaRows.length < 2) {
       return NextResponse.json({ error: "Insufficient Rebeta data" }, { status: 404 });
