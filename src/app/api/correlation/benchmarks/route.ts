@@ -5,7 +5,7 @@ import { getDailyReturns } from "@/lib/daily-returns";
 import { getDailyClosePrices } from "@/lib/bybit/kline";
 import { pearsonCorrelation, pricesToReturns } from "@/lib/math/correlation";
 import {
-  loadBenchmarkReturnsAsync,
+  loadBenchmarkReturns,
   getAvailableBenchmarks,
   calcAssetMetrics,
 } from "@/lib/math/benchmarks";
@@ -190,7 +190,7 @@ export async function GET() {
 
     // Process each traditional benchmark
     for (const bm of benchmarks) {
-      const bmData = await loadBenchmarkReturnsAsync(bm.symbol);
+      const bmData = loadBenchmarkReturns(bm.symbol);
       const bmMetrics = calcAssetMetrics(bmData.returns, bmData.returns.length);
 
       // Align benchmark returns with Rebeta returns by date

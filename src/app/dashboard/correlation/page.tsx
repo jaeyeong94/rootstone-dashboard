@@ -172,7 +172,7 @@ export default function CorrelationPage() {
   );
 
   // Benchmarks: 1시간마다 자동 갱신
-  const { data: benchmarkData, isLoading: benchmarkLoading } = useSWR<BenchmarkData>(
+  const { data: benchmarkData, isLoading: benchmarkLoading, error: benchmarkError } = useSWR<BenchmarkData>(
     "/api/correlation/benchmarks",
     swrFetcher,
     { refreshInterval: 3600000 }
@@ -364,6 +364,12 @@ export default function CorrelationPage() {
             <div className="mt-3 rounded-sm border border-border-subtle bg-bg-card p-5">
               <div className="flex items-center justify-center h-40 text-text-muted text-sm">
                 Loading benchmark data...
+              </div>
+            </div>
+          ) : benchmarkError || !benchmarkData?.rebeta ? (
+            <div className="mt-3 rounded-sm border border-border-subtle bg-bg-card p-5">
+              <div className="flex items-center justify-center h-40 text-pnl-negative text-sm">
+                Failed to load benchmark data. Please try again later.
               </div>
             </div>
           ) : benchmarkData ? (
