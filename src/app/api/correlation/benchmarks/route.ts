@@ -20,21 +20,10 @@ export async function GET() {
   }
 
   try {
-    // Cap Bybit kline to 1000 candles (single page, avoids pagination timeout).
-    // 1000 daily candles ≈ 2.7 years — more than enough for correlation and
-    // cumulative return curves while staying within Vercel function timeout.
-    const KLINE_LIMIT = 1000;
-
-    // Parallelize all external I/O: DB + BTC + ETH
-    const [rebetaRows, btcData, ethResult] = await Promise.all([
-      getDailyReturns(),
-      getDailyClosePrices("BTCUSDT", KLINE_LIMIT),
-      getDailyClosePrices("ETHUSDT", KLINE_LIMIT).catch((e) => {
-        console.error("ETH kline fetch failed, skipping ETH:", e);
-        return [] as { time: string; close: number }[];
-      }),
-    ]);
-    const ethData = ethResult;
+    // Fetch Rebeta daily returns + BTC prices in parallel
+    const rebetaRows = await getDailyReturns();
+    // BTC: 전체 기간 (2021.03~ = ~1800일)
+    const btcData = await getDailyClosePrices("BTCUSDT", rebetaRows.length + 10);
 
     if (rebetaRows.length < 2) {
       return NextResponse.json({ error: "Insufficient Rebeta data" }, { status: 404 });
@@ -139,68 +128,6 @@ export async function GET() {
       ...btcMetrics,
       correlationWithRebeta: Math.round(btcCorrelation * 10000) / 10000,
     });
-
-    // ETH metrics and cumulative curve (same pattern as BTC)
-    if (ethData.length > 0) {
-      try {
-        const ethByDate = new Map(ethData.map((d) => [d.time, d.close]));
-        const ethPricesAligned: number[] = [];
-        const ethAlignedDates: string[] = [];
-        for (const day of rebetaDays) {
-          const ethClose = ethByDate.get(day);
-          if (ethClose !== undefined) {
-            ethPricesAligned.push(ethClose);
-            ethAlignedDates.push(day);
-          }
-        }
-        const ethReturns = pricesToReturns(ethPricesAligned);
-
-        const ethMetrics = calcAssetMetrics(ethReturns, ethReturns.length);
-        const ethReturnDatesAll = ethAlignedDates.slice(1);
-        const ethCumCurve: { date: string; value: number }[] = [];
-        let ethCum = 1;
-        for (let i = 0; i < ethReturns.length; i++) {
-          ethCum *= 1 + ethReturns[i];
-          if (ethReturnDatesAll[i]) {
-            ethCumCurve.push({
-              date: ethReturnDatesAll[i],
-              value: Math.round((ethCum - 1) * 10000) / 10000,
-            });
-          }
-        }
-        cumulativeCurves["ETH"] = ethCumCurve;
-
-        const ethReturnsByDate = new Map<string, number>();
-        const ethReturnDates = ethAlignedDates.slice(1);
-        for (let i = 0; i < ethReturns.length; i++) {
-          ethReturnsByDate.set(ethReturnDates[i], ethReturns[i]);
-        }
-
-        const alignedRebetaForEth: number[] = [];
-        const alignedEthForRebeta: number[] = [];
-        for (const date of rebetaDays) {
-          const ethR = ethReturnsByDate.get(date);
-          const rebetaR = rebetaReturnsByDate.get(date);
-          if (ethR !== undefined && rebetaR !== undefined) {
-            alignedRebetaForEth.push(rebetaR);
-            alignedEthForRebeta.push(ethR);
-          }
-        }
-        const ethCorrelation = pearsonCorrelation(
-          alignedRebetaForEth,
-          alignedEthForRebeta
-        );
-
-        benchmarkResults.push({
-          symbol: "ETH",
-          name: "Ethereum",
-          ...ethMetrics,
-          correlationWithRebeta: Math.round(ethCorrelation * 10000) / 10000,
-        });
-      } catch (e) {
-        console.error("ETH processing failed, skipping:", e);
-      }
-    }
 
     // Process each traditional benchmark
     for (const bm of benchmarks) {
