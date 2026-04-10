@@ -8,10 +8,59 @@ import {
   loadBenchmarkReturns,
   getAvailableBenchmarks,
   calcAssetMetrics,
+  type BenchmarkReturns,
 } from "@/lib/math/benchmarks";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/* ─── Yahoo Finance live fetch (JSON fallback on failure) ─── */
+
+const YAHOO_START = Math.floor(new Date("2021-02-28").getTime() / 1000);
+
+async function fetchYahooPrices(
+  ticker: string
+): Promise<{ date: string; close: number }[] | null> {
+  try {
+    const end = Math.floor(Date.now() / 1000);
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?period1=${YAHOO_START}&period2=${end}&interval=1d`;
+    const res = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+      next: { revalidate: 3600 }, // cache 1 hour
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const result = data.chart?.result?.[0];
+    if (!result?.timestamp) return null;
+
+    const timestamps: number[] = result.timestamp;
+    const closes: (number | null)[] = result.indicators.quote[0].close;
+    const prices: { date: string; close: number }[] = [];
+    for (let i = 0; i < timestamps.length; i++) {
+      if (closes[i] == null) continue;
+      const d = new Date(timestamps[i] * 1000).toISOString().split("T")[0];
+      prices.push({ date: d, close: Math.round(closes[i]! * 100) / 100 });
+    }
+    return prices.length > 100 ? prices : null;
+  } catch {
+    return null;
+  }
+}
+
+function pricesToBenchmarkReturns(
+  prices: { date: string; close: number }[]
+): BenchmarkReturns {
+  const dates: string[] = [];
+  const returns: number[] = [];
+  for (let i = 1; i < prices.length; i++) {
+    const prev = prices[i - 1].close;
+    dates.push(prices[i].date);
+    returns.push(prev === 0 ? 0 : (prices[i].close - prev) / prev);
+  }
+  return { dates, returns };
+}
+
+/* ─── Main handler ─── */
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -20,10 +69,13 @@ export async function GET() {
   }
 
   try {
-    // Fetch Rebeta daily returns + BTC prices in parallel
-    const [rebetaRows, btcData] = await Promise.all([
+    const benchmarks = getAvailableBenchmarks();
+
+    // Parallelize ALL I/O: DB + Bybit BTC + Yahoo (4 symbols)
+    const [rebetaRows, btcData, ...yahooPrices] = await Promise.all([
       getDailyReturns(),
       getDailyClosePrices("BTCUSDT", 400),
+      ...benchmarks.map((bm) => fetchYahooPrices(bm.symbol)),
     ]);
 
     if (rebetaRows.length < 2) {
@@ -52,8 +104,6 @@ export async function GET() {
     }
     const btcReturns = pricesToReturns(btcPricesAligned);
 
-    // Load all benchmarks
-    const benchmarks = getAvailableBenchmarks();
     const benchmarkResults: {
       symbol: string;
       name: string;
@@ -69,7 +119,7 @@ export async function GET() {
     const cumulativeCurves: Record<string, { date: string; value: number }[]> =
       {};
 
-    // Rebeta metrics (from daily_returns dailyReturn values)
+    // Rebeta metrics
     const rebetaMetrics = calcAssetMetrics(rebetaReturns, rebetaReturns.length);
 
     // Build Rebeta cumulative curve
@@ -97,14 +147,12 @@ export async function GET() {
     }
     cumulativeCurves["BTC"] = btcCumCurve;
 
-    // BTC correlation with Rebeta (align by date)
+    // BTC correlation with Rebeta
     const btcReturnsByDate = new Map<string, number>();
     const btcReturnDates = btcAlignedDates.slice(1);
     for (let i = 0; i < btcReturns.length; i++) {
       btcReturnsByDate.set(btcReturnDates[i], btcReturns[i]);
     }
-
-    // Aligned BTC-Rebeta correlation
     const alignedRebetaForBtc: number[] = [];
     const alignedBtcForRebeta: number[] = [];
     for (const date of rebetaDays) {
@@ -127,9 +175,14 @@ export async function GET() {
       correlationWithRebeta: Math.round(btcCorrelation * 10000) / 10000,
     });
 
-    // Process each traditional benchmark
-    for (const bm of benchmarks) {
-      const bmData = loadBenchmarkReturns(bm.symbol);
+    // Process each traditional benchmark: Yahoo live → JSON fallback
+    for (let idx = 0; idx < benchmarks.length; idx++) {
+      const bm = benchmarks[idx];
+      const yahoo = yahooPrices[idx] as { date: string; close: number }[] | null;
+      const bmData: BenchmarkReturns = yahoo
+        ? pricesToBenchmarkReturns(yahoo)
+        : loadBenchmarkReturns(bm.symbol);
+
       const bmMetrics = calcAssetMetrics(bmData.returns, bmData.returns.length);
 
       // Align benchmark returns with Rebeta returns by date
