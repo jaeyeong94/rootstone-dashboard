@@ -35,12 +35,19 @@ export async function GET(request: Request) {
     cutoffDate.setDate(cutoffDate.getDate() - period);
     const cutoff = cutoffDate.toISOString().split("T")[0];
 
-    // Fetch Rebeta daily returns + BTC/ETH prices in parallel
-    const [rebetaRows, btcData, ethData] = await Promise.all([
+    // Fetch Rebeta daily returns + BTC prices
+    const [rebetaRows, btcData] = await Promise.all([
       getDailyReturns({ from: cutoff }),
       getDailyClosePrices("BTCUSDT", period + 5),
-      getDailyClosePrices("ETHUSDT", period + 5),
     ]);
+
+    // ETH: fetch separately so failure doesn't block everything
+    let ethData: { time: string; close: number }[] = [];
+    try {
+      ethData = await getDailyClosePrices("ETHUSDT", period + 5);
+    } catch (e) {
+      console.error("ETH kline fetch failed in matrix, skipping:", e);
+    }
 
     // Build Rebeta return-by-date map
     const rebetaReturnsByDate = new Map<string, number>();
@@ -52,23 +59,26 @@ export async function GET(request: Request) {
     // BTC/ETH price-by-date maps
     const btcByDate = new Map(btcData.map((d) => [d.time, d.close]));
     const ethByDate = new Map(ethData.map((d) => [d.time, d.close]));
+    const hasEth = ethData.length > 0;
 
-    // Align BTC/ETH prices on Rebeta dates, then convert to returns
+    // Align BTC prices on Rebeta dates (ETH independently)
     const btcPricesAligned: number[] = [];
     const ethPricesAligned: number[] = [];
     const commonPriceDates: string[] = [];
     for (const day of rebetaDays) {
       const btcClose = btcByDate.get(day);
-      const ethClose = ethByDate.get(day);
-      if (btcClose !== undefined && ethClose !== undefined) {
+      if (btcClose !== undefined) {
         btcPricesAligned.push(btcClose);
-        ethPricesAligned.push(ethClose);
+        if (hasEth) {
+          const ethClose = ethByDate.get(day);
+          ethPricesAligned.push(ethClose ?? btcClose); // fallback to prevent misalignment
+        }
         commonPriceDates.push(day);
       }
     }
 
     const btcReturns = pricesToReturns(btcPricesAligned);
-    const ethReturns = pricesToReturns(ethPricesAligned);
+    const ethReturns = hasEth ? pricesToReturns(ethPricesAligned) : [];
     const returnDates = commonPriceDates.slice(1);
 
     // Build return-by-date maps for BTC/ETH
@@ -76,12 +86,14 @@ export async function GET(request: Request) {
     const ethReturnsByDate = new Map<string, number>();
     for (let i = 0; i < returnDates.length; i++) {
       btcReturnsByDate.set(returnDates[i], btcReturns[i]);
-      ethReturnsByDate.set(returnDates[i], ethReturns[i]);
+      if (hasEth && ethReturns[i] !== undefined) {
+        ethReturnsByDate.set(returnDates[i], ethReturns[i]);
+      }
     }
 
     // Load benchmark returns and align to common dates
     const benchmarks = getAvailableBenchmarks();
-    const assetNames: string[] = ["Rebeta", "BTC", "ETH"];
+    const assetNames: string[] = hasEth ? ["Rebeta", "BTC", "ETH"] : ["Rebeta", "BTC"];
 
     const benchmarkReturnMaps: Map<string, number>[] = [];
     for (const bm of benchmarks) {
@@ -114,14 +126,16 @@ export async function GET(request: Request) {
     for (const date of allCommonDates) {
       alignedRebeta.push(rebetaReturnsByDate.get(date)!);
       alignedBtc.push(btcReturnsByDate.get(date)!);
-      alignedEth.push(ethReturnsByDate.get(date)!);
+      if (hasEth) alignedEth.push(ethReturnsByDate.get(date) ?? 0);
       for (let i = 0; i < benchmarks.length; i++) {
         alignedBenchmarks[i].push(benchmarkReturnMaps[i].get(date)!);
       }
     }
 
     const allReturnsSeries: number[][] = [];
-    allReturnsSeries.push(alignedRebeta, alignedBtc, alignedEth, ...alignedBenchmarks);
+    allReturnsSeries.push(alignedRebeta, alignedBtc);
+    if (hasEth) allReturnsSeries.push(alignedEth);
+    allReturnsSeries.push(...alignedBenchmarks);
 
     // Full NxN correlation matrix
     const matrix = correlationMatrix(allReturnsSeries);
@@ -136,10 +150,12 @@ export async function GET(request: Request) {
         key: "BTC",
         data: rollingCorrelation(alignedRebeta, alignedBtc, allCommonDates, window),
       });
-      rollingAssets.push({
-        key: "ETH",
-        data: rollingCorrelation(alignedRebeta, alignedEth, allCommonDates, window),
-      });
+      if (hasEth && alignedEth.length > 0) {
+        rollingAssets.push({
+          key: "ETH",
+          data: rollingCorrelation(alignedRebeta, alignedEth, allCommonDates, window),
+        });
+      }
       for (let i = 0; i < benchmarks.length; i++) {
         rollingAssets.push({
           key: benchmarks[i].symbol,
