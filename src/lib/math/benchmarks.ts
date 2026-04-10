@@ -4,7 +4,6 @@
  */
 
 import benchmarkData from "@/data/benchmarks.json";
-import { ANNUALIZATION_DAYS, CALENDAR_DAYS_PER_YEAR, RISK_FREE_RATE } from "@/lib/constants";
 
 type BenchmarkEntry = {
   name: string;
@@ -82,7 +81,7 @@ export function calcAssetMetrics(
   returns: number[],
   totalDays: number
 ): AssetMetrics {
-  if (returns.length < 2 || totalDays === 0) {
+  if (returns.length === 0 || totalDays === 0) {
     return {
       cumulativeReturn: 0,
       cagr: 0,
@@ -100,20 +99,19 @@ export function calcAssetMetrics(
   const cumulativeReturn = cumProduct - 1;
 
   // CAGR
-  const years = totalDays / CALENDAR_DAYS_PER_YEAR;
+  const years = totalDays / 365.25;
   const cagr = years > 0 ? Math.pow(cumProduct, 1 / years) - 1 : 0;
 
-  // Annualized volatility (crypto trades 24/7)
+  // Annualized volatility (365 calendar days — crypto trades 24/7)
   const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
   const variance =
     returns.reduce((sum, r) => sum + (r - mean) ** 2, 0) /
     (returns.length - 1);
-  const volatility = Math.sqrt(variance) * Math.sqrt(ANNUALIZATION_DAYS);
+  const volatility = Math.sqrt(variance) * Math.sqrt(365);
 
-  // Sharpe ratio: (dailyMean / dailyStd) × √365 — utils.calcSharpeRatio과 동일 공식
-  const dailyExcess = mean - RISK_FREE_RATE;
-  const dailyStd = Math.sqrt(variance);
-  const sharpe = dailyStd > 0 ? (dailyExcess / dailyStd) * Math.sqrt(ANNUALIZATION_DAYS) : 0;
+  // Sharpe ratio (assuming risk-free rate ~0 for simplicity)
+  const annualizedReturn = cagr;
+  const sharpe = volatility > 0 ? annualizedReturn / volatility : 0;
 
   // Max drawdown
   let peak = 1;

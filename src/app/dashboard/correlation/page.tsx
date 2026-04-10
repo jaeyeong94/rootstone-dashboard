@@ -2,8 +2,7 @@
 
 import { Header } from "@/components/layout/Header";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
-import useSWR from "swr";
+import { useState, useEffect } from "react";
 import {
   LineChart,
   Line,
@@ -28,6 +27,17 @@ interface MatrixData {
   rollingKeys: string[];
 }
 
+interface FrontierData {
+  frontier: {
+    btcWeight: number;
+    rebetaWeight: number;
+    expectedReturn: number;
+    volatility: number;
+    sharpe: number;
+  }[];
+  optimal: { btcWeight: number; rebetaWeight: number };
+  days: number;
+}
 
 interface BenchmarkAsset {
   symbol: string;
@@ -51,24 +61,16 @@ interface BenchmarkData {
    Helpers
    ═══════════════════════════════════════════════════════════════ */
 
-/** Continuous heatmap color based on correlation value (-1 ~ +1) */
-function getHeatmapStyle(value: number): { backgroundColor: string } {
-  const abs = Math.abs(value);
-  // Stronger opacity for stronger correlation
-  const alpha = Math.round(abs * 0.7 * 100) / 100;
-
-  if (value > 0) {
-    // Positive: warm red/orange
-    return { backgroundColor: `rgba(239, 68, 68, ${alpha})` };
-  } else if (value < 0) {
-    // Negative: cool blue
-    return { backgroundColor: `rgba(59, 130, 246, ${alpha})` };
-  }
-  return { backgroundColor: "transparent" };
+function getCorrelationColor(value: number): string {
+  if (value >= 0.7) return "bg-pnl-negative/60";
+  if (value >= 0.3) return "bg-pnl-negative/30";
+  if (value > -0.3) return "bg-bg-elevated";
+  if (value > -0.7) return "bg-blue-500/30";
+  return "bg-blue-500/60";
 }
 
 function getCorrelationTextColor(value: number): string {
-  if (Math.abs(value) >= 0.5) return "text-white font-semibold";
+  if (Math.abs(value) >= 0.7) return "text-text-primary font-semibold";
   if (Math.abs(value) >= 0.3) return "text-text-primary";
   return "text-text-secondary";
 }
@@ -84,7 +86,7 @@ const BENCHMARK_COLORS: Record<string, string> = {
   SPY: "#4A90D9",
   QQQ: "#7B68EE",
   GLD: "#DAA520",
-  TLT: "#20B2AA",
+  IEF: "#20B2AA",
 };
 
 const ROLLING_COLORS: Record<string, string> = {
@@ -93,7 +95,7 @@ const ROLLING_COLORS: Record<string, string> = {
   SPY: "#4A90D9",
   QQQ: "#7B68EE",
   GLD: "#DAA520",
-  TLT: "#20B2AA",
+  IEF: "#20B2AA",
 };
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -117,8 +119,8 @@ function CorrelationCell({
 }) {
   if (isDiagonal) {
     return (
-      <div className="flex h-14 w-full items-center justify-center rounded-sm bg-bg-elevated/80 border border-border-subtle">
-        <span className="font-[family-name:var(--font-mono)] text-sm text-bronze font-semibold">
+      <div className="flex h-12 w-full items-center justify-center rounded-sm bg-bg-elevated border border-border-subtle">
+        <span className="font-[family-name:var(--font-mono)] text-xs text-bronze">
           1.00
         </span>
       </div>
@@ -127,17 +129,26 @@ function CorrelationCell({
 
   return (
     <div
-      className="flex h-14 w-full items-center justify-center rounded-sm border border-border-subtle/50 transition-colors"
-      style={getHeatmapStyle(value)}
+      className={cn(
+        "flex h-12 w-full flex-col items-center justify-center rounded-sm border border-border-subtle transition-colors",
+        getCorrelationColor(value)
+      )}
     >
       <span
         className={cn(
-          "font-[family-name:var(--font-mono)] text-sm",
+          "font-[family-name:var(--font-mono)] text-xs",
           getCorrelationTextColor(value)
         )}
       >
         {value >= 0 ? "+" : ""}
         {value.toFixed(2)}
+      </span>
+      <span className="mt-0.5 text-[8px] uppercase tracking-[0.5px] text-text-muted">
+        {Math.abs(value) >= 0.7
+          ? "strong"
+          : Math.abs(value) >= 0.3
+            ? "mod"
+            : "weak"}
       </span>
     </div>
   );
@@ -158,27 +169,74 @@ const PERIOD_TABS: { key: Period; label: string }[] = [
   { key: "365", label: "365D" },
 ];
 
-const swrFetcher = (url: string) => fetch(url).then((r) => r.json());
-
 export default function CorrelationPage() {
   const [period, setPeriod] = useState<Period>("90");
+  const [matrixData, setMatrixData] = useState<MatrixData | null>(null);
+  const [matrixLoading, setMatrixLoading] = useState(true);
+  const [matrixError, setMatrixError] = useState<string | null>(null);
 
-  // Matrix: period 변경 시 + 1시간마다 자동 갱신
-  const { data: matrixData, isLoading: matrixLoading, error: matrixError } = useSWR<MatrixData>(
-    `/api/correlation/matrix?period=${period}`,
-    swrFetcher,
-    { refreshInterval: 3600000 }
-  );
+  const [frontierData, setFrontierData] = useState<FrontierData | null>(null);
+  const [frontierLoading, setFrontierLoading] = useState(true);
 
-  // Benchmarks: 1시간마다 자동 갱신
-  const { data: benchmarkData, isLoading: benchmarkLoading } = useSWR<BenchmarkData>(
-    "/api/correlation/benchmarks",
-    swrFetcher,
-    { refreshInterval: 3600000 }
-  );
+  const [benchmarkData, setBenchmarkData] = useState<BenchmarkData | null>(null);
+  const [benchmarkLoading, setBenchmarkLoading] = useState(true);
+
+  // Fetch correlation matrix when period changes
+  useEffect(() => {
+    setMatrixLoading(true);
+    setMatrixError(null);
+    fetch(`/api/correlation/matrix?period=${period}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.error) throw new Error(data.error);
+        setMatrixData(data);
+      })
+      .catch((e) => setMatrixError(e.message))
+      .finally(() => setMatrixLoading(false));
+  }, [period]);
+
+  // Fetch efficient frontier + benchmarks once
+  useEffect(() => {
+    setFrontierLoading(true);
+    fetch("/api/correlation/frontier?period=365")
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data.error) setFrontierData(data);
+      })
+      .catch(() => {})
+      .finally(() => setFrontierLoading(false));
+
+    setBenchmarkLoading(true);
+    fetch("/api/correlation/benchmarks")
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data.error) setBenchmarkData(data);
+      })
+      .catch(() => {})
+      .finally(() => setBenchmarkLoading(false));
+  }, []);
 
   const assets = matrixData?.assets ?? ["Rebeta", "BTC", "ETH"];
   const matrix = matrixData?.matrix ?? null;
+
+  const optimal = frontierData?.optimal;
+
+  /* ─ Insight text ─ */
+  function buildInsightText(): string {
+    if (!frontierData?.optimal || !matrixData) return "";
+    const { btcWeight: optBtc, rebetaWeight: optRebeta } = frontierData.optimal;
+    const rebetaBtcCorr = matrixData.matrix[0]?.[1] ?? 0;
+    const corrDesc =
+      Math.abs(rebetaBtcCorr) < 0.3
+        ? "near-zero correlation"
+        : Math.abs(rebetaBtcCorr) < 0.6
+          ? "low correlation"
+          : "moderate correlation";
+
+    return `Based on ${frontierData.days}-day historical data, the optimal Sharpe allocation is ${optBtc}% BTC / ${optRebeta}% Rebeta. ` +
+      `Rebeta's ${corrDesc} with BTC (${rebetaBtcCorr >= 0 ? "+" : ""}${rebetaBtcCorr.toFixed(2)}) means blending the two assets ` +
+      `reduces portfolio volatility without proportionally reducing returns, improving the risk-adjusted outcome.`;
+  }
 
   return (
     <div>
@@ -215,7 +273,7 @@ export default function CorrelationPage() {
               </div>
             ) : matrixError ? (
               <div className="flex items-center justify-center h-40 text-pnl-negative text-sm">
-                {matrixError instanceof Error ? matrixError.message : "Failed to load"}
+                {matrixError}
               </div>
             ) : matrix ? (
               <div className="overflow-x-auto">
@@ -257,16 +315,28 @@ export default function CorrelationPage() {
                   ))}
                 </div>
 
-                {/* Gradient Legend */}
-                <div className="mt-4 flex items-center justify-center gap-3 text-[10px] text-text-muted">
-                  <span>-1.0</span>
-                  <div
-                    className="h-3 w-40 rounded-sm"
-                    style={{
-                      background: "linear-gradient(to right, rgba(59,130,246,0.7), rgba(59,130,246,0.3), transparent, rgba(239,68,68,0.3), rgba(239,68,68,0.7))",
-                    }}
-                  />
-                  <span>+1.0</span>
+                {/* Legend */}
+                <div className="mt-4 flex items-center justify-center gap-4 text-[10px] text-text-muted flex-wrap">
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-block h-3 w-3 rounded-sm bg-blue-500/60" />
+                    Strong neg (&lt;-0.7)
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-block h-3 w-3 rounded-sm bg-blue-500/30" />
+                    Mod neg
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-block h-3 w-3 rounded-sm bg-bg-elevated border border-border-subtle" />
+                    Near zero
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-block h-3 w-3 rounded-sm bg-pnl-negative/30" />
+                    Mod pos
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-block h-3 w-3 rounded-sm bg-pnl-negative/60" />
+                    Strong pos (&gt;0.7)
+                  </span>
                 </div>
               </div>
             ) : null}
@@ -405,16 +475,16 @@ export default function CorrelationPage() {
                         <td className="px-4 py-2.5 text-right font-[family-name:var(--font-mono)] text-gold">
                           {formatPct(benchmarkData.rebeta.cagr)}
                         </td>
-                        <td className="px-4 py-2.5 text-right font-[family-name:var(--font-mono)] text-gold">
+                        <td className="px-4 py-2.5 text-right font-[family-name:var(--font-mono)] text-text-primary">
                           {formatPct(benchmarkData.rebeta.volatility)}
                         </td>
-                        <td className="px-4 py-2.5 text-right font-[family-name:var(--font-mono)] text-gold">
+                        <td className="px-4 py-2.5 text-right font-[family-name:var(--font-mono)] text-text-primary">
                           {benchmarkData.rebeta.sharpe.toFixed(2)}
                         </td>
-                        <td className="px-4 py-2.5 text-right font-[family-name:var(--font-mono)] text-gold">
+                        <td className="px-4 py-2.5 text-right font-[family-name:var(--font-mono)] text-pnl-negative">
                           {formatPct(benchmarkData.rebeta.maxDrawdown)}
                         </td>
-                        <td className="px-4 py-2.5 text-right font-[family-name:var(--font-mono)] text-gold">
+                        <td className="px-4 py-2.5 text-right font-[family-name:var(--font-mono)] text-bronze">
                           1.00
                         </td>
                       </tr>
@@ -523,7 +593,6 @@ export default function CorrelationPage() {
                         stroke="#C5A049"
                         strokeWidth={2.5}
                         dot={false}
-                        connectNulls
                         name="Rebeta"
                       />
                     )}
@@ -536,7 +605,6 @@ export default function CorrelationPage() {
                         stroke="#F7931A"
                         strokeWidth={1.5}
                         dot={false}
-                        connectNulls
                         name="BTC"
                         strokeDasharray="4 2"
                       />
@@ -553,7 +621,6 @@ export default function CorrelationPage() {
                           stroke={BENCHMARK_COLORS[symbol] ?? "#666"}
                           strokeWidth={1}
                           dot={false}
-                          connectNulls
                           name={symbol}
                           strokeOpacity={0.7}
                         />
@@ -592,6 +659,79 @@ export default function CorrelationPage() {
           ) : null}
         </section>
 
+        {/* ── D. Key Insights Panel ── */}
+        <section>
+          <SectionLabel>Key Insights</SectionLabel>
+          <div className="mt-3 space-y-3">
+            {/* Optimal allocation insight */}
+            {!frontierLoading && frontierData && (
+              <div className="rounded-sm border-l-2 border-gold bg-bg-elevated px-5 py-4">
+                <span className="text-[10px] font-medium uppercase tracking-[2px] text-gold">
+                  Optimal Allocation
+                </span>
+                <p className="mt-1 text-xs leading-relaxed text-text-secondary">
+                  {buildInsightText()}
+                </p>
+              </div>
+            )}
+
+            {/* Frontier summary cards */}
+            {!frontierLoading && frontierData && frontierData.frontier.length > 0 && (
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  frontierData.frontier.find((p) => p.btcWeight === 0) ?? frontierData.frontier[0],
+                  frontierData.frontier.find((p) => p.btcWeight === frontierData.optimal.btcWeight) ?? frontierData.frontier[Math.floor(frontierData.frontier.length / 2)],
+                  frontierData.frontier.find((p) => p.btcWeight === 100) ?? frontierData.frontier[frontierData.frontier.length - 1],
+                ].map((pt, idx) => {
+                  const labels = ["Pure Rebeta", `${pt.rebetaWeight}/${pt.btcWeight} Mix`, "Pure BTC"];
+                  const colors = ["text-gold", "text-bronze", "text-text-muted"];
+                  return (
+                    <div
+                      key={idx}
+                      className="rounded-sm border border-border-subtle bg-bg-card p-4"
+                    >
+                      <div className={cn("text-[10px] uppercase tracking-[1px] mb-2", colors[idx])}>
+                        {labels[idx]}
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-text-muted">Sharpe</span>
+                          <span className="font-[family-name:var(--font-mono)] text-text-primary">
+                            {pt.sharpe.toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-text-muted">CAGR</span>
+                          <span className="font-[family-name:var(--font-mono)] text-text-primary">
+                            {formatPct(pt.expectedReturn)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-text-muted">Volatility</span>
+                          <span className="font-[family-name:var(--font-mono)] text-text-primary">
+                            {formatPct(pt.volatility)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Static structural insight */}
+            <div className="rounded-sm border-l-2 border-bronze bg-bg-elevated px-5 py-4">
+              <span className="text-[10px] font-medium uppercase tracking-[2px] text-bronze">
+                Structural Independence
+              </span>
+              <p className="mt-1 text-xs leading-relaxed text-text-secondary">
+                Rebeta&apos;s mean-reversion strategy generates returns orthogonal to directional BTC
+                exposure. Its low beta and near-zero market correlation make it a natural
+                complement in a crypto portfolio, reducing drawdown duration without sacrificing upside.
+              </p>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   );
