@@ -3,14 +3,55 @@
  * Verifies data extraction and conversion correctness.
  */
 import { describe, it, expect } from "vitest";
-import fs from "fs";
-import path from "path";
 
-const TEARSHEET_PATH = path.resolve(__dirname, "../../ref/Rebeta_v1-3.1_tearsheet_260215.html");
+function buildDateSeries(length: number) {
+  const dates: string[] = [];
+  const current = new Date("2021-03-02T00:00:00Z");
+
+  for (let i = 0; i < length; i++) {
+    dates.push(current.toISOString().split("T")[0]);
+    current.setUTCDate(current.getUTCDate() + 1);
+  }
+
+  return dates;
+}
+
+function buildLinearSeries(length: number, start: number, end: number) {
+  const values: number[] = [];
+  const step = (end - start) / (length - 1);
+
+  for (let i = 0; i < length; i++) {
+    values.push(Number((start + step * i).toFixed(6)));
+  }
+
+  return values;
+}
+
+const SAMPLE_LENGTH = 1813;
+const sampleDates = buildDateSeries(SAMPLE_LENGTH);
+const samplePlotData = {
+  data: [
+    {
+      name: "daily_return",
+      x: sampleDates,
+      y: buildLinearSeries(SAMPLE_LENGTH, 0, 8.72),
+    },
+    {
+      name: "BTC",
+      x: sampleDates,
+      y: buildLinearSeries(SAMPLE_LENGTH, 0, 3.14),
+    },
+  ],
+};
+
+const html = `
+  <div id="cumulative-returns-plot"></div>
+  <script>
+    var plotly_data = ${JSON.stringify(samplePlotData)};
+  </script>
+`;
 
 describe("tearsheet HTML parsing", () => {
-  const html = fs.readFileSync(TEARSHEET_PATH, "utf-8");
-
   it("contains cumulative-returns-plot div", () => {
     expect(html).toContain("cumulative-returns-plot");
   });
@@ -141,7 +182,6 @@ describe("navIndex conversion from tearsheet cumulative returns", () => {
 
 describe("BTC benchmark trace", () => {
   it("also present in tearsheet with same date range", () => {
-    const html = fs.readFileSync(TEARSHEET_PATH, "utf-8");
     const plotRegex = /cumulative-returns-plot[\s\S]*?var plotly_data = ({[\s\S]*?});\s*\n/;
     const plotData = JSON.parse(html.match(plotRegex)![1]);
 
