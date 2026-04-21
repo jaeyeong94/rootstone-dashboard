@@ -168,7 +168,15 @@ jobs:
 
           sudo systemctl is-active --quiet rootstone-dashboard.service
 
-          login_code="$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/login)"
+          login_code=""
+          for attempt in {1..30}; do
+            login_code="$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/login || true)"
+            if [[ "${login_code}" == "200" ]]; then
+              break
+            fi
+            sleep 1
+          done
+
           if [[ "${login_code}" != "200" ]]; then
             echo "Expected /login -> 200, got ${login_code}" >&2
             exit 1
