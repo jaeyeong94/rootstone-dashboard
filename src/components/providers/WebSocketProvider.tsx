@@ -11,7 +11,7 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 /**
  * Server-side REST polling provider.
- * Replaces direct client→Bybit WebSocket with Vercel API proxy.
+ * Replaces direct client→Bybit WebSocket with a server-side REST proxy.
  * Ensures all clients work regardless of geo-restriction.
  */
 function DataPollingProvider({ children }: { children: React.ReactNode }) {

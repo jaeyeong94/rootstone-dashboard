@@ -14,7 +14,9 @@
     "dev": "next dev --turbopack",
     "dev:clean": "rm -rf .next && next dev --turbopack",
     "build": "next build",
+    "build:standalone": "next build && node scripts/prepare-standalone.mjs",
     "start": "next start",
+    "start:standalone": "node .next/standalone/server.js",
     "lint": "next lint",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
@@ -23,7 +25,6 @@
     "test:run": "vitest run"
   },
   "dependencies": {
-    "@neondatabase/serverless": "~0.10.4",
     "agentation": "^2.3.2",
     "bcryptjs": "^2.4.3",
     "class-variance-authority": "^0.7.0",
@@ -34,6 +35,7 @@
     "nanoid": "^5.0.0",
     "next": "^15.2.0",
     "next-auth": "^4.24.0",
+    "pg": "^8.20.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "recharts": "^3.8.0",
@@ -48,6 +50,7 @@
     "@testing-library/react": "^16.0.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22.0.0",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.0.0",

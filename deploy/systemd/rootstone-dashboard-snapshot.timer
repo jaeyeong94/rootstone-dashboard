@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Rootstone Dashboard snapshot cron daily
+
+[Timer]
+OnCalendar=*-*-* 00:00:00 UTC
+Persistent=true
+Unit=rootstone-dashboard-snapshot.service
+
+[Install]
+WantedBy=timers.target

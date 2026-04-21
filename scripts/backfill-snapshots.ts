@@ -2,16 +2,15 @@
  * Backfill balance_snapshots from Bybit transaction-log API.
  *
  * Fetches transaction logs in 7-day windows (API limit),
- * extracts daily cashBalance, inserts into Neon PostgreSQL.
+ * extracts daily cashBalance, inserts into PostgreSQL.
  *
  * Usage: npx tsx scripts/backfill-snapshots.ts
  */
 
 import crypto from "crypto";
-import { neon } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-http";
 import { balanceSnapshots } from "../src/lib/db/schema";
 import { sql } from "drizzle-orm";
+import { closeDb, getDb } from "../src/lib/db";
 
 const BASE_URL = "https://api.bybit.com";
 const RECV_WINDOW = "5000";
@@ -132,8 +131,7 @@ async function main() {
   console.log(`Date range: ${days[0]?.[0]} ~ ${days[days.length - 1]?.[0]}\n`);
 
   // 3. Clear existing snapshots and insert fresh
-  const pgSql = neon(process.env.POSTGRES_URL || "");
-  const db = drizzle(pgSql);
+  const db = getDb();
 
   await db.delete(balanceSnapshots);
   console.log("Cleared existing snapshots");
@@ -166,10 +164,12 @@ async function main() {
   }
 
   console.log("\nDone!");
+  await closeDb();
   process.exit(0);
 }
 
-main().catch((e) => {
+main().catch(async (e) => {
   console.error("Error:", e);
+  await closeDb().catch(() => undefined);
   process.exit(1);
 });

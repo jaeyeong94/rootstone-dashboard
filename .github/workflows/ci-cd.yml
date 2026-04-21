@@ -1,0 +1,190 @@
+name: CI / CD
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: rootstone-dashboard-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NEXT_TELEMETRY_DISABLED: 1
+  DEPLOY_PATH: /home/ubuntu/rootstone-dashboard
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      BYBIT_API_KEY: ci-bybit-key
+      BYBIT_API_SECRET: ci-bybit-secret
+      NEXTAUTH_URL: http://127.0.0.1:3000
+      NEXTAUTH_SECRET: ci-nextauth-secret
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/rootstone?sslmode=require
+      CRON_SECRET: ci-cron-secret
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Unit tests
+        run: pnpm test:run
+
+      - name: Build standalone
+        run: pnpm build:standalone
+
+  deploy:
+    needs: verify
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Configure SSH
+        env:
+          LP_HOST: ${{ secrets.LP_HOST }}
+          LP_USER: ${{ secrets.LP_USER }}
+          LP_SSH_KEY: ${{ secrets.LP_SSH_KEY }}
+          LP_KNOWN_HOSTS: ${{ secrets.LP_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+
+          : "${LP_HOST:?LP_HOST secret is required}"
+          : "${LP_SSH_KEY:?LP_SSH_KEY secret is required}"
+          : "${LP_KNOWN_HOSTS:?LP_KNOWN_HOSTS secret is required}"
+
+          DEPLOY_USER="${LP_USER:-ubuntu}"
+
+          mkdir -p ~/.ssh
+          printf '%s\n' "${LP_SSH_KEY}" > ~/.ssh/lp_deploy
+          chmod 600 ~/.ssh/lp_deploy
+          printf '%s\n' "${LP_KNOWN_HOSTS}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+          cat > ~/.ssh/config <<EOF
+          Host lp
+            HostName ${LP_HOST}
+            User ${DEPLOY_USER}
+            IdentityFile ~/.ssh/lp_deploy
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+          EOF
+
+      - name: Upload production env
+        env:
+          LP_ENV_FILE: ${{ secrets.LP_ENV_FILE }}
+        run: |
+          set -euo pipefail
+
+          : "${LP_ENV_FILE:?LP_ENV_FILE secret is required}"
+
+          env_file="$(mktemp)"
+          printf '%s\n' "${LP_ENV_FILE}" > "${env_file}"
+          scp "${env_file}" lp:/tmp/rootstone-dashboard.env
+          rm -f "${env_file}"
+
+      - name: Deploy to lp
+        env:
+          REPO_SSH_URL: git@github.com:${{ github.repository }}.git
+          DEPLOY_PATH: /home/ubuntu/rootstone-dashboard
+        run: |
+          set -euo pipefail
+
+          ssh lp "REPO_SSH_URL='${REPO_SSH_URL}' DEPLOY_PATH='${DEPLOY_PATH}' bash -s" <<'EOF'
+          set -euo pipefail
+
+          dump_logs() {
+            echo "=== rootstone-dashboard journal ==="
+            sudo journalctl -u rootstone-dashboard -n 100 --no-pager || true
+          }
+
+          trap dump_logs ERR
+
+          if [[ ! -d "${DEPLOY_PATH}/.git" ]]; then
+            git clone "${REPO_SSH_URL}" "${DEPLOY_PATH}"
+          fi
+
+          cd "${DEPLOY_PATH}"
+          git fetch origin
+          git reset --hard origin/main
+
+          install -m 600 /tmp/rootstone-dashboard.env "${DEPLOY_PATH}/.env"
+          rm -f /tmp/rootstone-dashboard.env
+
+          mkdir -p certs
+          curl --fail --silent --show-error --location \
+            https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem \
+            --output certs/global-bundle.pem
+
+          export NVM_DIR="${HOME}/.nvm"
+          . "${NVM_DIR}/nvm.sh"
+
+          node -v
+          pnpm -v
+
+          pnpm install --frozen-lockfile
+          pnpm db:push
+          pnpm build:standalone
+
+          sudo install -m 644 deploy/systemd/rootstone-dashboard.service /etc/systemd/system/rootstone-dashboard.service
+          sudo install -m 644 deploy/systemd/rootstone-dashboard-snapshot.service /etc/systemd/system/rootstone-dashboard-snapshot.service
+          sudo install -m 644 deploy/systemd/rootstone-dashboard-snapshot.timer /etc/systemd/system/rootstone-dashboard-snapshot.timer
+          sudo install -m 644 deploy/systemd/rootstone-dashboard-daily-nav.service /etc/systemd/system/rootstone-dashboard-daily-nav.service
+          sudo install -m 644 deploy/systemd/rootstone-dashboard-daily-nav.timer /etc/systemd/system/rootstone-dashboard-daily-nav.timer
+          sudo install -m 644 deploy/systemd/rootstone-dashboard-margin-util.service /etc/systemd/system/rootstone-dashboard-margin-util.service
+          sudo install -m 644 deploy/systemd/rootstone-dashboard-margin-util.timer /etc/systemd/system/rootstone-dashboard-margin-util.timer
+          sudo install -m 644 deploy/systemd/rootstone-dashboard-update-benchmarks.service /etc/systemd/system/rootstone-dashboard-update-benchmarks.service
+          sudo install -m 644 deploy/systemd/rootstone-dashboard-update-benchmarks.timer /etc/systemd/system/rootstone-dashboard-update-benchmarks.timer
+
+          sudo systemctl daemon-reload
+          sudo systemctl enable --now rootstone-dashboard.service
+          sudo systemctl enable --now rootstone-dashboard-snapshot.timer
+          sudo systemctl enable --now rootstone-dashboard-daily-nav.timer
+          sudo systemctl enable --now rootstone-dashboard-margin-util.timer
+          sudo systemctl enable --now rootstone-dashboard-update-benchmarks.timer
+          sudo systemctl restart rootstone-dashboard.service
+
+          sudo systemctl is-active --quiet rootstone-dashboard.service
+
+          login_code="$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/login)"
+          if [[ "${login_code}" != "200" ]]; then
+            echo "Expected /login -> 200, got ${login_code}" >&2
+            exit 1
+          fi
+
+          dashboard_code="$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/dashboard)"
+          if [[ "${dashboard_code}" != "302" && "${dashboard_code}" != "307" ]]; then
+            echo "Expected /dashboard -> 302 or 307, got ${dashboard_code}" >&2
+            exit 1
+          fi
+
+          cron_code="$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/cron/snapshot)"
+          if [[ "${cron_code}" != "401" ]]; then
+            echo "Expected /api/cron/snapshot -> 401, got ${cron_code}" >&2
+            exit 1
+          fi
+
+          sudo systemctl list-timers --all | grep 'rootstone-dashboard-'
+          EOF

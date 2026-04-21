@@ -1,5 +1,7 @@
 # Rootstone Dashboard - Technical Architecture
 
+> Current deployment target is AWS EC2 + AWS RDS. See `docs/DEPLOY_AWS_EC2_RDS.md` for the authoritative migration and runbook.
+
 ## 1. Tech Stack
 
 | Layer | Technology |
@@ -10,16 +12,16 @@
 | **Charts** | Lightweight Charts (TradingView) or Recharts |
 | **State** | Zustand (client state) + SWR (server state) |
 | **Auth** | NextAuth.js + Credentials Provider (ID/PW) |
-| **DB** | SQLite (better-sqlite3) → 추후 PostgreSQL 전환 가능 |
+| **DB** | PostgreSQL (AWS RDS) |
 | **ORM** | Drizzle ORM |
 | **WebSocket** | Bybit WebSocket API (서버 프록시) |
-| **Deploy** | Vercel |
+| **Deploy** | AWS EC2 + systemd + Nginx |
 | **Language** | TypeScript |
 
 ### 왜 이 선택인가
 
-- **NextAuth.js + Credentials**: ID/PW 로그인에 가장 간단. JWT 세션으로 Vercel 서버리스 호환.
-- **SQLite**: 소수 사용자(~10명 이하) 관리엔 충분. Vercel에서도 Turso/LibSQL 등으로 서버리스 SQLite 사용 가능. PostgreSQL 없이 빠르게 시작.
+- **NextAuth.js + Credentials**: 서버 단독 실행 환경에서도 단순하게 유지 가능. JWT 세션으로 EC2 배포와도 잘 맞음.
+- **PostgreSQL (RDS)**: EC2와 함께 운영하기 쉬우며, 백업/가용성/확장성 측면에서 운영형 대시보드에 더 적합함.
 - **Drizzle ORM**: 가볍고 타입 세이프. SQLite/PostgreSQL 양쪽 지원.
 - **Zustand**: WebSocket 실시간 데이터의 글로벌 스토어로 적합. Redux 대비 보일러플레이트 최소.
 - **shadcn/ui**: Tailwind 기반, 다크 테마 커스터마이징 자유도 높음.

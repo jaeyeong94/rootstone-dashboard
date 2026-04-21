@@ -1,12 +1,10 @@
-import { neon } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-http";
 import { users } from "./schema";
 import { hashSync } from "bcryptjs";
 import { nanoid } from "nanoid";
+import { closeDb, getDb } from "./index";
 
 async function seed() {
-  const sql = neon(process.env.POSTGRES_URL!);
-  const db = drizzle(sql);
+  const db = getDb();
 
   const password = process.env.ADMIN_PASSWORD || "changeme123!";
 
@@ -24,7 +22,12 @@ async function seed() {
 
   console.log(`Admin user created (username: admin, password: ${password === "changeme123!" ? "[default - CHANGE THIS]" : "[from env]"})`);
   console.log("Done!");
+  await closeDb();
   process.exit(0);
 }
 
-seed().catch(console.error);
+seed().catch(async (error) => {
+  console.error(error);
+  await closeDb().catch(() => undefined);
+  process.exit(1);
+});

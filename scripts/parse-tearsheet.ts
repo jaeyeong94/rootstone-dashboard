@@ -9,10 +9,9 @@
 
 import fs from "fs";
 import path from "path";
-import { neon } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-http";
 import { dailyReturns } from "../src/lib/db/schema";
 import { sql } from "drizzle-orm";
+import { closeDb, getDb } from "../src/lib/db";
 
 async function main() {
   console.log("=== Parsing tearsheet for daily returns ===\n");
@@ -62,8 +61,7 @@ async function main() {
   console.log(`Last:  ${rows[rows.length - 1].date} | navIndex=${rows[rows.length - 1].navIndex.toFixed(6)}\n`);
 
   // 5. Insert into DB
-  const pgSql = neon(process.env.POSTGRES_URL || "");
-  const db = drizzle(pgSql);
+  const db = getDb();
 
   const BATCH_SIZE = 100;
   let inserted = 0;
@@ -88,10 +86,12 @@ async function main() {
   const count = await db.select({ count: sql<number>`count(*)` }).from(dailyReturns);
   console.log(`Total rows in daily_returns: ${count[0].count}`);
 
+  await closeDb();
   process.exit(0);
 }
 
-main().catch((e) => {
+main().catch(async (e) => {
   console.error("Error:", e);
+  await closeDb().catch(() => undefined);
   process.exit(1);
 });

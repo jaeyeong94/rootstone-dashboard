@@ -1,0 +1,11 @@
+[Unit]
+Description=Rootstone Dashboard margin util cron
+After=rootstone-dashboard.service
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/rootstone-dashboard
+Environment=HOME=/home/ubuntu
+EnvironmentFile=/home/ubuntu/rootstone-dashboard/.env
+ExecStart=/usr/bin/env bash /home/ubuntu/rootstone-dashboard/deploy/scripts/run-cron-route.sh margin-util

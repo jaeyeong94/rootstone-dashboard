@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Rootstone Dashboard margin util cron
+
+[Timer]
+OnCalendar=*-*-* 00:15:00 UTC
+Persistent=true
+Unit=rootstone-dashboard-margin-util.service
+
+[Install]
+WantedBy=timers.target

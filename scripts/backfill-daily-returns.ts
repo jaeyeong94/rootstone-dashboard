@@ -10,16 +10,14 @@
  * Usage: npx tsx scripts/backfill-daily-returns.ts
  */
 
-import { neon } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-http";
 import { balanceSnapshots, dailyReturns } from "../src/lib/db/schema";
 import { desc, asc, sql, gte, eq } from "drizzle-orm";
+import { closeDb, getDb } from "../src/lib/db";
 
 async function main() {
   console.log("=== Backfilling daily returns from balance snapshots ===\n");
 
-  const pgSql = neon(process.env.POSTGRES_URL || "");
-  const db = drizzle(pgSql);
+  const db = getDb();
 
   // 1. Get the last tearsheet entry to chain navIndex
   const lastTearsheetRows = await db
@@ -131,10 +129,12 @@ async function main() {
   const count = await db.select({ count: sql<number>`count(*)` }).from(dailyReturns);
   console.log(`\nTotal rows in daily_returns: ${count[0].count}`);
 
+  await closeDb();
   process.exit(0);
 }
 
-main().catch((e) => {
+main().catch(async (e) => {
   console.error("Error:", e);
+  await closeDb().catch(() => undefined);
   process.exit(1);
 });

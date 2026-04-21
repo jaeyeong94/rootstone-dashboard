@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Rootstone Dashboard daily NAV cron
+
+[Timer]
+OnCalendar=*-*-* 00:05:00 UTC
+Persistent=true
+Unit=rootstone-dashboard-daily-nav.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Rootstone Dashboard benchmark refresh cron
+
+[Timer]
+OnCalendar=*-*-* 00:30:00 UTC
+Persistent=true
+Unit=rootstone-dashboard-update-benchmarks.service
+
+[Install]
+WantedBy=timers.target
