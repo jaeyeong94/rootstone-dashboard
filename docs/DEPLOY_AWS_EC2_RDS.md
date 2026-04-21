@@ -7,6 +7,7 @@
 - 제품 로직과 API contract는 유지한다.
 - Next.js 앱은 EC2에서 `standalone` 산출물로 실행한다.
 - DB는 `DATABASE_URL` 기반 PostgreSQL 연결로 통일한다.
+- 앱 프로세스는 `PM2`로 관리한다.
 - 기존 Vercel cron 스케줄은 EC2 `systemd timer`로 대체한다.
 
 ## 1. 필수 환경변수
@@ -57,31 +58,31 @@ pnpm build:standalone
 - 앱 서버: `.next/standalone/server.js`
 - 정적 파일 포함 위치: `.next/standalone/public`, `.next/standalone/.next/static`
 
-## 4. systemd 앱 서비스
+## 4. PM2 앱 프로세스
 
-기본 유닛 파일:
+기본 프로세스 설정:
 
-- `deploy/systemd/rootstone-dashboard.service`
+- `ecosystem.config.cjs`
 
-설치 전 아래 값을 환경에 맞게 수정한다.
+전제:
 
-- `User`
-- `WorkingDirectory`
-- `EnvironmentFile`
+- 서버에 `pm2-ubuntu.service` 가 이미 있거나 `pm2 startup systemd -u ubuntu --hp /home/ubuntu` 로 부팅 연동을 끝낸다.
+- `.env` 는 `/home/ubuntu/rootstone-dashboard/.env` 에 둔다.
 - Node 경로는 `/home/ubuntu/.nvm/nvm.sh` 기준이다.
 
-설치:
+실행:
 
 ```bash
-sudo cp deploy/systemd/rootstone-dashboard.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now rootstone-dashboard
-sudo systemctl status rootstone-dashboard
+export NVM_DIR="$HOME/.nvm"
+. "$NVM_DIR/nvm.sh"
+pm2 start ecosystem.config.cjs --only rootstone-dashboard --update-env
+pm2 save
+pm2 list
 ```
 
 ## 5. cron 대체
 
-기존 Vercel cron 스케줄은 아래 systemd timer 로 옮겼다.
+기존 Vercel cron 스케줄은 아래 `systemd timer` 로 옮긴다.
 
 - `snapshot` -> `00:00 UTC`
 - `daily-nav` -> `00:05 UTC`
@@ -148,7 +149,9 @@ sudo systemctl list-timers | grep rootstone-dashboard
 - `pnpm install --frozen-lockfile`
 - `pnpm db:push`
 - `pnpm build:standalone`
-- `systemd` 서비스와 타이머 재설치
+- 기존 `rootstone-dashboard.service` 비활성화
+- `pm2` 로 `ecosystem.config.cjs` 재기동 + `pm2 save`
+- `systemd timer` 재설치
 - `/login`, `/dashboard`, `/api/cron/snapshot` smoke check
 
 ## 8. 운영 체크리스트
@@ -156,6 +159,6 @@ sudo systemctl list-timers | grep rootstone-dashboard
 - `.env` 가 배포 경로에 존재하는지
 - `DATABASE_URL` 이 RDS 를 가리키는지
 - `pnpm db:push` 가 성공했는지
-- `systemctl status rootstone-dashboard` 가 `active (running)` 인지
+- `pm2 list` 에서 `rootstone-dashboard` 가 `online` 인지
 - `/api/cron/*` 엔드포인트가 `CRON_SECRET` 없이 호출되지 않는지
-- 타이머 3개가 모두 등록됐는지
+- 타이머 4개가 모두 등록됐는지

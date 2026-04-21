@@ -148,7 +148,12 @@ jobs:
           pnpm db:push
           pnpm build:standalone
 
-          sudo install -m 644 deploy/systemd/rootstone-dashboard.service /etc/systemd/system/rootstone-dashboard.service
+          command -v pm2 >/dev/null 2>&1 || npm install -g pm2
+
+          sudo systemctl disable --now rootstone-dashboard.service || true
+          sudo rm -f /etc/systemd/system/rootstone-dashboard.service
+          sudo rm -f /etc/systemd/system/multi-user.target.wants/rootstone-dashboard.service
+
           sudo install -m 644 deploy/systemd/rootstone-dashboard-snapshot.service /etc/systemd/system/rootstone-dashboard-snapshot.service
           sudo install -m 644 deploy/systemd/rootstone-dashboard-snapshot.timer /etc/systemd/system/rootstone-dashboard-snapshot.timer
           sudo install -m 644 deploy/systemd/rootstone-dashboard-daily-nav.service /etc/systemd/system/rootstone-dashboard-daily-nav.service
@@ -159,14 +164,17 @@ jobs:
           sudo install -m 644 deploy/systemd/rootstone-dashboard-update-benchmarks.timer /etc/systemd/system/rootstone-dashboard-update-benchmarks.timer
 
           sudo systemctl daemon-reload
-          sudo systemctl enable --now rootstone-dashboard.service
           sudo systemctl enable --now rootstone-dashboard-snapshot.timer
           sudo systemctl enable --now rootstone-dashboard-daily-nav.timer
           sudo systemctl enable --now rootstone-dashboard-margin-util.timer
           sudo systemctl enable --now rootstone-dashboard-update-benchmarks.timer
-          sudo systemctl restart rootstone-dashboard.service
 
-          sudo systemctl is-active --quiet rootstone-dashboard.service
+          if pm2 describe rootstone-dashboard >/dev/null 2>&1; then
+            pm2 delete rootstone-dashboard
+          fi
+          pm2 start ecosystem.config.cjs --only rootstone-dashboard --update-env
+          pm2 save
+          pm2 describe rootstone-dashboard >/dev/null
 
           login_code=""
           for attempt in {1..30}; do
@@ -194,5 +202,6 @@ jobs:
             exit 1
           fi
 
+          pm2 list
           sudo systemctl list-timers --all | grep 'rootstone-dashboard-'
           EOF

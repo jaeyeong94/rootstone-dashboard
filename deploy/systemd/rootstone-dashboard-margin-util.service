@@ -1,6 +1,6 @@
 [Unit]
 Description=Rootstone Dashboard margin util cron
-After=rootstone-dashboard.service
+After=network-online.target
 
 [Service]
 Type=oneshot

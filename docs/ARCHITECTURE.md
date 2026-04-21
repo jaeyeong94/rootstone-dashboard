@@ -15,7 +15,7 @@
 | **DB** | PostgreSQL (AWS RDS) |
 | **ORM** | Drizzle ORM |
 | **WebSocket** | Bybit WebSocket API (서버 프록시) |
-| **Deploy** | AWS EC2 + systemd + Nginx |
+| **Deploy** | AWS EC2 + PM2 + systemd timers + Nginx |
 | **Language** | TypeScript |
 
 ### 왜 이 선택인가
